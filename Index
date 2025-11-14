@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MuzzSnap.News</title>
+    <!-- Carga de Tailwind CSS para el diseño moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de Font Awesome para iconos de redes sociales (X y Telegram) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZ6fW+1W8qK+g4rKx9F0u5hL+A3K3S1b0s1t2M+6B0rD0sE/1z6uR8A/7+2z1I92Q2T4q6vY+Q2w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Configuración de la fuente Inter (estándar en muchos diseños modernos) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Evitar barras de desplazamiento innecesarias */
+        }
+
+        /* Estilo para el fondo difuminado (gris y negro con translucidez) */
+        .muzz-background {
+            background-color: #0a0a0a; /* Fondo base casi negro */
+            position: relative;
+            z-index: 0;
+        }
+
+        /* Capa de efecto de gradiente radial y blur (difuminado de alta calidad) */
+        .muzz-background::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            /* Creación de dos puntos de luz sutiles y borrosos (translucidez) */
+            background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
+            z-index: 1;
+            filter: blur(8px); /* Aplica el efecto de difuminado */
+            opacity: 0.9;
+        }
+
+        /* Animación y efectos para los enlaces sociales */
+        .social-link {
+            transition: transform 0.2s, color 0.2s;
+        }
+
+        .social-link:hover {
+            transform: scale(1.1); /* Ligero aumento de tamaño al pasar el ratón */
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5)); /* Sombra para resaltar */
+        }
+        
+        /* Definición de colores específicos para los iconos sociales */
+        .text-x {
+            color: #ffffff; /* El logo de X (Twitter) es blanco */
+        }
+        .text-telegram {
+            color: #229ED9; /* Color oficial de Telegram */
+        }
+    </style>
+</head>
+<body class="muzz-background min-h-screen flex items-center justify-center p-4">
+
+    <!-- Contenedor principal centrado y con restricción de ancho para móvil -->
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl">
+
+        <!-- Logo (Imagen subida) - Ahora usando la URL proporcionada -->
+        <div class="mb-5">
+            <img
+                src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000027796.png/:/rs=w:1440,h:1440"
+                alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=Muzz';"
+            >
+        </div>
+
+        <!-- Título -->
+        <h1 class="text-5xl font-extrabold text-white mb-2 tracking-tight">
+          
+        </h1>
+
+        <!-- Subtítulo / Lema (con traducciones en inglés y japonés) -->
+        <p class="text-sm font-light text-gray-400 mb-12 tracking-wider">
+            🔑 Much more than a simple app...⌛️
+            
+            単なるアプリ以上のもの。
+        </p>
+
+        <!-- Menú de Redes Sociales -->
+        <div class="flex justify-center space-x-12">
+
+            <!-- Link a X (Twitter) - Color blanco aplicado -->
+            <a
+                href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="social-link hover:text-white"
+                aria-label="Enlace a la cuenta de X (Twitter)"
+            >
+                <!-- Icono de X (Twitter) con color personalizado -->
+                <i class="fab fa-x-twitter text-4xl text-x"></i>
+            </a>
+
+            <!-- Link a Telegram - Color azul aplicado -->
+            <a
+                href="https://t.me/MuzzleToken"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="social-link hover:text-blue-400"
+                aria-label="Enlace al canal de Telegram"
+            >
+                <!-- Icono de Telegram con color personalizado -->
+                <i class="fab fa-telegram-plane text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <!-- Pie de página -->
+        <footer class="mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap &trade;</p>
+            <p class="mt-1">&copy; 2025. Ryashu power</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>
