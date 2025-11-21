@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MuzzSnap Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
@@ -12,14 +12,13 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #0a0a0a;
-            /* Esto asegura el centrado perfecto */
-            display: flex;
+            margin: 0;
+            height: 100vh; /* Altura completa */
+            display: flex; /* Flexbox para centrar */
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            overflow: hidden; /* Evita scroll innecesario */
+            overflow: hidden;
         }
 
         .muzz-background::before {
@@ -29,11 +28,178 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
-                        radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
+            background: radial-gradient(circle at 50% 50%, rgba(100, 100, 100, 0.1) 0%, transparent 70%);
             z-index: -1;
             pointer-events: none;
         }
+
+        #logoButton {
+            cursor: pointer;
+            transition: transform 0.2s;
+            -webkit-tap-highlight-color: transparent; /* Quita el brillo azul al tocar en móvil */
+        }
+        
+        #logoButton:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="muzz-background text-white relative">
+
+    <div class="absolute top-5 right-5 z-50">
+        <span id="walletStatus" class="py-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-900/80 border border-gray-700 rounded-full backdrop-blur-md">
+            Disconnected
+        </span>
+    </div>
+
+    <div class="flex flex-col items-center justify-center w-full px-6 z-10">
+
+        <div 
+            id="logoButton" 
+            class="mb-8 relative flex items-center justify-center"
+            onclick="handleConnect()"
+        >
+            <img
+                id="muzzLogo"
+                src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000027796.png/:/rs=w:1440,h:1440"
+                alt="MuzzSnap Logo"
+                class="w-32 h-32 object-contain drop-shadow-2xl"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';"
+            >
+            <div id="loadingSpinner" class="absolute inset-0 flex items-center justify-center hidden">
+                <i class="fas fa-spinner fa-spin text-4xl text-white drop-shadow-md"></i>
+            </div>
+        </div>
+
+        <h1 class="text-3xl font-black text-white mb-2 tracking-tighter">
+            MuzzSnap
+        </h1>
+
+        <p class="text-xs text-gray-500 mb-8 tracking-[0.2em] uppercase">
+            Secure Access Verification
+        </p>
+
+        <div id="errorBox" class="hidden mb-6 p-3 bg-red-900/30 border border-red-800 rounded-lg max-w-xs text-center">
+            <p id="errorText" class="text-xs text-red-300">Error connecting</p>
+        </div>
+
+        <div class="flex gap-8 mt-4 opacity-80">
+            <a href="https://x.com/MuzzleToken" target="_blank"><i class="fab fa-x-twitter text-2xl"></i></a>
+            <a href="https://t.me/MuzzleToken" target="_blank"><i class="fab fa-telegram-plane text-2xl text-blue-400"></i></a>
+        </div>
+
+        <footer class="absolute bottom-6 text-[10px] text-gray-700">
+            &copy; 2025 Ryashu Power
+        </footer>
+
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap Portal\n\nContract: ${CONTRACT_ADDRESS}\n\nSign to verify access.`;
+        const CHAT_PAGE = "MuzzSnap2025.html"; 
+
+        // Elementos
+        const ui = {
+            logo: document.getElementById('muzzLogo'),
+            spinner: document.getElementById('loadingSpinner'),
+            status: document.getElementById('walletStatus'),
+            errorBox: document.getElementById('errorBox'),
+            errorText: document.getElementById('errorText')
+        };
+
+        let isBusy = false;
+
+        // Utilidades UI
+        const setBusy = (busy) => {
+            isBusy = busy;
+            if(busy) {
+                ui.logo.style.opacity = '0.3';
+                ui.spinner.classList.remove('hidden');
+            } else {
+                ui.logo.style.opacity = '1';
+                ui.spinner.classList.add('hidden');
+            }
+        };
+
+        const showError = (msg) => {
+            ui.errorBox.classList.remove('hidden');
+            ui.errorText.textContent = msg;
+            ui.status.textContent = "Error";
+            ui.status.classList.add('text-red-500', 'border-red-500');
+            setTimeout(() => ui.errorBox.classList.add('hidden'), 5000);
+        };
+
+        // --- LÓGICA PRINCIPAL ---
+
+        async function handleConnect() {
+            if(isBusy) return;
+            setBusy(true);
+            ui.status.textContent = "Initializing...";
+
+            // 1. Detectar si es móvil y NO tiene web3
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            
+            if (typeof window.ethereum === 'undefined') {
+                if (isMobile) {
+                    ui.status.textContent = "Opening App...";
+                    // Deep Link Universal
+                    const currentUrl = window.location.href.split('#')[0]; // Limpiar URL
+                    const deepLink = `https://metamask.app.link/dapp/${currentUrl.replace(/^https?:\/\//, '')}`;
+                    
+                    setTimeout(() => {
+                        setBusy(false);
+                        ui.status.textContent = "Tap Logo Again";
+                    }, 3000);
+                    
+                    window.location.href = deepLink;
+                    return;
+                } else {
+                    setBusy(false);
+                    showError("Please install MetaMask extension");
+                    return;
+                }
+            }
+
+            // 2. Conectar y Firmar
+            try {
+                ui.status.textContent = "Requesting Wallet...";
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const account = accounts[0];
+
+                ui.status.textContent = "Please Sign...";
+                // Firma Personal (Compatible con todo)
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, account]
+                });
+
+                // 3. Éxito
+                ui.status.textContent = "Success!";
+                ui.status.classList.remove('text-gray-400');
+                ui.status.classList.add('text-green-400', 'border-green-500');
+                
+                // Guardar bandera para auto-login
+                localStorage.setItem('muzz_login_pending', 'true');
+                
+                setTimeout(() => {
+                    window.location.href = CHAT_PAGE;
+                }, 1000);
+
+            } catch (err) {
+                console.error(err);
+                setBusy(false);
+                if (err.code === 4001) {
+                    showError("Signature rejected by user");
+                } else {
+                    showError(err.message || "Connection failed");
+                }
+            }
+        }
+    </script>
+</body>
+</html>
 
         .text-x { color: #ffffff; }
         .text-telegram { color: #229ED9; }
