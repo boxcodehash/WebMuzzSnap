@@ -78,6 +78,472 @@
             transform: scale(1.05);
         }
         
+        /* Responsive adjustments */
+        @media (min-width: 640px) {
+            .muzz-background {
+                min-height: 100vh;
+            }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 639px) {
+            #statusContainer {
+                flex-direction: column;
+                top: 8px;
+                right: 8px;
+                gap: 4px;
+            }
+            
+            #walletStatus, #disconnectButton {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.75rem;
+            }
+            
+            .wallet-message {
+                font-size: 0.85rem;
+            }
+            
+            h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Touch-friendly buttons on mobile */
+        @media (hover: none) and (pointer: coarse) {
+            #logoButton, #disconnectButton {
+                -webkit-tap-highlight-color: transparent;
+            }
+        }
+    </style>
+</head>
+<body class="muzz-background min-h-screen flex items-center justify-center p-4">
+
+    <!-- Status/Wallet indicator in top right corner -->
+    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+        <!-- Disconnect button (hidden by default) -->
+        <button 
+            id="disconnectButton" 
+            class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+            onclick="disconnectWallet()"
+        >
+            <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+        </button>
+    </div>
+
+    <!-- Main centered container -->
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl">
+
+        <!-- Logo (UNIFIED CONNECTION BUTTON OR DEEP LINK) -->
+        <div 
+            id="logoButton" 
+            class="mb-5 cursor-pointer relative"
+            onclick="handleLogoClick()"
+        >
+            <img
+                id="muzzLogo"
+                src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000027796.png/:/rs=w:1440,h:1440"
+                alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=Muzz';"
+            >
+            <!-- Loading spinner (initially hidden) -->
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <!-- Error/Warning message (visible if no wallet) -->
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">Wallet not detected.</span>
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400">
+                Click on the logo to attempt connection.
+            </p>
+        </div>
+
+        <!-- Title -->
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight">
+    
+        </h1>
+
+        <!-- Subtitle / Motto -->
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️
+            
+            単なるアプリ以上のもの。
+        </p>
+
+        <!-- Social media menu -->
+        <div class="flex justify-center space-x-8 sm:space-x-12">
+            <!-- Link to X (Twitter) -->
+            <a
+                href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to X (Twitter) account"
+            >
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <!-- Link to Telegram -->
+            <a
+                href="https://t.me/MuzzleToken"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to Telegram channel"
+            >
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap &trade;</p>
+            <p class="mt-1">&copy; 2025. Ryashu power</p>
+        </footer>
+
+    </div>
+    
+    <!-- Wallet connection logic script -->
+    <script>
+        const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap.News\n\nContract: ${CONTRACT_ADDRESS}\n\nSign this message to authenticate securely.\n\nThis signature is gas-free.`;
+
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const noWalletText = document.getElementById('noWalletText');
+        const messageTitle = document.getElementById('messageTitle');
+        const disconnectButton = document.getElementById('disconnectButton');
+
+        let isConnecting = false;
+        let isConnected = false;
+        let currentAddress = null;
+
+        // Function to display status messages
+        function updateStatus(message, type = 'info') {
+            walletStatus.textContent = message;
+            walletStatus.classList.remove('text-gray-400', 'bg-gray-800', 'text-red-400', 'bg-red-900', 'text-green-400', 'bg-green-900');
+
+            if (type === 'error') {
+                walletStatus.classList.add('text-red-400', 'bg-red-900');
+            } else if (type === 'success') {
+                walletStatus.classList.add('text-green-400', 'bg-green-900');
+            } else { // info / default
+                walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+            }
+        }
+
+        // Function to control logo loading state
+        function setLoading(isLoading) {
+            isConnecting = isLoading;
+            if (isLoading) {
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor = 'wait';
+                noWalletMessage.classList.add('hidden');
+            } else {
+                muzzLogo.style.opacity = '1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+            }
+        }
+        
+        // Function to attempt Deep Link (called when no window.ethereum)
+        function attemptMobileDeepLink() {
+            setLoading(true);
+            updateStatus("Opening MetaMask...", 'info');
+            
+            // Get current URL without protocol
+            const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+            
+            // Create correct deep link for MetaMask
+            const deepLink = `https://metamask.app.link/dapp/${currentUrl}`;
+            
+            console.log("Attempting deep link:", deepLink);
+            
+            // Try to open MetaMask
+            window.location.href = deepLink;
+            
+            // Fallback after 3 seconds
+            setTimeout(() => {
+                setLoading(false);
+                updateStatus("Open MetaMask manually", 'info');
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "MetaMask not opened?";
+                noWalletText.innerHTML = `
+                    <strong>Instructions:</strong><br>
+                    1. Open the MetaMask app<br>
+                    2. Go to the internal browser (browser icon 🌐)<br>
+                    3. Enter this URL: ${window.location.href}
+                `;
+            }, 3000); 
+        }
+
+        // Function to disconnect wallet
+        function disconnectWallet() {
+            console.log("=== Disconnecting wallet ===");
+            
+            isConnected = false;
+            currentAddress = null;
+            
+            // Update UI
+            updateStatus("Disconnected", 'info');
+            disconnectButton.classList.add('hidden');
+            
+            // Show connection message
+            noWalletMessage.classList.remove('hidden');
+            messageTitle.textContent = "Wallet disconnected";
+            noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+            
+            console.log("Wallet disconnected successfully");
+        }
+
+        // Main connection and signature function
+        async function connectWalletAndSign() {
+            if (isConnecting) {
+                console.log("Connection already in progress");
+                return;
+            }
+
+            console.log("=== Starting connection process ===");
+            console.log("Provider available:", typeof window.ethereum !== 'undefined');
+
+            // If no wallet, execute Deep Link
+            if (typeof window.ethereum === 'undefined') {
+                console.log("Provider not detected, attempting deep link");
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Redirecting to MetaMask...";
+                updateStatus("Redirecting...", 'info');
+                attemptMobileDeepLink();
+                return; 
+            }
+
+            // If provider exists, proceed with connection and signature
+            setLoading(true);
+            noWalletMessage.classList.add('hidden');
+            updateStatus("Requesting connection...", 'info');
+            
+            try {
+                console.log("STEP 1: Requesting accounts...");
+                // STEP 1: Request accounts (Connection)
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+                
+                console.log("✓ Account connected:", address);
+                
+                // Small pause for user to see the change
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                console.log("STEP 2: Requesting signature...");
+                // STEP 2: Request message signature (Authentication)
+                updateStatus("Waiting for signature...", 'info');
+                
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, address],
+                });
+                
+                console.log("✓ Signature obtained:", signature.substring(0, 20) + "...");
+                
+                // Success
+                isConnected = true;
+                currentAddress = address;
+                const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                updateStatus(`✓ ${shortAddress}`, 'success');
+                
+                // Show disconnect button
+                disconnectButton.classList.remove('hidden');
+                
+                console.log("=== Access successful ===");
+                console.log("Address:", address);
+                console.log("Signature:", signature);
+
+            } catch (error) {
+                // Handle errors
+                console.error("=== Error in process ===");
+                console.error("Error code:", error.code);
+                console.error("Message:", error.message);
+                console.error("Full error:", error);
+                
+                let errorMessage = "Signature or connection cancelled.";
+                if (error.code === 4001) {
+                    errorMessage = "Access denied by user.";
+                } else if (error.code === -32002) {
+                    errorMessage = "Pending request in MetaMask.";
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message.substring(0, 40).replace(/\n/g, ' ')}...`;
+                }
+                updateStatus(errorMessage, 'error');
+                
+                // Show error message
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Connection error";
+                noWalletText.textContent = errorMessage;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Handle logo click
+        function handleLogoClick() {
+            if (isConnected) {
+                // If already connected, show info
+                const shortAddress = currentAddress.slice(0, 6) + "..." + currentAddress.slice(-4);
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Already connected";
+                noWalletText.innerHTML = `<strong>Address:</strong> ${shortAddress}<br><br>Use the disconnect button to sign out.`;
+            } else {
+                // If not connected, try to connect
+                connectWalletAndSign();
+            }
+        }
+
+        // --- Initialization logic ---
+        window.onload = async () => {
+            // Wait for MetaMask to inject (important on mobile)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log("Verifying provider...");
+            console.log("window.ethereum exists:", typeof window.ethereum !== 'undefined');
+            console.log("Is MetaMask:", window.ethereum?.isMetaMask);
+            console.log("User Agent:", navigator.userAgent);
+            
+            if (typeof window.ethereum !== 'undefined') {
+                // If provider detected
+                noWalletMessage.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    
+                    if (accounts.length > 0) {
+                        // Already connected previously
+                        const address = accounts[0];
+                        isConnected = true;
+                        currentAddress = address;
+                        const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                        updateStatus(`✓ ${shortAddress}`, 'success');
+                        disconnectButton.classList.remove('hidden');
+                        console.log("Account already connected:", address);
+                    } else {
+                        // Not connected, show default message
+                        updateStatus("Click logo to connect", 'info');
+                        noWalletMessage.classList.remove('hidden');
+                        messageTitle.textContent = "Welcome!";
+                        noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+                    }
+                } catch (error) {
+                    console.warn("Error verifying accounts:", error);
+                    updateStatus("Click logo to connect", 'info');
+                }
+            } else {
+                // If no provider (standard browser)
+                console.warn("MetaMask not detected");
+                updateStatus("MetaMask not detected", 'error');
+                noWalletMessage.classList.remove('hidden');
+                
+                // Detect if mobile
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    messageTitle.textContent = "⚠️ Use MetaMask browser";
+                    noWalletText.innerHTML = `
+                        <strong>Steps:</strong><br>
+                        1. Open the MetaMask app<br>
+                        2. Tap the browser icon (🌐)<br>
+                        3. Enter this URL:<br>
+                        <code class="text-xs break-all">${window.location.href}</code>
+                    `;
+                } else {
+                    messageTitle.textContent = "MetaMask not installed";
+                    noWalletText.innerHTML = `
+                        Install MetaMask from:<br>
+                        <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io/download</a>
+                    `;
+                }
+                logoButton.style.cursor = 'pointer'; 
+            }
+        };
+
+        // Listen for account changes
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log("Accounts changed:", accounts);
+                
+                if (accounts.length > 0) {
+                    isConnected = true;
+                    currentAddress = accounts[0];
+                    const shortAddress = accounts[0].slice(0, 6) + "..." + accounts[0].slice(-4);
+                    updateStatus(`✓ ${shortAddress}`, 'success');
+                    disconnectButton.classList.remove('hidden');
+                    noWalletMessage.classList.add('hidden');
+                } else {
+                    // Account disconnected from MetaMask
+                    disconnectWallet();
+                }
+            });
+
+            // Listen for network changes
+            window.ethereum.on('chainChanged', () => {
+                console.log("Network changed, reloading...");
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+</html>            filter: blur(8px);
+            opacity: 0.9;
+        }
+
+        /* Specific colors for social icons */
+        .text-x { color: #ffffff; }
+        .text-telegram { color: #229ED9; }
+        
+        /* Logo button styles */
+        #logoButton {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        #logoButton:hover {
+            opacity: 0.9;
+        }
+
+        /* Loading spinner style */
+        #loadingSpinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        /* Error/info message box style */
+        .wallet-message {
+            background-color: #1f2937;
+            border: 1px solid #374151;
+        }
+
+        /* Disconnect button style */
+        #disconnectButton {
+            transition: all 0.3s ease;
+        }
+        
+        #disconnectButton:hover {
+            background-color: #991b1b;
+            transform: scale(1.05);
+        }
+        
         /* Desktop design media query */
         @media (min-width: 640px) {
             .muzz-background {
