@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MuzzSnap.News</title>
-    <!-- Carga de Tailwind CSS para el diseño moderno -->
+    <title>MuzzSnap.News - Acceso Wallet</title>
+    <!-- Carga de Tailwind CSS para el diseño moderno y responsive -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Carga de Font Awesome para iconos de redes sociales (X y Telegram) -->
+    <!-- Carga de Font Awesome para iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZ6fW+1W8qK+g4rKx9F0u5hL+A3K3S1b0s1t2M+6B0rD0sE/1z6uR8A/7+2z1I92Q2T4q6vY+Q2w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        /* Configuración de la fuente Inter (estándar en muchos diseños modernos) */
+        /* Configuración de la fuente Inter */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            overflow: hidden; /* Evitar barras de desplazamiento innecesarias */
+            overflow-x: hidden;
         }
 
-        /* Estilo para el fondo difuminado (gris y negro con translucidez) */
+        /* Estilo para el fondo difuminado */
         .muzz-background {
-            background-color: #0a0a0a; /* Fondo base casi negro */
+            background-color: #0a0a0a;
             position: relative;
             z-index: 0;
         }
 
-        /* Capa de efecto de gradiente radial y blur (difuminado de alta calidad) */
+        /* Capa de efecto de gradiente radial y blur */
         .muzz-background::before {
             content: '';
             position: absolute;
@@ -31,54 +31,98 @@
             left: 0;
             right: 0;
             bottom: 0;
-            /* Creación de dos puntos de luz sutiles y borrosos (translucidez) */
             background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
                         radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
             z-index: 1;
-            filter: blur(8px); /* Aplica el efecto de difuminado */
+            filter: blur(8px);
             opacity: 0.9;
         }
 
-        /* Animación y efectos para los enlaces sociales */
-        .social-link {
-            transition: transform 0.2s, color 0.2s;
-        }
-
-        .social-link:hover {
-            transform: scale(1.1); /* Ligero aumento de tamaño al pasar el ratón */
-            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5)); /* Sombra para resaltar */
+        /* Colores específicos para los iconos sociales */
+        .text-x { color: #ffffff; }
+        .text-telegram { color: #229ED9; }
+        
+        /* Estilos del logo (AHORA BOTÓN UNIFICADO) */
+        #logoButton {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative; /* Necesario para el spinner */
         }
         
-        /* Definición de colores específicos para los iconos sociales */
-        .text-x {
-            color: #ffffff; /* El logo de X (Twitter) es blanco */
+        #logoButton:hover {
+            opacity: 0.9;
         }
-        .text-telegram {
-            color: #229ED9; /* Color oficial de Telegram */
+
+        /* Estilo para el spinner de carga */
+        #loadingSpinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        /* Estilo para la caja de error/información (Modal/Mensaje) */
+        .wallet-message {
+            background-color: #1f2937; /* Gris oscuro */
+            border: 1px solid #374151; /* Borde sutil */
+        }
+        
+        /* Media query para diseño de escritorio */
+        @media (min-width: 640px) {
+            .muzz-background {
+                min-height: 100vh;
+            }
         }
     </style>
 </head>
 <body class="muzz-background min-h-screen flex items-center justify-center p-4">
 
-    <!-- Contenedor principal centrado y con restricción de ancho para móvil -->
+    <!-- Indicador de Estado/Wallet en la Esquina Superior Derecha -->
+    <div id="statusContainer" class="absolute top-4 right-4 z-20">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+    </div>
+
+    <!-- Contenedor principal centrado -->
     <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl">
 
-        <!-- Logo (Imagen subida) - Ahora usando la URL proporcionada -->
-        <div class="mb-5">
+        <!-- Logo (BOTÓN UNIFICADO DE CONEXIÓN O DEEP LINK) -->
+        <div 
+            id="logoButton" 
+            class="mb-5 cursor-pointer relative"
+            onclick="connectWalletAndSign()"
+        >
             <img
+                id="muzzLogo"
                 src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000027796.png/:/rs=w:1440,h:1440"
                 alt="MuzzSnap Logo"
                 class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
                 onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=Muzz';"
             >
+            <!-- Spinner de Carga Oculto Inicialmente -->
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <!-- Mensaje de Error/Advertencia (Visible si no hay billetera) -->
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> Undetected wallet.
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400">
+                Click on the logo to try the connection.
+            </p>
         </div>
 
         <!-- Título -->
         <h1 class="text-5xl font-extrabold text-white mb-2 tracking-tight">
-          
+            
         </h1>
 
-        <!-- Subtítulo / Lema (con traducciones en inglés y japonés) -->
+        <!-- Subtítulo / Lema -->
         <p class="text-sm font-light text-gray-400 mb-12 tracking-wider">
             🔑 Much more than a simple app...⌛️
             
@@ -87,28 +131,25 @@
 
         <!-- Menú de Redes Sociales -->
         <div class="flex justify-center space-x-12">
-
-            <!-- Link a X (Twitter) - Color blanco aplicado -->
+            <!-- Link a X (Twitter) -->
             <a
                 href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="social-link hover:text-white"
+                class="transition duration-200 hover:scale-110"
                 aria-label="Enlace a la cuenta de X (Twitter)"
             >
-                <!-- Icono de X (Twitter) con color personalizado -->
                 <i class="fab fa-x-twitter text-4xl text-x"></i>
             </a>
 
-            <!-- Link a Telegram - Color azul aplicado -->
+            <!-- Link a Telegram -->
             <a
                 href="https://t.me/MuzzleToken"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="social-link hover:text-blue-400"
+                class="transition duration-200 hover:scale-110"
                 aria-label="Enlace al canal de Telegram"
             >
-                <!-- Icono de Telegram con color personalizado -->
                 <i class="fab fa-telegram-plane text-4xl text-telegram"></i>
             </a>
         </div>
@@ -120,6 +161,226 @@
         </footer>
 
     </div>
+    
+    <!-- Script de Lógica de Conexión de Wallet -->
+    <script>
+        const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+        const LOGIN_MESSAGE = `Acceso a MuzzSnap.News. Contrato: ${CONTRACT_ADDRESS}. Firma para continuar.`;
 
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const noWalletText = document.getElementById('noWalletText');
+
+        let isConnecting = false;
+
+        // Función para mostrar mensajes de estado
+        function updateStatus(message, type = 'info') {
+            walletStatus.textContent = message;
+            walletStatus.classList.remove('text-gray-400', 'bg-gray-800', 'text-red-400', 'bg-red-900', 'text-green-400', 'bg-green-900');
+
+            if (type === 'error') {
+                walletStatus.classList.add('text-red-400', 'bg-red-900');
+            } else if (type === 'success') {
+                walletStatus.classList.add('text-green-400', 'bg-green-900');
+            } else { // info / default
+                walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+            }
+        }
+
+        // Función para controlar el estado de carga del logo
+        function setLoading(isLoading) {
+            isConnecting = isLoading;
+            if (isLoading) {
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor = 'wait';
+                noWalletMessage.classList.add('hidden'); // Ocultar mensaje de error
+            } else {
+                muzzLogo.style.opacity = '1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+            }
+        }
+        
+        // Función para intentar el Deep Link (llamada cuando no hay window.ethereum)
+        function attemptMobileDeepLink() {
+            setLoading(true);
+            updateStatus("Opening MetaMask...", 'info');
+            
+            // Obtener la URL actual sin el protocolo
+            const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+            
+            // Crear el deep link correcto para MetaMask
+            const deepLink = `https://metamask.app.link/dapp/${currentUrl}`;
+            
+            console.log("Intentando deep link:", deepLink);
+            
+            // Intentar abrir MetaMask
+            window.location.href = deepLink;
+            
+            // Fallback después de 3 segundos
+            setTimeout(() => {
+                setLoading(false);
+                updateStatus("Abre MetaMask manualmente", 'info');
+                noWalletMessage.classList.remove('hidden');
+                noWalletText.innerHTML = `
+                    <strong>Instructions:</strong><br>
+                    1. Open the MetaMask app<br>
+                    2. Go to the internal browser (browser icon)<br>
+                    3. Enter this URL: ${window.location.href}
+                `;
+            }, 3000); 
+        }
+
+        async function connectWalletAndSign() {
+            if (isConnecting) {
+                console.log("Ya hay una conexión en proceso");
+                return;
+            }
+
+            console.log("=== Iniciando proceso de conexión ===");
+            console.log("Proveedor disponible:", typeof window.ethereum !== 'undefined');
+
+            // Si no hay billetera, ejecutar Deep Link
+            if (typeof window.ethereum === 'undefined') {
+                console.log("No se detectó proveedor, intentando deep link");
+                noWalletMessage.classList.remove('hidden');
+                updateStatus("Redirigiendo a Wallet Móvil...", 'info');
+                attemptMobileDeepLink();
+                return; 
+            }
+
+            // Si hay proveedor, proceder con conexión y firma
+            setLoading(true);
+            noWalletMessage.classList.add('hidden');
+            updateStatus("Solicitando conexión...", 'info');
+            
+            try {
+                console.log("PASO 1: Solicitando cuentas...");
+                // PASO 1: Pedir cuentas (Conexión)
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+                
+                console.log("✓ Cuenta conectada:", address);
+                
+                // Pequeña pausa para que el usuario vea el cambio
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                console.log("PASO 2: Solicitando firma...");
+                // PASO 2: Solicitar la firma del mensaje (Autenticación)
+                updateStatus("Esperando firma de acceso...", 'info');
+                
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, address],
+                });
+                
+                console.log("✓ Firma obtenida:", signature.substring(0, 20) + "...");
+                
+                // Éxito
+                const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                updateStatus(`${shortAddress}`, 'success');
+                
+                console.log("=== Acceso exitoso ===");
+                console.log("Dirección:", address);
+                console.log("Firma:", signature);
+
+            } catch (error) {
+                // Manejar errores
+                console.error("=== Error en el proceso ===");
+                console.error("Código de error:", error.code);
+                console.error("Mensaje:", error.message);
+                console.error("Error completo:", error);
+                
+                let errorMessage = "Firma o Conexión cancelada.";
+                if (error.code === 4001) {
+                    errorMessage = "Acceso denegado por el usuario.";
+                } else if (error.code === -32002) {
+                    errorMessage = "Solicitud pendiente en MetaMask.";
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message.substring(0, 40).replace(/\n/g, ' ')}...`;
+                }
+                updateStatus(errorMessage, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- Lógica de Inicialización ---
+        window.onload = async () => {
+            // Esperar a que MetaMask se inyecte (importante en móvil)
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log("Verificando proveedor...");
+            console.log("window.ethereum existe:", typeof window.ethereum !== 'undefined');
+            console.log("Es MetaMask:", window.ethereum?.isMetaMask);
+            console.log("User Agent:", navigator.userAgent);
+            
+            if (typeof window.ethereum !== 'undefined') {
+                // Si hay proveedor detectado
+                noWalletMessage.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    
+                    if (accounts.length > 0) {
+                        // Ya conectado previamente
+                        const address = accounts[0];
+                        const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                        updateStatus(`${shortAddress}`, 'success');
+                        console.log("Cuenta ya conectada:", address);
+                    } else {
+                        // No conectado, mostrar mensaje por defecto
+                        updateStatus("Toca el logo para conectar", 'info');
+                    }
+                } catch (error) {
+                    console.warn("Error al verificar cuentas:", error);
+                    updateStatus("Toca el logo para conectar", 'info');
+                }
+            } else {
+                // Si no hay proveedor (navegador estándar)
+                console.warn("MetaMask no detectado");
+                updateStatus("MetaMask no detectado", 'error');
+                noWalletMessage.classList.remove('hidden');
+                
+                // Detectar si es móvil
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    noWalletText.innerHTML = `
+                        <strong>⚠️ Debes usar el navegador de MetaMask</strong><br><br>
+                        <strong>Pasos:</strong><br>
+                        1. Abre la app de MetaMask<br>
+                        2. Toca el icono del navegador (🌐)<br>
+                        3. Ingresa esta URL:<br>
+                        <code class="text-xs">${window.location.href}</code>
+                    `;
+                } else {
+                    noWalletText.innerHTML = `
+                        Instala MetaMask desde:<br>
+                        <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io/download</a>
+                    `;
+                }
+                logoButton.style.cursor = 'pointer'; 
+            }
+        };
+
+        // Escuchar cambios de cuenta
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                if (accounts.length > 0) {
+                    const address = accounts[0];
+                    const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                    updateStatus(`${shortAddress}`, 'success');
+                } else {
+                    updateStatus("Desconectado", 'info');
+                }
+            });
+        }
+    </script>
 </body>
-</html>
+    </html>
