@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MuzzSnap Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MuzzSnap - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh; 
+        }
+
+        .muzz-background {
             background-color: #0a0a0a;
-            margin: 0;
-            height: 100vh; /* Altura completa */
-            display: flex; /* Flexbox para centrar */
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            position: relative;
+            z-index: 0;
+            min-height: 100vh;
         }
 
         .muzz-background::before {
@@ -28,13 +29,812 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(100, 100, 100, 0.1) 0%, transparent 70%);
-            z-index: -1;
-            pointer-events: none;
+            background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
+            z-index: 1;
+            filter: blur(8px);
+            opacity: 0.9;
         }
 
+        .text-x { color: #ffffff; }
+        .text-telegram { color: #229ED9; }
+        
         #logoButton {
             cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        #logoButton:hover {
+            opacity: 0.9;
+        }
+
+        #loadingSpinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .wallet-message {
+            background-color: #1f2937;
+            border: 1px solid #374151;
+        }
+
+        #disconnectButton {
+            transition: all 0.3s ease;
+        }
+        
+        #disconnectButton:hover {
+            background-color: #991b1b;
+            transform: scale(1.05);
+        }
+        
+        /* Ajustes para móviles */
+        @media (max-width: 639px) {
+            #statusContainer {
+                flex-direction: column;
+                align-items: flex-end; 
+                top: 8px;
+                right: 8px;
+                gap: 4px;
+            }
+            
+            #walletStatus, #disconnectButton {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.75rem;
+            }
+            
+            .wallet-message {
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #logoButton, #disconnectButton {
+                -webkit-tap-highlight-color: transparent;
+            }
+        }
+    </style>
+</head>
+<body class="muzz-background p-4">
+
+    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+        <button 
+            id="disconnectButton" 
+            class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+            onclick="disconnectWallet()"
+        >
+            <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+        </button>
+    </div>
+
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+
+        <div 
+            id="logoButton" 
+            class="mb-5 cursor-pointer relative"
+            onclick="handleLogoClick()"
+        >
+            <img
+                id="muzzLogo"
+                src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440"
+                alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';"
+            >
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">Wallet not detected.</span>
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400">
+                Click on the logo to attempt connection.
+            </p>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight">
+            MuzzSnap.News
+        </h1>
+
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️
+            <br>
+            単なるアプリ以上のもの。
+        </p>
+
+        <div class="flex justify-center space-x-8 sm:space-x-12">
+            <a
+                href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to X (Twitter) account"
+            >
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <a
+                href="https://t.me/MuzzleToken"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to Telegram channel"
+            >
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap &trade;</p>
+            <p class="mt-1">&copy; 2025. Ryashu power</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap.News\n\nContract: ${CONTRACT_ADDRESS}\n\nSign this message to authenticate securely.\n\nThis signature is gas-free.`;
+
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const noWalletText = document.getElementById('noWalletText');
+        const messageTitle = document.getElementById('messageTitle');
+        const disconnectButton = document.getElementById('disconnectButton');
+
+        let isConnecting = false;
+        let isConnected = false;
+        let currentAddress = null;
+
+        // Función para redirigir al chat después de login exitoso
+        function redirectToChat() {
+            console.log("✅ Login successful, redirecting to chat...");
+            // Redirigir a chat.html después de un breve delay para que el usuario vea el éxito
+            setTimeout(() => {
+                window.location.href = 'chat.html';
+            }, 1500);
+        }
+
+        function updateStatus(message, type = 'info') {
+            walletStatus.textContent = message;
+            walletStatus.classList.remove('text-gray-400', 'bg-gray-800', 'text-red-400', 'bg-red-900', 'text-green-400', 'bg-green-900');
+
+            if (type === 'error') {
+                walletStatus.classList.add('text-red-400', 'bg-red-900');
+            } else if (type === 'success') {
+                walletStatus.classList.add('text-green-400', 'bg-green-900');
+            } else {
+                walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+            }
+        }
+
+        function setLoading(isLoading) {
+            isConnecting = isLoading;
+            if (isLoading) {
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor = 'wait';
+                noWalletMessage.classList.add('hidden');
+            } else {
+                muzzLogo.style.opacity = '1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+            }
+        }
+        
+        function attemptMobileDeepLink() {
+            setLoading(true);
+            updateStatus("Opening MetaMask...", 'info');
+            
+            const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+            const deepLink = `https://metamask.app.link/dapp/${currentUrl}`;
+            
+            console.log("Attempting deep link:", deepLink);
+            
+            window.location.href = deepLink;
+            
+            setTimeout(() => {
+                setLoading(false);
+                updateStatus("Open MetaMask manually", 'info');
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "MetaMask not opened?";
+                noWalletText.innerHTML = `
+                    <strong>Instructions:</strong><br>
+                    1. Open the MetaMask app<br>
+                    2. Go to the internal browser (browser icon 🌐)<br>
+                    3. Enter this URL: ${window.location.href}
+                `;
+            }, 3000); 
+        }
+
+        function disconnectWallet() {
+            console.log("=== Disconnecting wallet ===");
+            
+            isConnected = false;
+            currentAddress = null;
+            
+            updateStatus("Disconnected", 'info');
+            disconnectButton.classList.add('hidden');
+            
+            noWalletMessage.classList.remove('hidden');
+            messageTitle.textContent = "Wallet disconnected";
+            noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+            
+            console.log("Wallet disconnected successfully");
+        }
+
+        async function connectWalletAndSign() {
+            if (isConnecting) {
+                console.log("Connection already in progress");
+                return;
+            }
+
+            console.log("=== Starting connection process ===");
+            console.log("Provider available:", typeof window.ethereum !== 'undefined');
+
+            if (typeof window.ethereum === 'undefined') {
+                console.log("Provider not detected, attempting deep link");
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Redirecting to MetaMask...";
+                updateStatus("Redirecting...", 'info');
+                attemptMobileDeepLink();
+                return; 
+            }
+
+            setLoading(true);
+            noWalletMessage.classList.add('hidden');
+            updateStatus("Requesting connection...", 'info');
+            
+            try {
+                console.log("STEP 1: Requesting accounts...");
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+                
+                console.log("✓ Account connected:", address);
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                console.log("STEP 2: Requesting signature...");
+                updateStatus("Waiting for signature...", 'info');
+                
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, address],
+                });
+                
+                console.log("✓ Signature obtained:", signature.substring(0, 20) + "...");
+                
+                isConnected = true;
+                currentAddress = address;
+                const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                updateStatus(`✓ ${shortAddress}`, 'success');
+                
+                disconnectButton.classList.remove('hidden');
+                
+                console.log("=== Access successful ===");
+                console.log("Address:", address);
+                console.log("Signature:", signature);
+
+                // REDIRIGIR AL CHAT DESPUÉS DE LOGIN EXITOSO
+                redirectToChat();
+
+            } catch (error) {
+                console.error("=== Error in process ===");
+                console.error("Error code:", error.code);
+                console.error("Message:", error.message);
+                console.error("Full error:", error);
+                
+                let errorMessage = "Signature or connection cancelled.";
+                if (error.code === 4001) {
+                    errorMessage = "Access denied by user.";
+                } else if (error.code === -32002) {
+                    errorMessage = "Pending request in MetaMask.";
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message.substring(0, 40).replace(/\n/g, ' ')}...`;
+                }
+                updateStatus(errorMessage, 'error');
+                
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Connection error";
+                noWalletText.textContent = errorMessage;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function handleLogoClick() {
+            if (isConnected) {
+                // Si ya está conectado, redirigir directamente al chat
+                redirectToChat();
+            } else {
+                connectWalletAndSign();
+            }
+        }
+
+        window.onload = async () => {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log("Verifying provider...");
+            console.log("window.ethereum exists:", typeof window.ethereum !== 'undefined');
+            console.log("Is MetaMask:", window.ethereum?.isMetaMask);
+            console.log("User Agent:", navigator.userAgent);
+            
+            if (typeof window.ethereum !== 'undefined') {
+                noWalletMessage.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    
+                    if (accounts.length > 0) {
+                        const address = accounts[0];
+                        isConnected = true;
+                        currentAddress = address;
+                        const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                        updateStatus(`✓ ${shortAddress}`, 'success');
+                        disconnectButton.classList.remove('hidden');
+                        console.log("Account already connected:", address);
+                        
+                        // Si ya está conectado, mostrar mensaje de redirección
+                        noWalletMessage.classList.remove('hidden');
+                        messageTitle.textContent = "Already connected";
+                        noWalletText.innerHTML = `Click the logo to enter the chat.`;
+                    } else {
+                        updateStatus("Click logo to connect", 'info');
+                        noWalletMessage.classList.remove('hidden');
+                        messageTitle.textContent = "Welcome!";
+                        noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+                    }
+                } catch (error) {
+                    console.warn("Error verifying accounts:", error);
+                    updateStatus("Click logo to connect", 'info');
+                }
+            } else {
+                console.warn("MetaMask not detected");
+                updateStatus("MetaMask not detected", 'error');
+                noWalletMessage.classList.remove('hidden');
+                
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    messageTitle.textContent = "⚠️ Use MetaMask browser";
+                    noWalletText.innerHTML = `
+                        <strong>Steps:</strong><br>
+                        1. Open the MetaMask app<br>
+                        2. Tap the browser icon (🌐)<br>
+                        3. Enter this URL:<br>
+                        <code class="text-xs break-all">${window.location.href}</code>
+                    `;
+                } else {
+                    messageTitle.textContent = "MetaMask not installed";
+                    noWalletText.innerHTML = `
+                        Install MetaMask from:<br>
+                        <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io/download</a>
+                    `;
+                }
+                logoButton.style.cursor = 'pointer'; 
+            }
+        };
+
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log("Accounts changed:", accounts);
+                
+                if (accounts.length > 0) {
+                    isConnected = true;
+                    currentAddress = accounts[0];
+                    const shortAddress = accounts[0].slice(0, 6) + "..." + accounts[0].slice(-4);
+                    updateStatus(`✓ ${shortAddress}`, 'success');
+                    disconnectButton.classList.remove('hidden');
+                    noWalletMessage.classList.add('hidden');
+                } else {
+                    disconnectWallet();
+                }
+            });
+
+            window.ethereum.on('chainChanged', () => {
+                console.log("Network changed, reloading...");
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+</html>        #disconnectButton:hover {
+            background-color: #991b1b;
+            transform: scale(1.05);
+        }
+        
+        /* Ajustes para móviles */
+        @media (max-width: 639px) {
+            #statusContainer {
+                flex-direction: column;
+                align-items: flex-end; 
+                top: 8px;
+                right: 8px;
+                gap: 4px;
+            }
+            
+            #walletStatus, #disconnectButton {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.75rem;
+            }
+            
+            .wallet-message {
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #logoButton, #disconnectButton {
+                -webkit-tap-highlight-color: transparent;
+            }
+        }
+    </style>
+</head>
+<body class="muzz-background p-4">
+
+    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+        <button 
+            id="disconnectButton" 
+            class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+            onclick="disconnectWallet()"
+        >
+            <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+        </button>
+    </div>
+
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+
+        <div 
+            id="logoButton" 
+            class="mb-5 cursor-pointer relative"
+            onclick="handleLogoClick()"
+        >
+            <img
+                id="muzzLogo"
+                src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440"
+                alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';"
+            >
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">Wallet not detected.</span>
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400">
+                Click on the logo to attempt connection.
+            </p>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight">
+            MuzzSnap.News
+        </h1>
+
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️
+            <br>
+            単なるアプリ以上のもの。
+        </p>
+
+        <div class="flex justify-center space-x-8 sm:space-x-12">
+            <a
+                href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to X (Twitter) account"
+            >
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <a
+                href="https://t.me/MuzzleToken"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="transition duration-200 hover:scale-110 active:scale-95"
+                aria-label="Link to Telegram channel"
+            >
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap &trade;</p>
+            <p class="mt-1">&copy; 2025. Ryashu power</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap.News\n\nContract: ${CONTRACT_ADDRESS}\n\nSign this message to authenticate securely.\n\nThis signature is gas-free.`;
+
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const noWalletText = document.getElementById('noWalletText');
+        const messageTitle = document.getElementById('messageTitle');
+        const disconnectButton = document.getElementById('disconnectButton');
+
+        let isConnecting = false;
+        let isConnected = false;
+        let currentAddress = null;
+
+        // Función para redirigir al chat después de login exitoso
+        function redirectToChat() {
+            console.log("✅ Login successful, redirecting to chat...");
+            // Redirigir a chat.html después de un breve delay para que el usuario vea el éxito
+            setTimeout(() => {
+                window.location.href = 'chat.html';
+            }, 1500);
+        }
+
+        function updateStatus(message, type = 'info') {
+            walletStatus.textContent = message;
+            walletStatus.classList.remove('text-gray-400', 'bg-gray-800', 'text-red-400', 'bg-red-900', 'text-green-400', 'bg-green-900');
+
+            if (type === 'error') {
+                walletStatus.classList.add('text-red-400', 'bg-red-900');
+            } else if (type === 'success') {
+                walletStatus.classList.add('text-green-400', 'bg-green-900');
+            } else {
+                walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+            }
+        }
+
+        function setLoading(isLoading) {
+            isConnecting = isLoading;
+            if (isLoading) {
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor = 'wait';
+                noWalletMessage.classList.add('hidden');
+            } else {
+                muzzLogo.style.opacity = '1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+            }
+        }
+        
+        function attemptMobileDeepLink() {
+            setLoading(true);
+            updateStatus("Opening MetaMask...", 'info');
+            
+            const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+            const deepLink = `https://metamask.app.link/dapp/${currentUrl}`;
+            
+            console.log("Attempting deep link:", deepLink);
+            
+            window.location.href = deepLink;
+            
+            setTimeout(() => {
+                setLoading(false);
+                updateStatus("Open MetaMask manually", 'info');
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "MetaMask not opened?";
+                noWalletText.innerHTML = `
+                    <strong>Instructions:</strong><br>
+                    1. Open the MetaMask app<br>
+                    2. Go to the internal browser (browser icon 🌐)<br>
+                    3. Enter this URL: ${window.location.href}
+                `;
+            }, 3000); 
+        }
+
+        function disconnectWallet() {
+            console.log("=== Disconnecting wallet ===");
+            
+            isConnected = false;
+            currentAddress = null;
+            
+            updateStatus("Disconnected", 'info');
+            disconnectButton.classList.add('hidden');
+            
+            noWalletMessage.classList.remove('hidden');
+            messageTitle.textContent = "Wallet disconnected";
+            noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+            
+            console.log("Wallet disconnected successfully");
+        }
+
+        async function connectWalletAndSign() {
+            if (isConnecting) {
+                console.log("Connection already in progress");
+                return;
+            }
+
+            console.log("=== Starting connection process ===");
+            console.log("Provider available:", typeof window.ethereum !== 'undefined');
+
+            if (typeof window.ethereum === 'undefined') {
+                console.log("Provider not detected, attempting deep link");
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Redirecting to MetaMask...";
+                updateStatus("Redirecting...", 'info');
+                attemptMobileDeepLink();
+                return; 
+            }
+
+            setLoading(true);
+            noWalletMessage.classList.add('hidden');
+            updateStatus("Requesting connection...", 'info');
+            
+            try {
+                console.log("STEP 1: Requesting accounts...");
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const address = accounts[0];
+                
+                console.log("✓ Account connected:", address);
+                
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                console.log("STEP 2: Requesting signature...");
+                updateStatus("Waiting for signature...", 'info');
+                
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, address],
+                });
+                
+                console.log("✓ Signature obtained:", signature.substring(0, 20) + "...");
+                
+                isConnected = true;
+                currentAddress = address;
+                const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                updateStatus(`✓ ${shortAddress}`, 'success');
+                
+                disconnectButton.classList.remove('hidden');
+                
+                console.log("=== Access successful ===");
+                console.log("Address:", address);
+                console.log("Signature:", signature);
+
+                // REDIRIGIR AL CHAT DESPUÉS DE LOGIN EXITOSO
+                redirectToChat();
+
+            } catch (error) {
+                console.error("=== Error in process ===");
+                console.error("Error code:", error.code);
+                console.error("Message:", error.message);
+                console.error("Full error:", error);
+                
+                let errorMessage = "Signature or connection cancelled.";
+                if (error.code === 4001) {
+                    errorMessage = "Access denied by user.";
+                } else if (error.code === -32002) {
+                    errorMessage = "Pending request in MetaMask.";
+                } else if (error.message) {
+                    errorMessage = `Error: ${error.message.substring(0, 40).replace(/\n/g, ' ')}...`;
+                }
+                updateStatus(errorMessage, 'error');
+                
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent = "Connection error";
+                noWalletText.textContent = errorMessage;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function handleLogoClick() {
+            if (isConnected) {
+                // Si ya está conectado, redirigir directamente al chat
+                redirectToChat();
+            } else {
+                connectWalletAndSign();
+            }
+        }
+
+        window.onload = async () => {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            console.log("Verifying provider...");
+            console.log("window.ethereum exists:", typeof window.ethereum !== 'undefined');
+            console.log("Is MetaMask:", window.ethereum?.isMetaMask);
+            console.log("User Agent:", navigator.userAgent);
+            
+            if (typeof window.ethereum !== 'undefined') {
+                noWalletMessage.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    
+                    if (accounts.length > 0) {
+                        const address = accounts[0];
+                        isConnected = true;
+                        currentAddress = address;
+                        const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+                        updateStatus(`✓ ${shortAddress}`, 'success');
+                        disconnectButton.classList.remove('hidden');
+                        console.log("Account already connected:", address);
+                        
+                        // Si ya está conectado, mostrar mensaje de redirección
+                        noWalletMessage.classList.remove('hidden');
+                        messageTitle.textContent = "Already connected";
+                        noWalletText.innerHTML = `Click the logo to enter the chat.`;
+                    } else {
+                        updateStatus("Click logo to connect", 'info');
+                        noWalletMessage.classList.remove('hidden');
+                        messageTitle.textContent = "Welcome!";
+                        noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+                    }
+                } catch (error) {
+                    console.warn("Error verifying accounts:", error);
+                    updateStatus("Click logo to connect", 'info');
+                }
+            } else {
+                console.warn("MetaMask not detected");
+                updateStatus("MetaMask not detected", 'error');
+                noWalletMessage.classList.remove('hidden');
+                
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    messageTitle.textContent = "⚠️ Use MetaMask browser";
+                    noWalletText.innerHTML = `
+                        <strong>Steps:</strong><br>
+                        1. Open the MetaMask app<br>
+                        2. Tap the browser icon (🌐)<br>
+                        3. Enter this URL:<br>
+                        <code class="text-xs break-all">${window.location.href}</code>
+                    `;
+                } else {
+                    messageTitle.textContent = "MetaMask not installed";
+                    noWalletText.innerHTML = `
+                        Install MetaMask from:<br>
+                        <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io/download</a>
+                    `;
+                }
+                logoButton.style.cursor = 'pointer'; 
+            }
+        };
+
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log("Accounts changed:", accounts);
+                
+                if (accounts.length > 0) {
+                    isConnected = true;
+                    currentAddress = accounts[0];
+                    const shortAddress = accounts[0].slice(0, 6) + "..." + accounts[0].slice(-4);
+                    updateStatus(`✓ ${shortAddress}`, 'success');
+                    disconnectButton.classList.remove('hidden');
+                    noWalletMessage.classList.add('hidden');
+                } else {
+                    disconnectWallet();
+                }
+            });
+
+            window.ethereum.on('chainChanged', () => {
+                console.log("Network changed, reloading...");
+                window.location.reload();
+            });
+        }
+    </script>
+</body>cc
+</html>            cursor: pointer;
             transition: transform 0.2s;
             -webkit-tap-highlight-color: transparent; /* Quita el brillo azul al tocar en móvil */
         }
