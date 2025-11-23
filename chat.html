@@ -1,31 +1,211 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Muzzle Chat</title>
+  <title>Muzzle-chat</title>
+  
+  <!-- React (UMD) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  
+  <!-- Ethers.js para Web3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  
   <style>
-    .gradient-bg {
-      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #831843 100%);
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .muzz-background {
+      background-color: #0a0a0a;
+      position: relative;
+      z-index: 0;
+      min-height: 100vh;
+    }
+
+    .muzz-background::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
+      z-index: 1;
+      filter: blur(8px);
+      opacity: 0.9;
+    }
+
+    .text-x { color: #ffffff; }
+    .text-telegram { color: #229ED9; }
+    
+    #logoButton {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    #logoButton:hover {
+      opacity: 0.9;
+    }
+
+    #loadingSpinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+
+    .wallet-message {
+      background-color: #1f2937;
+      border: 1px solid #374151;
+    }
+
+    #disconnectButton {
+      transition: all 0.3s ease;
+    }
+    
+    #disconnectButton:hover {
+      background-color: #991b1b;
+      transform: scale(1.05);
+    }
+    
+    /* Ajustes para móviles */
+    @media (max-width: 639px) {
+      #statusContainer {
+        flex-direction: column;
+        align-items: flex-end; 
+        top: 8px;
+        right: 8px;
+        gap: 4px;
+      }
+      
+      #walletStatus, #disconnectButton {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.75rem;
+      }
+      
+      .wallet-message {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      #logoButton, #disconnectButton {
+        -webkit-tap-highlight-color: transparent;
+      }
     }
   </style>
 </head>
-<body class="gradient-bg min-h-screen">
-  <div id="root"></div>
+<body class="muzz-background p-4">
+
+  <!-- Status Container (igual que index.html) -->
+  <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+    <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+      Disconnected
+    </span>
+    <button 
+      id="disconnectButton" 
+      class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+      onclick="handleLogout()"
+    >
+      <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+    </button>
+  </div>
+
+  <!-- Login Screen (igual que index.html) -->
+  <div id="loginScreen" class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+    <div 
+      id="logoButton" 
+      class="mb-5 cursor-pointer relative"
+      onclick="handleLogoClick()"
+    >
+      <img
+        id="muzzLogo"
+        src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440"
+        alt="MuzzSnap Logo"
+        class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+        onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';"
+      >
+      <div id="loadingSpinner" class="hidden text-white">
+        <i class="fas fa-spinner fa-spin text-4xl"></i>
+      </div>
+    </div>
+    
+    <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+      <p class="text-sm font-semibold text-red-400 mb-3">
+        <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">Wallet not detected.</span>
+      </p>
+      <p id="noWalletText" class="text-xs text-gray-400">
+        Click on the logo to attempt connection.
+      </p>
+    </div>
+
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight">
+      MuzzSnap
+    </h1>
+
+    <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+      🔑 Much more than a simple app...⌛️
+      <br>
+      単なるアプリ以上のもの。
+    </p>
+
+    <div class="flex justify-center space-x-8 sm:space-x-12">
+      <a
+        href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="transition duration-200 hover:scale-110 active:scale-95"
+        aria-label="Link to X (Twitter) account"
+      >
+        <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+      </a>
+
+      <a
+        href="https://t.me/MuzzleToken"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="transition duration-200 hover:scale-110 active:scale-95"
+        aria-label="Link to Telegram channel"
+      >
+        <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+      </a>
+    </div>
+
+    <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+      <p>MuzzSnap 2025&trade;</p>
+      <p class="mt-1">&copy; By.Ryachu</p>
+    </footer>
+  </div>
+
+  <!-- Chat Interface (se muestra después del login) -->
+  <div id="chatInterface" class="hidden min-h-screen bg-gray-900 flex relative"></div>
 
   <script type="text/babel">
+    // ================= CONFIGURACIÓN INICIAL =================
     const { useState, useEffect, useRef } = React;
-    const ethers = window.ethers; 
+    const ethers = window.ethers;
     
-    // Firebase config
+    // Configuración de Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyAe1-JfNde0NKIMdE7phfEXlm9JaqUH0jY",
       authDomain: "pulsari.firebaseapp.com",
@@ -35,6 +215,807 @@
       messagingSenderId: "824306321233",
       appId: "1:824306321233:web:2c9bfa02170a17d560b570"
     };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const auth = firebase.auth();
+    const database = firebase.database();
+    
+    // Constantes para el chat
+    const DEBOUNCE_DELAY_MS = 2000;
+    const EMOJIS = ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','😋','😛','😜','🤪','😝','🤑','🤗'];
+
+    // ================= SISTEMA DE LOGIN (igual que index.html) =================
+    const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+    const LOGIN_MESSAGE = `Welcome to MuzzSnap.News\n\nContract: ${CONTRACT_ADDRESS}\n\nSign this message to authenticate securely.\n\nThis signature is gas-free.`;
+
+    let isConnecting = false;
+    let isConnected = false;
+    let currentAddress = null;
+
+    // Elementos del DOM para el login
+    const loginScreen = document.getElementById('loginScreen');
+    const chatInterface = document.getElementById('chatInterface');
+    const logoButton = document.getElementById('logoButton');
+    const muzzLogo = document.getElementById('muzzLogo');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const walletStatus = document.getElementById('walletStatus');
+    const noWalletMessage = document.getElementById('noWalletMessage');
+    const noWalletText = document.getElementById('noWalletText');
+    const messageTitle = document.getElementById('messageTitle');
+    const disconnectButton = document.getElementById('disconnectButton');
+
+    function updateStatus(message, type = 'info') {
+      walletStatus.textContent = message;
+      walletStatus.classList.remove('text-gray-400', 'bg-gray-800', 'text-red-400', 'bg-red-900', 'text-green-400', 'bg-green-900');
+
+      if (type === 'error') {
+        walletStatus.classList.add('text-red-400', 'bg-red-900');
+      } else if (type === 'success') {
+        walletStatus.classList.add('text-green-400', 'bg-green-900');
+      } else {
+        walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+      }
+    }
+
+    function setLoading(isLoading) {
+      isConnecting = isLoading;
+      if (isLoading) {
+        muzzLogo.style.opacity = '0.2';
+        loadingSpinner.classList.remove('hidden');
+        logoButton.style.cursor = 'wait';
+        noWalletMessage.classList.add('hidden');
+      } else {
+        muzzLogo.style.opacity = '1';
+        loadingSpinner.classList.add('hidden');
+        logoButton.style.cursor = 'pointer';
+      }
+    }
+    
+    function attemptMobileDeepLink() {
+      setLoading(true);
+      updateStatus("Opening MetaMask...", 'info');
+      
+      const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+      const deepLink = `https://metamask.app.link/dapp/${currentUrl}`;
+      
+      console.log("Attempting deep link:", deepLink);
+      
+      window.location.href = deepLink;
+      
+      setTimeout(() => {
+        setLoading(false);
+        updateStatus("Open MetaMask manually", 'info');
+        noWalletMessage.classList.remove('hidden');
+        messageTitle.textContent = "MetaMask not opened?";
+        noWalletText.innerHTML = `
+          <strong>Instructions:</strong><br>
+          1. Open the MetaMask app<br>
+          2. Go to the internal browser (browser icon 🌐)<br>
+          3. Enter this URL: ${window.location.href}
+        `;
+      }, 3000);
+    }
+
+    async function connectWalletAndSign() {
+      if (isConnecting) {
+        console.log("Connection already in progress");
+        return;
+      }
+
+      console.log("=== Starting connection process ===");
+      console.log("Provider available:", typeof window.ethereum !== 'undefined');
+
+      if (typeof window.ethereum === 'undefined') {
+        console.log("Provider not detected, attempting deep link");
+        noWalletMessage.classList.remove('hidden');
+        messageTitle.textContent = "Redirecting to MetaMask...";
+        updateStatus("Redirecting...", 'info');
+        attemptMobileDeepLink();
+        return;
+      }
+
+      setLoading(true);
+      noWalletMessage.classList.add('hidden');
+      updateStatus("Requesting connection...", 'info');
+      
+      try {
+        console.log("STEP 1: Requesting accounts...");
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const address = accounts[0];
+        
+        console.log("✓ Account connected:", address);
+        
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        console.log("STEP 2: Requesting signature...");
+        updateStatus("Waiting for signature...", 'info');
+        
+        const signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [LOGIN_MESSAGE, address],
+        });
+        
+        console.log("✓ Signature obtained:", signature.substring(0, 20) + "...");
+        
+        isConnected = true;
+        currentAddress = address;
+        const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+        updateStatus(`✓ ${shortAddress}`, 'success');
+        
+        disconnectButton.classList.remove('hidden');
+        
+        console.log("=== Access successful ===");
+        console.log("Address:", address);
+        console.log("Signature:", signature);
+
+        // Mostrar la interfaz de chat después del login exitoso
+        showChatInterface();
+
+      } catch (error) {
+        console.error("=== Error in process ===");
+        console.error("Error code:", error.code);
+        console.error("Message:", error.message);
+        console.error("Full error:", error);
+        
+        let errorMessage = "Signature or connection cancelled.";
+        if (error.code === 4001) {
+          errorMessage = "Access denied by user.";
+        } else if (error.code === -32002) {
+          errorMessage = "Pending request in MetaMask.";
+        } else if (error.message) {
+          errorMessage = `Error: ${error.message.substring(0, 40).replace(/\n/g, ' ')}...`;
+        }
+        updateStatus(errorMessage, 'error');
+        
+        noWalletMessage.classList.remove('hidden');
+        messageTitle.textContent = "Connection error";
+        noWalletText.textContent = errorMessage;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function handleLogoClick() {
+      if (isConnected) {
+        // Si ya está conectado, mostrar el chat directamente
+        showChatInterface();
+      } else {
+        connectWalletAndSign();
+      }
+    }
+
+    function handleLogout() {
+      console.log("=== Disconnecting wallet ===");
+      
+      isConnected = false;
+      currentAddress = null;
+      
+      updateStatus("Disconnected", 'info');
+      disconnectButton.classList.add('hidden');
+      
+      noWalletMessage.classList.remove('hidden');
+      messageTitle.textContent = "Wallet disconnected";
+      noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+      
+      // Ocultar chat y mostrar login
+      hideChatInterface();
+      
+      console.log("Wallet disconnected successfully");
+    }
+
+    function showChatInterface() {
+      loginScreen.classList.add('hidden');
+      chatInterface.classList.remove('hidden');
+      // Renderizar el componente de chat
+      ReactDOM.render(<SecureChat />, document.getElementById('chatInterface'));
+    }
+
+    function hideChatInterface() {
+      chatInterface.classList.add('hidden');
+      loginScreen.classList.remove('hidden');
+      // Limpiar el chat
+      ReactDOM.unmountComponentAtNode(document.getElementById('chatInterface'));
+    }
+
+    // Inicialización al cargar la página
+    window.onload = async () => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("Verifying provider...");
+      console.log("window.ethereum exists:", typeof window.ethereum !== 'undefined');
+      console.log("Is MetaMask:", window.ethereum?.isMetaMask);
+      console.log("User Agent:", navigator.userAgent);
+      
+      if (typeof window.ethereum !== 'undefined') {
+        noWalletMessage.classList.add('hidden');
+        logoButton.style.cursor = 'pointer';
+
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+          
+          if (accounts.length > 0) {
+            const address = accounts[0];
+            isConnected = true;
+            currentAddress = address;
+            const shortAddress = address.slice(0, 6) + "..." + address.slice(-4);
+            updateStatus(`✓ ${shortAddress}`, 'success');
+            disconnectButton.classList.remove('hidden');
+            console.log("Account already connected:", address);
+            
+            // Si ya está conectado, mostrar mensaje de redirección
+            noWalletMessage.classList.remove('hidden');
+            messageTitle.textContent = "Already connected";
+            noWalletText.innerHTML = `Click the logo to enter the chat.`;
+          } else {
+            updateStatus("Click logo to connect", 'info');
+            noWalletMessage.classList.remove('hidden');
+            messageTitle.textContent = "Welcome!";
+            noWalletText.innerHTML = 'Click on the logo to connect your wallet.';
+          }
+        } catch (error) {
+          console.warn("Error verifying accounts:", error);
+          updateStatus("Click logo to connect", 'info');
+        }
+      } else {
+        console.warn("MetaMask not detected");
+        updateStatus("MetaMask not detected", 'error');
+        noWalletMessage.classList.remove('hidden');
+        
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+          messageTitle.textContent = "⚠️ Use MetaMask browser";
+          noWalletText.innerHTML = `
+            <strong>Steps:</strong><br>
+            1. Open the MetaMask app<br>
+            2. Tap the browser icon (🌐)<br>
+            3. Enter this URL:<br>
+            <code class="text-xs break-all">${window.location.href}</code>
+          `;
+        } else {
+          messageTitle.textContent = "MetaMask not installed";
+          noWalletText.innerHTML = `
+            Install MetaMask from:<br>
+            <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io/download</a>
+          `;
+        }
+        logoButton.style.cursor = 'pointer';
+      }
+    };
+
+    // Listeners de eventos de MetaMask
+    if (typeof window.ethereum !== 'undefined') {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        console.log("Accounts changed:", accounts);
+        
+        if (accounts.length > 0) {
+          isConnected = true;
+          currentAddress = accounts[0];
+          const shortAddress = accounts[0].slice(0, 6) + "..." + accounts[0].slice(-4);
+          updateStatus(`✓ ${shortAddress}`, 'success');
+          disconnectButton.classList.remove('hidden');
+          noWalletMessage.classList.add('hidden');
+        } else {
+          handleLogout();
+        }
+      });
+
+      window.ethereum.on('chainChanged', () => {
+        console.log("Network changed, reloading...");
+        window.location.reload();
+      });
+    }
+
+    // ================= COMPONENTE DE CHAT =================
+    function useDebounce(value, delay) {
+      const [debouncedValue, setDebouncedValue] = useState(value);
+
+      useEffect(() => {
+        const handler = setTimeout(() => {
+          setDebouncedValue(value);
+        }, delay);
+
+        return () => {
+          clearTimeout(handler);
+        };
+      }, [value, delay]);
+
+      return debouncedValue;
+    }
+
+    function SecureChat() {
+      const [currentUser, setCurrentUser] = useState(null);
+      const [userNickname, setUserNickname] = useState(null);
+      
+      const [channels, setChannels] = useState([]);
+      const [selectedChannel, setSelectedChannel] = useState(null);
+      const [messages, setMessages] = useState([]);
+      
+      const [draftMessage, setDraftMessage] = useState('');
+      const messageInput = useDebounce(draftMessage, DEBOUNCE_DELAY_MS);
+
+      const [onlineUsers, setOnlineUsers] = useState([]);
+      
+      const [isDesktop, setIsDesktop] = useState(false);
+      const [showSidebar, setShowSidebar] = useState(true);
+
+      const [showNewChannelModal, setShowNewChannelModal] = useState(false);
+      const [newChannelName, setNewChannelName] = useState('');
+      const [newChannelDesc, setNewChannelDesc] = useState('');
+      const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+      
+      const messagesEndRef = useRef(null);
+      const emojiPickerRef = useRef(null);
+
+      // Efectos y lógica del chat (igual que antes)
+      useEffect(() => {
+        const checkDesktop = () => {
+          const desktop = window.matchMedia('(min-width: 1024px)').matches;
+          setIsDesktop(desktop);
+          if (desktop) {
+            setShowSidebar(true);
+          }
+        };
+
+        checkDesktop();
+        window.addEventListener('resize', checkDesktop);
+        return () => window.removeEventListener('resize', checkDesktop);
+      }, []);
+
+      // Simular usuario de Firebase (en un caso real, aquí iría la autenticación real)
+      useEffect(() => {
+        // Para este ejemplo, creamos un usuario simulado basado en la wallet conectada
+        const simulatedUser = {
+          uid: currentAddress || 'default-user',
+          email: currentAddress ? `${currentAddress}@muzzsnap.com` : 'user@muzzsnap.com'
+        };
+        
+        setCurrentUser(simulatedUser);
+        
+        // Generar un nickname basado en la dirección
+        if (currentAddress) {
+          const shortAddress = currentAddress.slice(0, 6) + '...' + currentAddress.slice(-4);
+          setUserNickname(`User_${shortAddress}`);
+          
+          // Simular setup de presencia
+          setupPresence(simulatedUser.uid, `User_${shortAddress}`);
+        }
+      }, [currentAddress]);
+
+      // Resto de useEffect y funciones del chat (igual que en tu código original)
+      useEffect(() => {
+        if (!currentUser) {
+          setChannels([]);
+          setSelectedChannel(null);
+          return;
+        }
+
+        const channelsRef = database.ref('channels');
+        const listener = channelsRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          let list = [];
+          if (data) {
+            list = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            }));
+            setChannels(list);
+            
+            if (!selectedChannel) {
+              if (list.length > 0) {
+                setSelectedChannel(list[0]);
+              }
+            } else {
+              const exists = list.some(c => c.id === selectedChannel.id);
+              if (!exists && list.length > 0) {
+                setSelectedChannel(list[0]);
+              } else if (!exists && list.length === 0) {
+                setSelectedChannel(null);
+              }
+            }
+          } else {
+            setChannels([]);
+            setSelectedChannel(null);
+          }
+        });
+
+        return () => channelsRef.off('value', listener);
+      }, [currentUser]);
+
+      useEffect(() => {
+        if (!selectedChannel || !currentUser) {
+          setMessages([]);
+          return;
+        }
+
+        const messagesRef = database.ref('messages/' + selectedChannel.id);
+        const listener = messagesRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            const list = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            }));
+            const filtered = list.filter(msg => 
+              Date.now() - msg.timestamp < 24 * 60 * 60 * 1000
+            );
+            setMessages(filtered);
+          } else {
+            setMessages([]);
+          }
+        });
+
+        return () => messagesRef.off('value', listener);
+      }, [selectedChannel, currentUser]);
+
+      useEffect(() => {
+        if (!currentUser) {
+          setOnlineUsers([]);
+          return;
+        }
+
+        const presenceRef = database.ref('presence');
+        const listener = presenceRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            const list = Object.keys(data)
+              .filter(key => key !== currentUser.uid && data[key].online)
+              .map(key => ({
+                userId: key,
+                username: data[key].username
+              }));
+            setOnlineUsers(list);
+          }
+        });
+
+        return () => presenceRef.off('value', listener);
+      }, [currentUser]);
+
+      useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [messages]);
+
+      useEffect(() => {
+        function handleClickOutside(event) {
+          if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+            setShowEmojiPicker(false);
+          }
+        }
+
+        if (showEmojiPicker) {
+          document.addEventListener('mousedown', handleClickOutside);
+          return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+      }, [showEmojiPicker]);
+
+      function setupPresence(uid, username) {
+        const presenceRef = database.ref('presence/' + uid);
+        const connectedRef = database.ref('.info/connected');
+
+        connectedRef.on('value', (snapshot) => {
+          if (snapshot.val() === true) {
+            presenceRef.onDisconnect().set({
+              online: false,
+              lastSeen: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            presenceRef.set({
+              online: true,
+              username: username,
+              lastSeen: firebase.database.ServerValue.TIMESTAMP
+            });
+          }
+        });
+      }
+
+      async function sendMessage() {
+        if (!messageInput.trim() || !selectedChannel || !currentUser || !userNickname) return;
+        if (messageInput !== draftMessage) return;
+
+        const messagesRef = database.ref('messages/' + selectedChannel.id);
+        const newMessageRef = messagesRef.push();
+
+        await newMessageRef.set({
+          content: messageInput.trim(),
+          userId: currentUser.uid,
+          username: userNickname,
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        setDraftMessage('');
+        setShowEmojiPicker(false);
+      }
+
+      function addEmoji(emoji) {
+        setDraftMessage(prev => prev + emoji);
+      }
+
+      async function createChannel() {
+        if (!newChannelName.trim() || !currentUser) return;
+        
+        if (newChannelName.trim().length < 2 || newChannelName.trim().length > 30) {
+          alert("Channel name must be between 2 and 30 characters");
+          return;
+        }
+
+        const channelsRef = database.ref('channels');
+        const newChannelRef = channelsRef.push();
+
+        try {
+          await newChannelRef.set({
+            name: newChannelName.trim(),
+            description: newChannelDesc.trim(),
+            createdBy: currentUser.uid,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            isPrivate: false
+          });
+
+          setNewChannelName('');
+          setNewChannelDesc('');
+          setShowNewChannelModal(false);
+        } catch (error) {
+          console.error("Error creating channel:", error);
+          alert("Failed to create channel. Please try again.");
+        }
+      }
+
+      function formatTime(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) return 'now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+        if (diff < 86400000) return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' });
+      }
+
+      function getTimeUntilDeletion(timestamp) {
+        if (!timestamp) return '';
+        const remaining = 24 * 60 * 60 * 1000 - (Date.now() - timestamp);
+        if (remaining <= 0) return 'Deleting...';
+        
+        const hours = Math.floor(remaining / 3600000);
+        const minutes = Math.floor((remaining % 3600000) / 60000);
+        
+        if (hours > 0) return `${hours}h`;
+        return `${minutes}m`;
+      }
+
+      // Render del chat
+      return (
+        <div className="min-h-screen bg-gray-900 flex relative">
+          {/* Sidebar */}
+          <div className={`${isDesktop ? 'relative' : 'fixed inset-y-0 z-50'} ${showSidebar ? 'w-64' : 'w-0'} bg-gray-800 border-r border-gray-700 transition-all duration-300 overflow-hidden flex flex-col`}>
+            <div className="p-4 border-b border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🛡️</span>
+                  <h2 className="font-bold text-white">MuzzSnap</h2>
+                </div>
+                <button onClick={() => setShowSidebar(false)} className="lg:hidden text-gray-400 hover:text-white text-xl">✕</button>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-gray-300">{userNickname}</span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="flex items-center justify-between px-2 py-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase">Channels</span>
+                <button onClick={() => setShowNewChannelModal(true)} className="text-gray-400 hover:text-white text-xl">+</button>
+              </div>
+              {channels.map(channel => (
+                <button
+                  key={channel.id}
+                  onClick={() => {
+                    setSelectedChannel(channel);
+                    if (!isDesktop) setShowSidebar(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg mb-1 text-left ${
+                    selectedChannel?.id === channel.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  <span>#</span>
+                  <span className="truncate">{channel.name}</span>
+                </button>
+              ))}
+
+              <div className="mt-4 px-2 py-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase">Online ({onlineUsers.length})</span>
+              </div>
+              {onlineUsers.map(user => (
+                <div key={user.userId} className="flex items-center gap-2 px-3 py-2 text-gray-400 text-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="truncate">{user.username}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-2 border-t border-gray-700">
+              <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg">
+                <span>🚪</span>
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="h-16 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4">
+              <div className="flex items-center gap-3">
+                {!showSidebar && (
+                  <button onClick={() => setShowSidebar(true)} className="text-gray-400 hover:text-white text-2xl">☰</button>
+                )}
+                {selectedChannel && (
+                  <>
+                    <span className="text-gray-400">#</span>
+                    <div>
+                      <h3 className="font-semibold text-white">{selectedChannel.name}</h3>
+                      {selectedChannel.description && (
+                        <p className="text-xs text-gray-400">{selectedChannel.description}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {!selectedChannel && (
+                <div className="text-center text-gray-500 mt-20">
+                  <div className="text-6xl mb-4">💬</div>
+                  <p className="text-lg">Select a channel to start chatting</p>
+                </div>
+              )}
+
+              {selectedChannel && messages.map(msg => {
+                const isOwn = msg.userId === currentUser.uid;
+                return (
+                  <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                      isOwn 
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-br-sm' 
+                        : 'bg-gray-800 text-gray-100 rounded-bl-sm border border-gray-700'
+                    }`}>
+                      {!isOwn && <div className="text-xs font-semibold mb-1 text-purple-400">{msg.username}</div>}
+                      <p className="break-words">{msg.content}</p>
+                      <div className={`flex items-center gap-2 text-xs mt-1 ${isOwn ? 'text-purple-200' : 'text-gray-500'}`}>
+                        <span>🕐</span>
+                        <span>{formatTime(msg.timestamp)}</span>
+                        <span>• {getTimeUntilDeletion(msg.timestamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {selectedChannel && (
+              <div className="bg-gray-800 border-t border-gray-700 p-4">
+                <div className="flex gap-2 relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="text-2xl hover:scale-110 transition-transform"
+                    title="Emojis"
+                  >
+                    😊
+                  </button>
+                  
+                  {showEmojiPicker && (
+                    <div 
+                      ref={emojiPickerRef}
+                      className="absolute bottom-16 left-0 bg-gray-800 border-2 border-purple-500 rounded-2xl shadow-2xl p-4 z-50 w-full sm:w-80 max-h-80 overflow-y-auto"
+                    >
+                      <div className="flex items-center justify-between mb-3 sticky top-0 bg-gray-800 pb-2">
+                        <h3 className="text-white font-semibold">Emojis 😀</h3>
+                        <button onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                      </div>
+                      <div className="grid grid-cols-8 gap-2">
+                        {EMOJIS.map((emoji, i) => (
+                          <button
+                            key={i}
+                            onClick={() => addEmoji(emoji)}
+                            className="text-2xl hover:bg-gray-700 rounded-lg p-2 transition-all hover:scale-125"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <input
+                    type="text"
+                    value={draftMessage}
+                    onChange={(e) => setDraftMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder={`Write here (Delayed send ${DEBOUNCE_DELAY_MS / 1000}s)...`}
+                    className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 rounded-full text-white focus:border-purple-500 focus:outline-none"
+                    maxLength={2000}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!messageInput.trim() || messageInput !== draftMessage}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-full hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 shadow-lg font-semibold"
+                  >
+                    Send
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                  <span>🔒</span>
+                  <span>Synchronized • Auto-deletion 24h</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* New Channel Modal */}
+          {showNewChannelModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+              <div className="bg-gray-800 rounded-2xl p-6 w-full max-w-md border border-gray-700">
+                <h3 className="text-xl font-bold text-white mb-4">Create Channel 📢</h3>
+                
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={newChannelName}
+                      onChange={(e) => setNewChannelName(e.target.value)}
+                      placeholder="my-channel"
+                      className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
+                      maxLength={30}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                    <input
+                      type="text"
+                      value={newChannelDesc}
+                      onChange={(e) => setNewChannelDesc(e.target.value)}
+                      placeholder="Optional"
+                      className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowNewChannelModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createChannel}
+                    disabled={!newChannelName.trim()}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {!isDesktop && showSidebar && (
+            <div onClick={() => setShowSidebar(false)} className="fixed inset-0 bg-black opacity-50 z-40"></div>
+          )}
+        </div>
+      );
+    }
+  </script>
+</body>
+</html>    };
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
