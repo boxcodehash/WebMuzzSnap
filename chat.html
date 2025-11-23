@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap</title>
+  <title>MuzzSnap - Secure Channel</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -24,6 +24,37 @@
     ::-webkit-scrollbar-track { background: #111827; }
     ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
   </style>
+
+  <script type="module">
+    import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.11'
+
+    // 1. OBTÉN TU PROJECT ID GRATIS EN https://cloud.walletconnect.com/
+    const projectId = '96a7adfe9324271d76ea3a19e400a216'; 
+
+    // 2. Set chains
+    const mainnet = {
+      chainId: 1,
+      name: 'Ethereum',
+      currency: 'ETH',
+      explorerUrl: 'https://etherscan.io',
+      rpcUrl: 'https://cloudflare-eth.com'
+    }
+
+    // 3. Create modal
+    const metadata = {
+      name: 'MuzzSnap',
+      description: 'MuzzSnap Secure Chat',
+      url: 'https://web-muzz-snap.vercel.app', // Tu URL real
+      icons: ['https://avatars.mywebsite.com/']
+    }
+
+    window.web3Modal = createWeb3Modal({
+      ethersConfig: defaultConfig({ metadata }),
+      chains: [mainnet],
+      projectId,
+      enableAnalytics: true
+    });
+  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -31,7 +62,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- IMPORTANTE: Verifica que esta config sea exacta a tu consola de Firebase ---
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyAe1-JfNde0NKIMdE7phfEXlm9JaqUH0jY",
       authDomain: "pulsari.firebaseapp.com",
@@ -49,17 +80,13 @@
     const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
     const MIN_REQUIRED = 40000000;
     const EMOJIS = ['😀','😃','😄','😁','😅','😂','😉','😊','🥰','😍','😘','😜','😎','🥳','😡','😭','👍','👎','🔥','❤️'];
-
-    const ERC20_ABI = [
-        "function balanceOf(address owner) view returns (uint256)",
-        "function decimals() view returns (uint8)"
-    ];
+    const ERC20_ABI = ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"];
 
     function App() {
       const [user, setUser] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
+      const [statusMsg, setStatusMsg] = useState("Initializing...");
       const [error, setError] = useState(null);
-      const [errorDetail, setErrorDetail] = useState(""); // Para ver el error real
 
       // Chat Data
       const [channels, setChannels] = useState([]);
@@ -75,90 +102,100 @@
       
       const dummyRef = useRef(null);
 
-      // Función para esperar a que la wallet se inyecte (Vital para móviles)
-      const waitForEthereum = async (retries = 10) => {
-          for (let i = 0; i < retries; i++) {
-              if (window.ethereum) return window.ethereum;
-              await new Promise(resolve => setTimeout(resolve, 500)); // Espera 0.5s
-          }
-          return null;
+      // --- LOGIC: WalletConnect + Firebase ---
+      const connectAndLogin = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            // 1. Abrir WalletConnect Modal
+            if (!window.web3Modal) throw new Error("WalletConnect not initialized");
+            
+            setStatusMsg("Please connect wallet...");
+            await window.web3Modal.open();
+            
+            // Esperar a que se conecte
+            const provider = window.web3Modal.getWalletProvider();
+            if (!provider) {
+                // Si el usuario cierra el modal sin conectar
+                const checkInterval = setInterval(async () => {
+                    const p = window.web3Modal.getWalletProvider();
+                    if(p) {
+                        clearInterval(checkInterval);
+                        await processLogin(p);
+                    }
+                }, 1000);
+                setIsLoading(false); // Dejar que el usuario interactúe
+                return;
+            }
+            await processLogin(provider);
+
+        } catch (e) {
+            console.error(e);
+            setError(e.message || "Connection failed");
+            setIsLoading(false);
+        }
       };
 
+      const processLogin = async (walletProvider) => {
+        setStatusMsg("Checking Balance...");
+        try {
+            const ethersProvider = new ethers.providers.Web3Provider(walletProvider);
+            const signer = ethersProvider.getSigner();
+            const address = await signer.getAddress();
+            
+            // 2. CHECK BALANCE
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, ERC20_ABI, ethersProvider);
+            const decimals = await contract.decimals();
+            const balanceBN = await contract.balanceOf(address);
+            const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
+
+            if (balance < MIN_REQUIRED) {
+                throw new Error(`Insufficient Balance: ${balance.toFixed(0)} / 40M required`);
+            }
+
+            // 3. FIREBASE LOGIN
+            setStatusMsg("Authenticating...");
+            await auth.signInAnonymously();
+            
+            const nickname = `User ${address.slice(0,5)}...${address.slice(-4)}`;
+            setUser({ uid: auth.currentUser.uid, address: address, nickname: nickname });
+            
+            database.ref('users/' + auth.currentUser.uid).update({
+                username: nickname,
+                wallet: address,
+                lastSeen: firebase.database.ServerValue.TIMESTAMP
+            });
+            setIsLoading(false);
+
+        } catch (err) {
+            console.error("Login process error:", err);
+            if(err.code === 'auth/admin-restricted-operation') {
+                setError("CONFIG ERROR: Enable 'Anonymous' in Firebase Console.");
+            } else {
+                setError(err.message);
+            }
+            setIsLoading(false);
+        }
+      };
+
+      // Auto-start if already connected via WalletConnect
       useEffect(() => {
-        const initAuth = async () => {
-          try {
-            // 1. Esperar a la wallet
-            const ethereum = await waitForEthereum();
-            
-            if (!ethereum) {
-                throw new Error("Wallet not found (Timeout). Open in MetaMask Browser.");
-            }
-
-            const provider = new ethers.providers.Web3Provider(ethereum);
-            
-            // 2. Intentar obtener cuentas (eth_requestAccounts asegura conexión en móvil)
-            let accounts = await provider.listAccounts();
-            
-            if (accounts.length === 0) {
-                 // Si está vacío, forzamos la solicitud (puede que al recargar se perdiera)
-                 accounts = await provider.send("eth_requestAccounts", []);
-            }
-            
-            if (accounts.length > 0) {
-              const address = accounts[0];
-
-              // --- BALANCE CHECK ---
-              const contract = new ethers.Contract(CONTRACT_ADDRESS, ERC20_ABI, provider);
-              const decimals = await contract.decimals();
-              const balanceBN = await contract.balanceOf(address);
-              const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
-
-              if (balance < MIN_REQUIRED) {
-                  throw new Error(`Insufficient Balance: Has ${balance.toFixed(0)} / Needed ${MIN_REQUIRED/1000000}M`);
-              }
-
-              // --- FIREBASE LOGIN ---
-              // Asegúrate de tener habilitado "Anonymous" en Firebase Auth Console
-              await auth.signInAnonymously();
-              
-              const nickname = `User ${address.slice(0,5)}...${address.slice(-4)}`;
-              
-              setUser({ uid: auth.currentUser.uid, address: address, nickname: nickname });
-              
-              database.ref('users/' + auth.currentUser.uid).update({
-                  username: nickname,
-                  wallet: address,
-                  lastSeen: firebase.database.ServerValue.TIMESTAMP
-              });
-
+        const checkConnection = async () => {
+            if(window.web3Modal && window.web3Modal.getIsConnected()) {
+                const provider = window.web3Modal.getWalletProvider();
+                if(provider) await processLogin(provider);
+                else setIsLoading(false);
             } else {
-              // No hay cuentas tras intentar conectar
-              window.location.href = 'index.html';
+                setIsLoading(false);
             }
-          } catch (err) {
-            console.error("Login Error Full:", err);
-            
-            if (err.message.includes("Insufficient Balance")) {
-                setError("Need Minimum 40M Muzz");
-                setTimeout(() => window.location.href = 'index.html', 4000);
-            } else if (err.code === 'auth/operation-not-allowed') {
-                setError("Config Error");
-                setErrorDetail("Enable 'Anonymous' in Firebase Console > Authentication");
-            } else {
-                setError("Connection Failed");
-                setErrorDetail(err.message || JSON.stringify(err));
-            }
-          }
-          setIsLoading(false);
         };
-        
-        initAuth();
+        setTimeout(checkConnection, 1000);
       }, []);
 
-      // Listeners de datos (Solo si hay usuario)
+
+      // --- DATA LISTENERS ---
       useEffect(() => {
         if (!user) return;
-
         const presenceRef = database.ref('presence/' + user.uid);
         const connectedRef = database.ref('.info/connected');
         connectedRef.on('value', (snap) => {
@@ -167,7 +204,6 @@
             presenceRef.set({ online: true, username: user.nickname });
           }
         });
-
         const chRef = database.ref('channels');
         chRef.on('value', (snap) => {
           const data = snap.val();
@@ -175,17 +211,14 @@
           setChannels(list);
           if (!selectedChannel && list.length > 0) setSelectedChannel(list[0]);
         });
-
         const usersRef = database.ref('presence');
         usersRef.on('value', (snap) => {
            const data = snap.val();
            setOnlineUsers(data ? Object.values(data) : []);
         });
-
         return () => { chRef.off(); usersRef.off(); connectedRef.off(); }
       }, [user]);
 
-      // Listener Mensajes
       useEffect(() => {
         if (!selectedChannel) return;
         const msgRef = database.ref('messages/' + selectedChannel.id).limitToLast(50);
@@ -196,11 +229,10 @@
         return () => msgRef.off();
       }, [selectedChannel]);
 
-      useEffect(() => {
-        dummyRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, [messages]);
+      useEffect(() => { dummyRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-      // Actions
+
+      // --- ACTIONS ---
       const handleSend = async () => {
         if (!inputText.trim() || !selectedChannel) return;
         try {
@@ -212,54 +244,59 @@
             });
             setInputText("");
             setShowEmoji(false);
-        } catch (e) {
-            alert("Error sending message. Check console.");
-        }
+        } catch(e) { alert("Error sending"); }
       };
 
       const handleCreateChannel = async () => {
         if(!newChName.trim()) return;
-        await database.ref('channels').push({
-            name: newChName.trim(),
-            createdBy: user.uid
-        });
+        await database.ref('channels').push({ name: newChName.trim(), createdBy: user.uid });
         setNewChName("");
         setShowNewChannel(false);
       };
 
       const handleLogout = async () => {
           await auth.signOut();
-          window.location.href = 'index.html';
+          if(window.web3Modal) await window.web3Modal.disconnect();
+          window.location.reload();
       };
 
-      // --- RENDERS ---
 
-      if (isLoading) return (
+      // --- RENDER STATES ---
+
+      // 1. Loading
+      if (isLoading && !user) return (
         <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4">
           <i className="fas fa-circle-notch fa-spin text-4xl text-purple-600"></i>
-          <p className="text-sm text-gray-400 animate-pulse">Connecting to Secure Chain...</p>
+          <p className="text-sm text-gray-400 animate-pulse">{statusMsg}</p>
         </div>
       );
 
-      if (error) return (
-        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4 p-6 text-center">
-          <div className="w-16 h-16 rounded-full bg-red-900/50 flex items-center justify-center mb-2">
-            <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
-          </div>
-          <h2 className="text-2xl font-bold text-white">{error}</h2>
-          
-          {errorDetail && (
-            <div className="bg-black/30 p-4 rounded-lg border border-gray-700 max-w-sm overflow-hidden">
-                <p className="text-xs text-gray-400 font-mono break-all">{errorDetail}</p>
+      // 2. Login Screen (WalletConnect Style)
+      if (!user) return (
+        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
+            <div className="mb-8">
+                <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
+                     className="w-32 h-32 rounded-2xl shadow-2xl mx-auto mb-4" />
+                <h1 className="text-3xl font-bold text-white">MuzzSnap</h1>
+                <p className="text-gray-400 text-sm">Secure Token-Gated Chat</p>
             </div>
-          )}
-          
-          <a href="index.html" className="mt-4 bg-gray-800 border border-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 transition w-full max-w-xs font-semibold">
-            Return to Login
-          </a>
+            
+            {error && (
+                <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-xl mb-6 max-w-sm">
+                    <p className="font-bold text-sm mb-1">Connection Failed</p>
+                    <p className="text-xs break-words">{error}</p>
+                </div>
+            )}
+
+            <button onClick={connectAndLogin} 
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+                <i className="fas fa-wallet"></i> Connect Wallet
+            </button>
+            <p className="mt-4 text-xs text-gray-600">Works in Chrome, Safari & MetaMask App</p>
         </div>
       );
 
+      // 3. Chat Interface (Igual que antes)
       return (
         <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
             {!showSidebar && (
@@ -344,8 +381,8 @@
                     </div>
                 )}
             </div>
-
-            {showNewChannel && (
+            
+             {showNewChannel && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
                     <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 shadow-2xl">
                         <h3 className="font-bold mb-4 text-white text-lg">New Channel</h3>
@@ -360,6 +397,7 @@
         </div>
       );
     }
+
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
