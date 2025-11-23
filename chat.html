@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap - Secure Channel</title>
+  <title>MuzzSnap</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -31,6 +31,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
+    // --- IMPORTANTE: Verifica que esta config sea exacta a tu consola de Firebase ---
     const firebaseConfig = {
       apiKey: "AIzaSyAe1-JfNde0NKIMdE7phfEXlm9JaqUH0jY",
       authDomain: "pulsari.firebaseapp.com",
@@ -58,6 +59,7 @@
       const [user, setUser] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const [error, setError] = useState(null);
+      const [errorDetail, setErrorDetail] = useState(""); // Para ver el error real
 
       // Chat Data
       const [channels, setChannels] = useState([]);
@@ -73,60 +75,87 @@
       
       const dummyRef = useRef(null);
 
+      // Función para esperar a que la wallet se inyecte (Vital para móviles)
+      const waitForEthereum = async (retries = 10) => {
+          for (let i = 0; i < retries; i++) {
+              if (window.ethereum) return window.ethereum;
+              await new Promise(resolve => setTimeout(resolve, 500)); // Espera 0.5s
+          }
+          return null;
+      };
+
       useEffect(() => {
         const initAuth = async () => {
-          if (typeof window.ethereum !== 'undefined') {
-            try {
-              const provider = new ethers.providers.Web3Provider(window.ethereum);
-              const accounts = await provider.send("eth_accounts", []);
-              
-              if (accounts.length > 0) {
-                const address = accounts[0];
-
-                // --- BALANCE CHECK (Security Layer 2) ---
-                const contract = new ethers.Contract(CONTRACT_ADDRESS, ERC20_ABI, provider);
-                const decimals = await contract.decimals();
-                const balanceBN = await contract.balanceOf(address);
-                const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
-
-                if (balance < MIN_REQUIRED) {
-                    throw new Error("need Minimum 40M Muzz");
-                }
-                // ----------------------------------------
-
-                await auth.signInAnonymously();
-                const nickname = `User ${address.slice(0,5)}...${address.slice(-4)}`;
-                
-                setUser({ uid: auth.currentUser.uid, address: address, nickname: nickname });
-                
-                database.ref('users/' + auth.currentUser.uid).update({
-                   username: nickname,
-                   wallet: address,
-                   lastSeen: firebase.database.ServerValue.TIMESTAMP
-                });
-
-              } else {
-                window.location.href = 'index.html';
-              }
-            } catch (err) {
-              console.error(err);
-              if (err.message.includes("need Minimum 40M Muzz")) {
-                  setError("need Minimum 40M Muzz");
-                  setTimeout(() => window.location.href = 'index.html', 3000);
-              } else {
-                  setError("Connection failed. Return to login.");
-              }
+          try {
+            // 1. Esperar a la wallet
+            const ethereum = await waitForEthereum();
+            
+            if (!ethereum) {
+                throw new Error("Wallet not found (Timeout). Open in MetaMask Browser.");
             }
-          } else {
-             setError("Wallet not found.");
+
+            const provider = new ethers.providers.Web3Provider(ethereum);
+            
+            // 2. Intentar obtener cuentas (eth_requestAccounts asegura conexión en móvil)
+            let accounts = await provider.listAccounts();
+            
+            if (accounts.length === 0) {
+                 // Si está vacío, forzamos la solicitud (puede que al recargar se perdiera)
+                 accounts = await provider.send("eth_requestAccounts", []);
+            }
+            
+            if (accounts.length > 0) {
+              const address = accounts[0];
+
+              // --- BALANCE CHECK ---
+              const contract = new ethers.Contract(CONTRACT_ADDRESS, ERC20_ABI, provider);
+              const decimals = await contract.decimals();
+              const balanceBN = await contract.balanceOf(address);
+              const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
+
+              if (balance < MIN_REQUIRED) {
+                  throw new Error(`Insufficient Balance: Has ${balance.toFixed(0)} / Needed ${MIN_REQUIRED/1000000}M`);
+              }
+
+              // --- FIREBASE LOGIN ---
+              // Asegúrate de tener habilitado "Anonymous" en Firebase Auth Console
+              await auth.signInAnonymously();
+              
+              const nickname = `User ${address.slice(0,5)}...${address.slice(-4)}`;
+              
+              setUser({ uid: auth.currentUser.uid, address: address, nickname: nickname });
+              
+              database.ref('users/' + auth.currentUser.uid).update({
+                  username: nickname,
+                  wallet: address,
+                  lastSeen: firebase.database.ServerValue.TIMESTAMP
+              });
+
+            } else {
+              // No hay cuentas tras intentar conectar
+              window.location.href = 'index.html';
+            }
+          } catch (err) {
+            console.error("Login Error Full:", err);
+            
+            if (err.message.includes("Insufficient Balance")) {
+                setError("Need Minimum 40M Muzz");
+                setTimeout(() => window.location.href = 'index.html', 4000);
+            } else if (err.code === 'auth/operation-not-allowed') {
+                setError("Config Error");
+                setErrorDetail("Enable 'Anonymous' in Firebase Console > Authentication");
+            } else {
+                setError("Connection Failed");
+                setErrorDetail(err.message || JSON.stringify(err));
+            }
           }
           setIsLoading(false);
         };
         
-        setTimeout(initAuth, 500);
+        initAuth();
       }, []);
 
-      // Data Listeners
+      // Listeners de datos (Solo si hay usuario)
       useEffect(() => {
         if (!user) return;
 
@@ -156,6 +185,7 @@
         return () => { chRef.off(); usersRef.off(); connectedRef.off(); }
       }, [user]);
 
+      // Listener Mensajes
       useEffect(() => {
         if (!selectedChannel) return;
         const msgRef = database.ref('messages/' + selectedChannel.id).limitToLast(50);
@@ -170,16 +200,21 @@
         dummyRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, [messages]);
 
+      // Actions
       const handleSend = async () => {
         if (!inputText.trim() || !selectedChannel) return;
-        await database.ref('messages/' + selectedChannel.id).push({
-          content: inputText,
-          username: user.nickname,
-          userId: user.uid,
-          timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
-        setInputText("");
-        setShowEmoji(false);
+        try {
+            await database.ref('messages/' + selectedChannel.id).push({
+              content: inputText,
+              username: user.nickname,
+              userId: user.uid,
+              timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            setInputText("");
+            setShowEmoji(false);
+        } catch (e) {
+            alert("Error sending message. Check console.");
+        }
       };
 
       const handleCreateChannel = async () => {
@@ -197,66 +232,86 @@
           window.location.href = 'index.html';
       };
 
+      // --- RENDERS ---
+
       if (isLoading) return (
-        <div className="h-screen w-full bg-gray-900 flex items-center justify-center text-white">
+        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4">
           <i className="fas fa-circle-notch fa-spin text-4xl text-purple-600"></i>
+          <p className="text-sm text-gray-400 animate-pulse">Connecting to Secure Chain...</p>
         </div>
       );
 
       if (error) return (
-        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4 p-4 text-center">
-          <i className="fas fa-ban text-4xl text-red-500"></i>
-          <p className="text-xl font-bold text-red-400">{error}</p>
-          <a href="index.html" className="bg-gray-800 border border-gray-700 px-6 py-2 rounded-lg hover:bg-gray-700 transition">Back to Login</a>
+        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4 p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-red-900/50 flex items-center justify-center mb-2">
+            <i className="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+          </div>
+          <h2 className="text-2xl font-bold text-white">{error}</h2>
+          
+          {errorDetail && (
+            <div className="bg-black/30 p-4 rounded-lg border border-gray-700 max-w-sm overflow-hidden">
+                <p className="text-xs text-gray-400 font-mono break-all">{errorDetail}</p>
+            </div>
+          )}
+          
+          <a href="index.html" className="mt-4 bg-gray-800 border border-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 transition w-full max-w-xs font-semibold">
+            Return to Login
+          </a>
         </div>
       );
 
       return (
         <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
             {!showSidebar && (
-                <button onClick={() => setShowSidebar(true)} className="lg:hidden absolute top-4 left-4 z-40 bg-gray-800 p-2 rounded shadow">
+                <button onClick={() => setShowSidebar(true)} className="lg:hidden absolute top-4 left-4 z-40 bg-gray-800 p-2 rounded shadow border border-gray-700">
                     <i className="fas fa-bars"></i>
                 </button>
             )}
 
-            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0`}>
-                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-700">
-                    <h1 className="font-bold text-lg text-purple-400">MuzzSnap</h1>
+            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 flex flex-col`}>
+                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-700 bg-gray-800">
+                    <h1 className="font-bold text-lg text-purple-400 flex items-center gap-2">
+                        <i className="fas fa-shield-alt"></i> MuzzSnap
+                    </h1>
                     <button onClick={() => setShowSidebar(false)} className="lg:hidden text-gray-400">✕</button>
                 </div>
-                <div className="p-4 overflow-y-auto h-[calc(100vh-4rem)]">
-                    <div className="flex justify-between items-center mb-2 text-xs font-bold text-gray-500 uppercase">
+                <div className="p-4 overflow-y-auto flex-1">
+                    <div className="flex justify-between items-center mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
                         <span>Channels</span>
-                        <button onClick={() => setShowNewChannel(true)} className="hover:text-white text-lg">+</button>
+                        <button onClick={() => setShowNewChannel(true)} className="hover:text-white bg-gray-700 px-2 rounded">+</button>
                     </div>
                     <div className="space-y-1 mb-6">
                         {channels.map(ch => (
                             <button key={ch.id} onClick={() => { setSelectedChannel(ch); if(window.innerWidth < 1024) setShowSidebar(false); }}
-                                className={`w-full text-left px-3 py-2 rounded text-sm truncate ${selectedChannel?.id === ch.id ? 'bg-purple-900/50 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
-                                # {ch.name}
+                                className={`w-full text-left px-3 py-2 rounded text-sm truncate flex items-center gap-2 transition-colors ${selectedChannel?.id === ch.id ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
+                                <span className="opacity-50">#</span> {ch.name}
                             </button>
                         ))}
                     </div>
-                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Online ({onlineUsers.length})</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Online ({onlineUsers.length})</div>
                     <div className="space-y-2">
                         {onlineUsers.map((u, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm text-gray-400">
-                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                            <div key={i} className="flex items-center gap-2 text-sm text-gray-400 px-2">
+                                <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
                                 <span className="truncate">{u.username}</span>
                             </div>
                         ))}
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gray-800 border-t border-gray-700">
-                        <div className="text-xs text-gray-500 mb-1">Connected as</div>
-                        <div className="font-mono text-xs text-yellow-500 truncate mb-3">{user.address}</div>
-                        <button onClick={handleLogout} className="w-full py-2 bg-red-900/30 text-red-400 rounded text-xs hover:bg-red-900/50">Disconnect</button>
+                </div>
+                <div className="p-4 bg-gray-900 border-t border-gray-700">
+                    <div className="text-[10px] uppercase text-gray-500 mb-1 font-bold">Connected as</div>
+                    <div className="font-mono text-xs text-purple-400 truncate mb-3 bg-gray-800 p-2 rounded border border-gray-700">
+                        {user.address}
                     </div>
+                    <button onClick={handleLogout} className="w-full py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-xs hover:bg-red-500/20 transition flex items-center justify-center gap-2">
+                        <i className="fas fa-sign-out-alt"></i> Disconnect
+                    </button>
                 </div>
             </div>
 
             <div className="flex-1 flex flex-col min-w-0 bg-gray-900">
-                <div className="h-16 border-b border-gray-700 flex items-center px-4 lg:px-6 bg-gray-800/50 backdrop-blur">
-                    <div className="ml-8 lg:ml-0 font-bold text-lg">
+                <div className="h-16 border-b border-gray-700 flex items-center px-12 lg:px-6 bg-gray-800/50 backdrop-blur z-10">
+                    <div className="font-bold text-lg text-white">
                         {selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}
                     </div>
                 </div>
@@ -265,8 +320,8 @@
                         const isMe = msg.userId === user.uid;
                         return (
                             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-purple-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none'}`}>
-                                    {!isMe && <div className="text-[10px] text-purple-300 font-bold mb-0.5">{msg.username}</div>}
+                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-md ${isMe ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'}`}>
+                                    {!isMe && <div className="text-[10px] text-purple-400 font-bold mb-1 opacity-80">{msg.username}</div>}
                                     {msg.content}
                                 </div>
                             </div>
@@ -276,28 +331,28 @@
                 </div>
                 {selectedChannel && (
                     <div className="p-3 border-t border-gray-700 bg-gray-800">
-                        <div className="relative flex items-center gap-2 bg-gray-900 rounded-full px-4 py-2 border border-gray-700">
-                            <button onClick={() => setShowEmoji(!showEmoji)} className="text-gray-400 hover:text-yellow-400"><i className="far fa-smile text-xl"></i></button>
+                        <div className="relative flex items-center gap-2 bg-gray-900 rounded-xl px-4 py-2 border border-gray-700 focus-within:border-purple-500 transition-colors">
+                            <button onClick={() => setShowEmoji(!showEmoji)} className="text-gray-400 hover:text-yellow-400 transition"><i className="far fa-smile text-xl"></i></button>
                             {showEmoji && (
-                                <div className="absolute bottom-14 left-0 bg-gray-800 p-2 rounded-xl shadow-xl grid grid-cols-5 gap-1 border border-gray-700 w-48 h-32 overflow-y-auto">
-                                    {EMOJIS.map(e => <button key={e} onClick={() => setInputText(prev => prev + e)} className="text-xl hover:bg-gray-700 rounded p-1">{e}</button>)}
+                                <div className="absolute bottom-16 left-0 bg-gray-800 p-2 rounded-xl shadow-2xl grid grid-cols-5 gap-1 border border-gray-700 w-64 h-48 overflow-y-auto z-50">
+                                    {EMOJIS.map(e => <button key={e} onClick={() => setInputText(prev => prev + e)} className="text-xl hover:bg-gray-700 rounded p-2 transition">{e}</button>)}
                                 </div>
                             )}
                             <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-gray-500" placeholder={`Message #${selectedChannel.name}`} />
-                            <button onClick={handleSend} disabled={!inputText.trim()} className="text-purple-500 disabled:opacity-50 hover:text-purple-400"><i className="fas fa-paper-plane text-lg"></i></button>
+                            <button onClick={handleSend} disabled={!inputText.trim()} className="text-purple-500 disabled:opacity-50 hover:text-purple-400 transition"><i className="fas fa-paper-plane text-lg"></i></button>
                         </div>
                     </div>
                 )}
             </div>
 
             {showNewChannel && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                    <div className="bg-gray-800 p-6 rounded-xl w-full max-w-sm border border-gray-700">
-                        <h3 className="font-bold mb-4">New Channel</h3>
-                        <input autoFocus value={newChName} onChange={e => setNewChName(e.target.value.toLowerCase().replace(/\s/g, '-'))} className="w-full bg-gray-900 border border-gray-600 rounded p-2 mb-4 text-white" placeholder="channel-name" />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowNewChannel(false)} className="px-4 py-2 text-gray-400">Cancel</button>
-                            <button onClick={handleCreateChannel} className="bg-purple-600 px-4 py-2 rounded text-white">Create</button>
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
+                    <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 shadow-2xl">
+                        <h3 className="font-bold mb-4 text-white text-lg">New Channel</h3>
+                        <input autoFocus value={newChName} onChange={e => setNewChName(e.target.value.toLowerCase().replace(/\s/g, '-'))} className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4 text-white focus:outline-none focus:border-purple-500" placeholder="channel-name" />
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowNewChannel(false)} className="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                            <button onClick={handleCreateChannel} className="bg-purple-600 px-6 py-2 rounded-lg text-white hover:bg-purple-500 transition shadow-lg">Create</button>
                         </div>
                     </div>
                 </div>
