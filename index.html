@@ -72,6 +72,547 @@
             50% { transform: scale(1.05); }
             100% { transform: scale(1); opacity: 1; }
         }
+
+        .install-button {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            transition: all 0.3s ease;
+        }
+
+        .install-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(249, 115, 22, 0.3);
+        }
+    </style>
+</head>
+<body class="muzz-background p-4">
+
+    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+        <button 
+            id="disconnectButton" 
+            class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+        >
+            <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+        </button>
+    </div>
+
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+
+        <div id="logoButton" class="mb-5 cursor-pointer relative">
+            <img id="muzzLogo" src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';">
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">MetaMask Not Detected</span>
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400 mb-4">
+                Please install MetaMask to continue
+            </p>
+            <a id="installMetaMaskButton" href="#" target="_blank" class="install-button inline-block py-3 px-6 rounded-lg text-white font-semibold text-sm">
+                <i class="fab fa-chrome mr-2"></i> Install MetaMask
+            </a>
+        </div>
+
+        <!-- Balance Info Card -->
+        <div id="balanceCard" class="hidden mt-6 p-5 rounded-xl access-card">
+            <div class="mb-4">
+                <p class="text-xs text-gray-400 mb-1">Your Balance</p>
+                <p id="balanceAmount" class="text-2xl font-bold text-purple-400">-- MUZZLE</p>
+            </div>
+            <div class="text-xs text-gray-400">
+                <p>Address: <span id="userAddress" class="text-purple-300 font-mono"></span></p>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div id="successMessage" class="hidden mt-6 p-5 rounded-xl access-card">
+            <div class="text-center success-animation">
+                <i class="fas fa-check-circle text-5xl text-green-400 mb-3"></i>
+                <p class="text-xl font-bold text-green-400 mb-2">Authentication Successful!</p>
+                <p class="text-sm text-gray-300 mb-4">Redirecting...</p>
+                <div class="animate-pulse">
+                    <i class="fas fa-spinner fa-spin text-2xl text-purple-400"></i>
+                </div>
+            </div>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight mt-6"></h1>
+
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️<br>
+            単なるアプリ以上のもの。
+        </p>
+
+        <div class="flex justify-center space-x-8 sm:space-x-12">
+            <a href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09" target="_blank" rel="noopener noreferrer" class="transition duration-200 hover:scale-110 active:scale-95" aria-label="Link to X (Twitter) account">
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <a href="https://t.me/MuzzleToken" target="_blank" rel="noopener noreferrer" class="transition duration-200 hover:scale-110 active:scale-95" aria-label="Link to Telegram channel">
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap 2025&trade;</p>
+            <p class="mt-1">&copy; By.Ryachu</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURACIÓN
+        // ==========================================
+        const CONFIG = {
+            CONTRACT_ADDRESS: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+            MIN_BALANCE: 40000000,
+            NETWORK_ID: 1,
+            REDIRECT_URL: 'pagina_segura.html',
+            REDIRECT_DELAY: 2000
+        };
+
+        const ERC20_ABI = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+        ];
+
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap
+
+Contract: ${CONFIG.CONTRACT_ADDRESS}
+
+Sign this message to authenticate securely.
+
+This signature is gas-free.
+
+Timestamp: ${Date.now()}`;
+
+        // ==========================================
+        // DETECCIÓN DE DISPOSITIVO Y PLATAFORMA
+        // ==========================================
+        
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        function isIOS() {
+            return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        }
+
+        function isAndroid() {
+            return /Android/i.test(navigator.userAgent);
+        }
+
+        function isMetaMaskInstalled() {
+            return typeof window.ethereum !== 'undefined' && window.ethereum.isMetaMask;
+        }
+
+        function getMetaMaskDeepLink() {
+            const currentUrl = window.location.href;
+            
+            if (isAndroid()) {
+                // Android usa intent:// o metamask://
+                return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+            } else if (isIOS()) {
+                // iOS usa metamask://
+                return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+            }
+            
+            return currentUrl;
+        }
+
+        function getMetaMaskInstallUrl() {
+            if (isAndroid()) {
+                return 'https://play.google.com/store/apps/details?id=io.metamask';
+            } else if (isIOS()) {
+                return 'https://apps.apple.com/app/metamask/id1438144202';
+            }
+            return 'https://metamask.io/download/';
+        }
+
+        // ==========================================
+        // REFERENCIAS DOM
+        // ==========================================
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const messageTitle = document.getElementById('messageTitle');
+        const noWalletText = document.getElementById('noWalletText');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const balanceCard = document.getElementById('balanceCard');
+        const balanceAmount = document.getElementById('balanceAmount');
+        const userAddress = document.getElementById('userAddress');
+        const successMessage = document.getElementById('successMessage');
+        const installMetaMaskButton = document.getElementById('installMetaMaskButton');
+
+        let isConnecting = false;
+        let isConnected = false;
+        let currentAddress = null;
+        let currentSignature = null;
+
+        // ==========================================
+        // FUNCIONES AUXILIARES
+        // ==========================================
+
+        function updateStatus(msg, type = 'info') {
+            walletStatus.textContent = msg;
+            walletStatus.className = 'inline-block py-2 px-4 text-sm font-medium rounded-lg shadow-xl transition-colors duration-300';
+            
+            if (type === 'success') {
+                walletStatus.classList.add('text-green-400', 'bg-green-900');
+            } else if (type === 'error') {
+                walletStatus.classList.add('text-red-400', 'bg-red-900');
+            } else if (type === 'warning') {
+                walletStatus.classList.add('text-yellow-400', 'bg-yellow-900');
+            } else {
+                walletStatus.classList.add('text-gray-400', 'bg-gray-800');
+            }
+        }
+
+        function setLoading(loading) {
+            isConnecting = loading;
+            if (loading) {
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor = 'wait';
+            } else {
+                muzzLogo.style.opacity = '1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor = 'pointer';
+            }
+        }
+
+        function formatAddress(addr) {
+            return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+        }
+
+        async function checkBalance(address) {
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, ERC20_ABI, provider);
+                
+                const balance = await contract.balanceOf(address);
+                const decimals = await contract.decimals();
+                const balanceFormatted = ethers.utils.formatUnits(balance, decimals);
+                const balanceNumber = parseFloat(balanceFormatted);
+                
+                return {
+                    balance: balance,
+                    raw: balanceNumber,
+                    formatted: balanceNumber.toLocaleString(undefined, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                    }),
+                    hasAccess: balanceNumber >= CONFIG.MIN_BALANCE
+                };
+            } catch (error) {
+                console.error('Error checking balance:', error);
+                throw new Error('Could not verify token balance. Please try again.');
+            }
+        }
+
+        async function checkNetwork() {
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const currentChainId = parseInt(chainId, 16);
+                
+                if (currentChainId !== CONFIG.NETWORK_ID) {
+                    throw new Error(`Please switch to the correct network (Chain ID: ${CONFIG.NETWORK_ID})`);
+                }
+                return true;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // ==========================================
+        // FUNCIÓN PRINCIPAL - MOBILE COMPATIBLE
+        // ==========================================
+
+        async function connectWalletAndSign() {
+            if (isConnecting || isConnected) {
+                console.log('Already connecting or connected');
+                return;
+            }
+
+            // DETECCIÓN MEJORADA PARA MOBILE
+            const mobile = isMobile();
+            const hasMetaMask = isMetaMaskInstalled();
+
+            console.log('Device info:', {
+                mobile,
+                hasMetaMask,
+                isIOS: isIOS(),
+                isAndroid: isAndroid(),
+                userAgent: navigator.userAgent
+            });
+
+            // Si es mobile y NO tiene MetaMask instalado
+            if (mobile && !hasMetaMask) {
+                const deepLink = getMetaMaskDeepLink();
+                const installUrl = getMetaMaskInstallUrl();
+                
+                messageTitle.textContent = "MetaMask Not Detected";
+                
+                if (isAndroid()) {
+                    noWalletText.innerHTML = `Install MetaMask app for Android or open this page inside MetaMask browser.`;
+                } else if (isIOS()) {
+                    noWalletText.innerHTML = `Install MetaMask app for iOS or open this page inside MetaMask browser.`;
+                } else {
+                    noWalletText.innerHTML = `Please install MetaMask mobile app.`;
+                }
+                
+                installMetaMaskButton.href = installUrl;
+                noWalletMessage.classList.remove('hidden');
+                updateStatus("MetaMask required", 'error');
+                
+                // Intentar abrir en MetaMask app si está instalada
+                console.log('Trying deep link:', deepLink);
+                setTimeout(() => {
+                    window.location.href = deepLink;
+                }, 500);
+                
+                return;
+            }
+
+            // Si es desktop y no tiene MetaMask
+            if (!mobile && !hasMetaMask) {
+                messageTitle.textContent = "MetaMask Not Detected";
+                noWalletText.innerHTML = `Please install MetaMask from: <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline hover:text-blue-300">metamask.io</a>`;
+                installMetaMaskButton.href = 'https://metamask.io/download/';
+                noWalletMessage.classList.remove('hidden');
+                updateStatus("No wallet detected", 'error');
+                return;
+            }
+
+            // FLUJO NORMAL DE CONEXIÓN
+            try {
+                setLoading(true);
+                noWalletMessage.classList.add('hidden');
+                balanceCard.classList.add('hidden');
+                successMessage.classList.add('hidden');
+
+                updateStatus("Connecting wallet...", 'info');
+                console.log('Requesting accounts...');
+                
+                const accounts = await window.ethereum.request({ 
+                    method: 'eth_requestAccounts' 
+                });
+                
+                const address = accounts[0];
+                currentAddress = address;
+                console.log('Connected address:', address);
+
+                updateStatus("Checking network...", 'info');
+                await checkNetwork();
+
+                updateStatus("Checking balance...", 'info');
+                console.log('Checking balance...');
+                
+                const balanceInfo = await checkBalance(address);
+                console.log('Balance info:', balanceInfo);
+                
+                balanceAmount.textContent = `${balanceInfo.formatted} MUZZLE`;
+                userAddress.textContent = formatAddress(address);
+                balanceCard.classList.remove('hidden');
+
+                if (!balanceInfo.hasAccess) {
+                    updateStatus("Insufficient balance", 'error');
+                    messageTitle.textContent = "Access Denied";
+                    noWalletText.innerHTML = `You need at least <strong>${CONFIG.MIN_BALANCE.toLocaleString()}</strong> MUZZLE tokens.<br><br>Your balance: <strong>${balanceInfo.formatted}</strong> MUZZLE`;
+                    installMetaMaskButton.classList.add('hidden');
+                    noWalletMessage.classList.remove('hidden');
+                    setLoading(false);
+                    return;
+                }
+
+                updateStatus("Awaiting signature...", 'warning');
+                console.log('Requesting signature...');
+                
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [LOGIN_MESSAGE, address]
+                });
+
+                currentSignature = signature;
+                console.log('Signature obtained:', signature);
+
+                isConnected = true;
+                updateStatus("Authenticated!", 'success');
+                
+                successMessage.classList.remove('hidden');
+                disconnectButton.classList.remove('hidden');
+
+                const authData = {
+                    address: address,
+                    signature: signature,
+                    timestamp: Date.now(),
+                    balance: balanceInfo.formatted
+                };
+                
+                sessionStorage.setItem('muzzsnap_auth', JSON.stringify(authData));
+                console.log('Session data saved:', authData);
+
+                console.log(`Redirecting to ${CONFIG.REDIRECT_URL} in ${CONFIG.REDIRECT_DELAY}ms...`);
+                
+                setTimeout(() => {
+                    window.location.href = CONFIG.REDIRECT_URL;
+                }, CONFIG.REDIRECT_DELAY);
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                isConnected = false;
+                currentAddress = null;
+                currentSignature = null;
+                
+                if (error.code === 4001) {
+                    updateStatus("Connection rejected", 'error');
+                    messageTitle.textContent = "Connection Cancelled";
+                    noWalletText.textContent = "You rejected the connection or signature request.";
+                } else if (error.code === -32002) {
+                    updateStatus("Pending request", 'warning');
+                    messageTitle.textContent = "Request Pending";
+                    noWalletText.textContent = "Please check MetaMask for a pending request.";
+                } else {
+                    updateStatus("Connection failed", 'error');
+                    messageTitle.textContent = "Connection Error";
+                    noWalletText.textContent = error.message || "An unexpected error occurred. Please try again.";
+                }
+                
+                installMetaMaskButton.classList.add('hidden');
+                noWalletMessage.classList.remove('hidden');
+                
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function disconnectWallet() {
+            isConnected = false;
+            currentAddress = null;
+            currentSignature = null;
+            
+            updateStatus("Disconnected", 'info');
+            disconnectButton.classList.add('hidden');
+            balanceCard.classList.add('hidden');
+            successMessage.classList.add('hidden');
+            noWalletMessage.classList.add('hidden');
+            
+            sessionStorage.removeItem('muzzsnap_auth');
+            
+            console.log('Wallet disconnected');
+        }
+
+        // ==========================================
+        // EVENT LISTENERS
+        // ==========================================
+
+        logoButton.addEventListener('click', connectWalletAndSign);
+        disconnectButton.addEventListener('click', disconnectWallet);
+
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log('Accounts changed:', accounts);
+                if (accounts.length === 0) {
+                    disconnectWallet();
+                } else if (isConnected && accounts[0] !== currentAddress) {
+                    disconnectWallet();
+                    updateStatus("Account changed", 'warning');
+                }
+            });
+
+            window.ethereum.on('chainChanged', (chainId) => {
+                console.log('Chain changed:', chainId);
+                window.location.reload();
+            });
+        }
+
+        // ==========================================
+        // INICIALIZACIÓN
+        // ==========================================
+
+        console.log('MuzzSnap Login initialized');
+        console.log('Configuration:', {
+            contract: CONFIG.CONTRACT_ADDRESS,
+            minBalance: CONFIG.MIN_BALANCE,
+            network: CONFIG.NETWORK_ID,
+            redirectUrl: CONFIG.REDIRECT_URL,
+            isMobile: isMobile(),
+            hasMetaMask: isMetaMaskInstalled()
+        });
+
+        // Configurar botón de instalación
+        installMetaMaskButton.href = getMetaMaskInstallUrl();
+
+        // Verificar sesión activa
+        const savedAuth = sessionStorage.getItem('muzzsnap_auth');
+        if (savedAuth) {
+            try {
+                const authData = JSON.parse(savedAuth);
+                const now = Date.now();
+                const sessionAge = now - authData.timestamp;
+                
+                if (sessionAge < 3600000) {
+                    console.log('Active session found, redirecting...');
+                    window.location.href = CONFIG.REDIRECT_URL;
+                } else {
+                    sessionStorage.removeItem('muzzsnap_auth');
+                }
+            } catch (e) {
+                console.error('Error loading session:', e);
+                sessionStorage.removeItem('muzzsnap_auth');
+            }
+        }
+    </script>
+</body>
+</html>
+        .text-x { color: #ffffff; }
+        .text-telegram { color: #229ED9; }
+
+        #logoButton { cursor: pointer; transition: all 0.3s ease; position: relative; }
+        #logoButton:hover { opacity: 0.9; }
+
+        #loadingSpinner { position: absolute; top:50%; left:50%; transform: translate(-50%, -50%); z-index:10; }
+
+        .wallet-message { background-color: #1f2937; border:1px solid #374151; }
+
+        #disconnectButton { transition: all 0.3s ease; }
+        #disconnectButton:hover { background-color: #991b1b; transform: scale(1.05); }
+
+        @media (max-width: 639px) {
+            #statusContainer { flex-direction: column; align-items: flex-end; top:8px; right:8px; gap:4px; }
+            #walletStatus, #disconnectButton { font-size:0.75rem; padding:0.4rem 0.75rem; }
+            .wallet-message { font-size:0.85rem; }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #logoButton, #disconnectButton { -webkit-tap-highlight-color: transparent; }
+        }
+
+        .access-card {
+            background: linear-gradient(135deg, rgba(147,51,234,0.1), rgba(79,70,229,0.1));
+            border: 1px solid rgba(147,51,234,0.3);
+        }
+
+        .success-animation {
+            animation: successPulse 0.6s ease-out;
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body class="muzz-background p-4">
