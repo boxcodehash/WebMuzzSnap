@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MuzzSnap</title>
+    <title>MuzzSnap - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
@@ -17,23 +17,223 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        
-        body { font-family: 'Inter', sans-serif; overflow-x: hidden; min-height: 100vh; }
-        .muzz-background { background-color: #0a0a0a; position: relative; z-index: 0; min-height: 100vh; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh; 
+        }
+
+        .muzz-background {
+            background-color: #0a0a0a;
+            position: relative;
+            z-index: 0;
+            min-height: 100vh;
+        }
+
         .muzz-background::before {
             content: '';
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: radial-gradient(circle at 10% 50%, rgba(100,100,100,0.08) 0%, transparent 50%),
                         radial-gradient(circle at 90% 80%, rgba(50,50,50,0.1) 0%, transparent 60%);
-            z-index: 1; filter: blur(8px); opacity: 0.9;
+            z-index: 1;
+            filter: blur(8px);
+            opacity: 0.9;
         }
+
         .text-x { color: #ffffff; }
         .text-telegram { color: #229ED9; }
+
         #logoButton { cursor: pointer; transition: all 0.3s ease; position: relative; }
         #logoButton:hover { opacity: 0.9; }
+
         #loadingSpinner { position: absolute; top:50%; left:50%; transform: translate(-50%, -50%); z-index:10; }
-        .wallet-message { background-color: #1f2937; border: 1px solid #374151; }
+
+        .wallet-message { background-color: #1f2937; border:1px solid #374151; }
+
         #disconnectButton { transition: all 0.3s ease; }
+        #disconnectButton:hover { background-color: #991b1b; transform: scale(1.05); }
+
+        @media (max-width: 639px) {
+            #statusContainer { flex-direction: column; align-items: flex-end; top:8px; right:8px; gap:4px; }
+            #walletStatus, #disconnectButton { font-size:0.75rem; padding:0.4rem 0.75rem; }
+            .wallet-message { font-size:0.85rem; }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #logoButton, #disconnectButton { -webkit-tap-highlight-color: transparent; }
+        }
+
+        .access-card {
+            background: linear-gradient(135deg, rgba(147,51,234,0.1), rgba(79,70,229,0.1));
+            border: 1px solid rgba(147,51,234,0.3);
+        }
+    </style>
+</head>
+<body class="muzz-background p-4">
+
+    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <span id="walletStatus" class="inline-block py-2 px-4 text-sm font-medium text-gray-400 bg-gray-800 rounded-lg shadow-xl transition-colors duration-300">
+            Disconnected
+        </span>
+        <button 
+            id="disconnectButton" 
+            class="hidden py-2 px-4 text-sm font-medium text-white bg-red-700 rounded-lg shadow-xl hover:bg-red-800 transition-all duration-300"
+            onclick="disconnectWallet()"
+        >
+            <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span><span class="sm:hidden">Exit</span>
+        </button>
+    </div>
+
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+
+        <div id="logoButton" class="mb-5 cursor-pointer relative" onclick="handleLogoClick()">
+            <img id="muzzLogo" src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" alt="MuzzSnap Logo"
+                class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500 hover:rotate-3"
+                onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';">
+            <div id="loadingSpinner" class="hidden text-white">
+                <i class="fas fa-spinner fa-spin text-4xl"></i>
+            </div>
+        </div>
+        
+        <div id="noWalletMessage" class="hidden mt-6 p-4 rounded-xl wallet-message">
+            <p class="text-sm font-semibold text-red-400 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i> <span id="messageTitle">Wallet not detected.</span>
+            </p>
+            <p id="noWalletText" class="text-xs text-gray-400">
+                Click on the logo to attempt connection.
+            </p>
+        </div>
+
+        <!-- Balance Info Card -->
+        <div id="balanceCard" class="hidden mt-6 p-5 rounded-xl access-card">
+            <div class="mb-4">
+                <p class="text-xs text-gray-400 mb-1">Your Balance</p>
+                <p id="balanceAmount" class="text-2xl font-bold text-purple-400">-- MUZZLE</p>
+            </div>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight mt-6"></h1>
+
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-8 sm:mb-12 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️<br>
+            単なるアプリ以上のもの。
+        </p>
+
+        <div class="flex justify-center space-x-8 sm:space-x-12">
+            <a href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09" target="_blank" rel="noopener noreferrer" class="transition duration-200 hover:scale-110 active:scale-95" aria-label="Link to X (Twitter) account">
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <a href="https://t.me/MuzzleToken" target="_blank" rel="noopener noreferrer" class="transition duration-200 hover:scale-110 active:scale-95" aria-label="Link to Telegram channel">
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
+        </div>
+
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap 2025&trade;</p>
+            <p class="mt-1">&copy; By.Ryachu</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const config = window.MUZZSNAP_CONFIG;
+        const CONTRACT_ADDRESS = config.CONTRACT_ADDRESS;
+        const ERC20_ABI = ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"];
+        const LOGIN_MESSAGE = `Welcome to MuzzSnap\n\nContract: ${CONTRACT_ADDRESS}\n\nSign this message to authenticate securely.\n\nThis signature is gas-free.`;
+        const MIN_CHAT = 40000000; // 40M tokens
+
+        const logoButton = document.getElementById('logoButton');
+        const muzzLogo = document.getElementById('muzzLogo');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const walletStatus = document.getElementById('walletStatus');
+        const noWalletMessage = document.getElementById('noWalletMessage');
+        const messageTitle = document.getElementById('messageTitle');
+        const noWalletText = document.getElementById('noWalletText');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const balanceCard = document.getElementById('balanceCard');
+        const balanceAmount = document.getElementById('balanceAmount');
+
+        let isConnecting = false;
+        let isConnected = false;
+        let currentAddress = null;
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(config.firebaseConfig);
+            firebase.analytics();
+        }
+        const auth = firebase.auth();
+        const database = firebase.database();
+
+        function updateStatus(msg, type='info') {
+            walletStatus.textContent = msg;
+            walletStatus.className = 'inline-block py-2 px-4 text-sm font-medium rounded-lg shadow-xl transition-colors duration-300';
+            if(type==='success') walletStatus.classList.add('text-green-400','bg-green-900');
+            else if(type==='error') walletStatus.classList.add('text-red-400','bg-red-900');
+            else walletStatus.classList.add('text-gray-400','bg-gray-800');
+        }
+
+        function setLoading(loading){
+            isConnecting = loading;
+            if(loading){
+                muzzLogo.style.opacity = '0.2';
+                loadingSpinner.classList.remove('hidden');
+                logoButton.style.cursor='wait';
+            } else {
+                muzzLogo.style.opacity='1';
+                loadingSpinner.classList.add('hidden');
+                logoButton.style.cursor='pointer';
+            }
+        }
+
+        async function connectWalletAndSign() {
+            if(isConnecting) return;
+
+            if(typeof window.ethereum==='undefined'){
+                messageTitle.textContent="MetaMask not detected";
+                noWalletText.innerHTML=`Install from: <a href="https://metamask.io/download/" target="_blank" class="text-blue-400 underline">metamask.io</a>`;
+                noWalletMessage.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                setLoading(true);
+                noWalletMessage.classList.add('hidden');
+
+                const accounts = await window.ethereum.request({method:'eth_requestAccounts'});
+                const address = accounts[0];
+                currentAddress = address;
+
+                // Solicitar firma
+                const signature = await window.ethereum.request({
+                    method:'personal_sign',
+                    params:[LOGIN_MESSAGE,address]
+                });
+
+                // ✅ Redirigir automáticamente después de firma
+                window.location.href = "pagina_segura.html"; // <-- aquí pones tu página
+
+            } catch(error){
+                console.error(error);
+                updateStatus("Connection cancelled or failed", 'error');
+                noWalletMessage.classList.remove('hidden');
+                messageTitle.textContent="Connection Error";
+                noWalletText.textContent=error.message || "User rejected connection";
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function handleLogoClick(){ 
+            if(isConnected) return;
+            connectWalletAndSign();
+        }
+    </script>
+</body>
+</html>
         #disconnectButton:hover { background-color: #991b1b; transform: scale(1.05); }
         .access-card { background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(79, 70, 229, 0.1)); border: 1px solid rgba(147, 51, 234, 0.3); }
 
