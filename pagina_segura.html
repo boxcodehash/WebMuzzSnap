@@ -3,37 +3,588 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MuzzSnap | Revolución Descentralizada</title>
+    <title>MuzzSnap | The Future of Decentralized Communication</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Orbitron:wght@400..900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+        /* --- Estilos Base y Animaciones de Fondo --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0a0a0a; /* Fondo Negro */
-            color: #f3f3f3;
-            min-height: 100vh;
+            background: #000000;
+            color: #ffffff;
+            overflow-x: hidden;
         }
 
-        .container-muzz {
-            background-color: #1a1a1a;
-            border: 1px solid #2d2d2d;
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.2); /* Sombra roja sutil */
+        .hero-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at 20% 30%, rgba(220, 38, 38, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 70%, rgba(185, 28, 28, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 50% 50%, rgba(127, 29, 29, 0.1) 0%, transparent 100%);
+            z-index: 0;
+            animation: bgShift 20s ease infinite;
         }
 
-        .text-muzz-red {
-            color: #ff0000; /* Letras Rojas Llamativas */
+        @keyframes bgShift {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+        }
+
+        .grid-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.15;
+        }
+
+        .grid-lines {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(220, 38, 38, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(220, 38, 38, 0.3) 1px, transparent 1px);
+            background-size: 100px 100px;
+            animation: gridMove 30s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translateY(0) translateX(0); }
+            100% { transform: translateY(100px) translateX(100px); }
+        }
+
+        .particle {
+            position: fixed;
+            width: 3px;
+            height: 3px;
+            background: #dc2626;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+            box-shadow: 0 0 10px #dc2626;
+        }
+
+        /* --- Estilos de Texto e Iconos --- */
+        .glitch-text {
             font-family: 'Orbitron', sans-serif;
-            text-shadow: 0 0 5px rgba(255, 0, 0, 0.7);
+            position: relative;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            text-shadow: 
+                0 0 20px rgba(220, 38, 38, 0.8),
+                0 0 40px rgba(220, 38, 38, 0.5),
+                0 0 60px rgba(220, 38, 38, 0.3);
+            animation: glitchPulse 3s ease-in-out infinite;
         }
 
-        .text-detail {
-            color: #ccc; /* Detalles Gris Claro */
+        @keyframes glitchPulse {
+            0%, 100% { 
+                text-shadow: 
+                    0 0 20px rgba(220, 38, 38, 0.8),
+                    0 0 40px rgba(220, 38, 38, 0.5),
+                    0 0 60px rgba(220, 38, 38, 0.3);
+            }
+            50% { 
+                text-shadow: 
+                    0 0 30px rgba(220, 38, 38, 1),
+                    0 0 60px rgba(220, 38, 38, 0.8),
+                    0 0 100px rgba(220, 38, 38, 0.5);
+            }
         }
 
-        .icon-pulse {
-            animation: pulse 1.5s infinite;
+        .subtitle-glow {
+            font-family: 'Rajdhani', sans-serif;
+            color: #e5e5e5;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .lock-icon {
+            animation: lockPulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.9));
+        }
+
+        @keyframes lockPulse {
+            0%, 100% { 
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.9));
+            }
+            50% { 
+                transform: scale(1.1) rotate(-5deg);
+                filter: drop-shadow(0 0 50px rgba(220, 38, 38, 1));
+            }
+        }
+
+        .icon-glow {
+            filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.7));
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(5deg); }
+        }
+
+        /* --- Componentes --- */
+
+        .feature-card {
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.8), rgba(20, 20, 20, 0.9));
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            border-color: rgba(220, 38, 38, 0.6);
+            box-shadow: 
+                0 20px 60px rgba(220, 38, 38, 0.3),
+                0 0 40px rgba(220, 38, 38, 0.2);
+        }
+
+        .cta-button {
+            position: relative;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            background: linear-gradient(135deg, #dc2626, #991b1b);
+            border: 2px solid #dc2626;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .cta-button:hover::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(220, 38, 38, 0.6);
+            border-color: #ff0000;
+        }
+
+        .stat-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #dc2626;
+            text-shadow: 0 0 20px rgba(220, 38, 38, 0.8);
+        }
+
+        /* --- Efecto Flicker (Aplicado para Alta Gama) --- */
+        .flicker-border {
+            position: relative;
+        }
+
+        .flicker-border::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            animation: borderFlicker 5s infinite alternate;
+        }
+
+        @keyframes borderFlicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+                opacity: 0.9;
+            }
+            20%, 24%, 55% {
+                opacity: 0.2;
+                box-shadow: 0 0 25px rgba(220, 38, 38, 0.8);
+            }
+        }
+
+        /* --- Scroll Reveal --- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- AJUSTES ESPECÍFICOS PARA MOBILE (Responsive Adjustments) --- */
+        @media (max-width: 768px) {
+            /* Ajuste de tipografía en Mobile */
+            .glitch-text {
+                font-size: 3.5rem; /* Ajuste para que quepa mejor */
+                letter-spacing: 0.02em;
+            }
+            .subtitle-glow {
+                font-size: 1.5rem; /* Título secundario más pequeño */
+            }
+            .lock-icon {
+                 font-size: 5rem; /* Icono más pequeño */
+            }
+            .stat-number {
+                font-size: 2rem; /* Números de estadística más pequeños */
+            }
+            .feature-card {
+                padding: 1.5rem; /* Padding reducido en tarjetas */
+            }
+            .icon-glow {
+                font-size: 4rem; /* Iconos de característica más pequeños */
+            }
+        }
+        
+        @media (max-width: 640px) {
+            /* Ajustes para teléfonos pequeños */
+            .glitch-text {
+                font-size: 2.5rem;
+            }
+            .subtitle-glow {
+                font-size: 1.25rem;
+            }
+            .stat-number {
+                font-size: 1.75rem;
+            }
+            /* Apilar estadísticas horizontalmente en teléfonos */
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-bg"></div>
+    <div class="grid-container">
+        <div class="grid-lines"></div>
+    </div>
+
+    <div class="content-wrapper min-h-screen">
+        
+        <section class="relative min-h-screen flex items-center justify-center px-4 py-16 sm:py-20">
+            <div class="hex-decoration hidden md:block" style="top: 10%; left: 10%; opacity: 0.3;"></div>
+            <div class="hex-decoration hidden md:block" style="top: 60%; right: 15%; opacity: 0.2; animation-delay: -5s;"></div>
+
+            <div class="max-w-6xl mx-auto text-center reveal active">
+                <div class="mb-6 sm:mb-8">
+                    <i class="fas fa-lock-open text-6xl sm:text-8xl text-red-600 lock-icon"></i>
+                </div>
+
+                <h1 class="glitch-text text-4xl sm:text-6xl md:text-7xl lg:text-8xl mb-4 sm:mb-6">
+                    MUZZSNAP
+                </h1>
+                <h2 class="subtitle-glow text-xl sm:text-3xl md:text-4xl font-light mb-6 sm:mb-8 tracking-wide">
+                    THE FUTURE OF <span class="text-red-600 font-bold">DECENTRALIZED</span> COMMUNICATION
+                </h2>
+
+                <p class="text-base sm:text-lg text-gray-400 max-w-3xl mx-auto mb-10 sm:mb-12 leading-relaxed px-2">
+                    Access verified. Prepare to enter the era of <span class="text-red-500 font-semibold">borderless communication</span>, where <span class="text-white font-semibold">privacy meets innovation</span> on the blockchain.
+                </p>
+
+                <div class="mb-12 sm:mb-16">
+                    <button class="cta-button relative z-10 px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-xl text-white rounded-full tracking-wider transition-all duration-300">
+                        <i class="fas fa-rocket mr-3"></i>
+                        LAUNCH APP <span class="text-xs opacity-75 hidden sm:inline">(COMING SOON)</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-3 stats-grid gap-4 sm:gap-8 max-w-4xl mx-auto mt-12 sm:mt-16">
+                    <div class="text-center">
+                        <div class="stat-number">100%</div>
+                        <p class="text-gray-400 text-xs sm:text-sm uppercase tracking-wider mt-2">Decentralized</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="stat-number">∞</div>
+                        <p class="text-gray-400 text-xs sm:text-sm uppercase tracking-wider mt-2">Privacy First</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="stat-number">Web3</div>
+                        <p class="text-gray-400 text-xs sm:text-sm uppercase tracking-wider mt-2">Powered</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="relative px-4 py-16 sm:py-20">
+            <div class="max-w-7xl mx-auto">
+                
+                <div class="text-center mb-12 sm:mb-16 reveal">
+                    <h2 class="text-3xl sm:text-5xl font-bold mb-3 sm:mb-4">
+                        <span class="glitch-text" style="font-size: 1em;">REVOLUTIONARY FEATURES</span>
+                    </h2>
+                    <p class="text-lg sm:text-xl text-gray-400">Built for the future of digital communication</p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-6 sm:gap-8 flicker-border">
+                    
+                    <div class="feature-card p-6 sm:p-8 rounded-2xl reveal">
+                        <div class="mb-4 sm:mb-6">
+                            <i class="fas fa-globe-americas text-5xl sm:text-6xl text-red-600 icon-glow"></i>
+                        </div>
+                        <h3 class="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">
+                            Absolute Privacy
+                        </h3>
+                        <p class="text-sm sm:text-base text-gray-400 leading-relaxed">
+                            MuzzSnap is the <span class="text-red-500 font-semibold">crypto revolution</span> where every message, chat, and exchange is private. <span class="text-white font-semibold">You own</span> your information and data.
+                        </p>
+                        <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-700">
+                            <div class="flex items-center text-xs sm:text-sm text-gray-500">
+                                <i class="fas fa-shield-alt mr-2 text-red-600"></i>
+                                End-to-end encryption
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card p-6 sm:p-8 rounded-2xl reveal" style="transition-delay: 0.1s;">
+                        <div class="mb-4 sm:mb-6">
+                            <i class="fas fa-comments text-5xl sm:text-6xl text-red-600 icon-glow" style="animation-delay: -1s;"></i>
+                        </div>
+                        <h3 class="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">
+                            Multi-Purpose Messaging
+                        </h3>
+                        <p class="text-sm sm:text-base text-gray-400 leading-relaxed">
+                            More than just chat. <span class="text-red-500 font-semibold">Messages, exchanges, purchases</span> and more, all integrated into a social platform operating on blockchain principles.
+                        </p>
+                        <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-700">
+                            <div class="flex items-center text-xs sm:text-sm text-gray-500">
+                                <i class="fas fa-network-wired mr-2 text-red-600"></i>
+                                Blockchain-powered
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card p-6 sm:p-8 rounded-2xl reveal" style="transition-delay: 0.2s;">
+                        <div class="mb-4 sm:mb-6">
+                            <i class="fas fa-user-shield text-5xl sm:text-6xl text-red-600 icon-glow" style="animation-delay: -2s;"></i>
+                        </div>
+                        <h3 class="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">
+                            Wallet-Powered Identity
+                        </h3>
+                        <p class="text-sm sm:text-base text-gray-400 leading-relaxed">
+                            Your wallet is your identity. Every interaction is signed and secured, ensuring <span class="text-white font-semibold">you have control</span> over what you do and who you communicate with.
+                        </p>
+                        <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-700">
+                            <div class="flex items-center text-xs sm:text-sm text-gray-500">
+                                <i class="fas fa-key mr-2 text-red-600"></i>
+                                Self-sovereign identity
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section class="relative px-4 py-16 sm:py-20">
+            <div class="max-w-5xl mx-auto text-center reveal">
+                <div class="bg-gradient-to-r from-transparent via-red-900/20 to-transparent p-8 sm:p-12 rounded-3xl border border-red-900/30 flicker-border">
+                    <i class="fas fa-quote-left text-2xl sm:text-3xl text-red-600 mb-4 sm:mb-6 opacity-50"></i>
+                    <h3 class="text-2xl sm:text-4xl font-bold mb-4 sm:mb-6 text-white">
+                        A New Era of Social Connection
+                    </h3>
+                    <p class="text-lg sm:text-xl text-gray-300 leading-relaxed mb-6 sm:mb-8">
+                        Where <span class="text-red-500 font-semibold">decentralization meets communication</span>, and every user has true ownership of their digital presence.
+                    </p>
+                    <div class="flex flex-wrap justify-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-400">
+                        <span class="px-3 sm:px-4 py-1 sm:py-2 bg-black/50 rounded-full border border-red-900/30">
+                            <i class="fas fa-check-circle text-red-600 mr-2"></i>No Censorship
+                        </span>
+                        <span class="px-3 sm:px-4 py-1 sm:py-2 bg-black/50 rounded-full border border-red-900/30">
+                            <i class="fas fa-check-circle text-red-600 mr-2"></i>No Central Authority
+                        </span>
+                        <span class="px-3 sm:px-4 py-1 sm:py-2 bg-black/50 rounded-full border border-red-900/30">
+                            <i class="fas fa-check-circle text-red-600 mr-2"></i>Full Transparency
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="relative px-4 py-12 sm:py-16 border-t border-gray-800">
+            <div class="max-w-6xl mx-auto text-center">
+                <div class="mb-6 sm:mb-8">
+                    <h4 class="text-xl sm:text-2xl font-bold mb-1 glitch-text" style="font-size: 1.5rem;">MUZZSNAP</h4>
+                    <p class="text-gray-500 text-xs sm:text-sm">The Decentralized Revolution</p>
+                </div>
+                
+                <div class="flex justify-center space-x-6 mb-6 sm:mb-8">
+                    <a href="https://x.com/MuzzleToken" target="_blank" class="text-2xl sm:text-3xl text-gray-400 hover:text-red-600 transition duration-300 transform hover:scale-110">
+                        <i class="fab fa-x-twitter"></i>
+                    </a>
+                    <a href="https://t.me/MuzzleToken" target="_blank" class="text-2xl sm:text-3xl text-gray-400 hover:text-red-600 transition duration-300 transform hover:scale-110">
+                        <i class="fab fa-telegram-plane"></i>
+                    </a>
+                </div>
+
+                <div class="text-xs text-gray-600">
+                    <p>MuzzSnap 2025™ | By.Ryachu</p>
+                    <p class="mt-1">単なるアプリ以上のもの。</p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        // Create floating particles
+        function createParticles() {
+            const particleCount = 50;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                
+                // Asegurar animaciones y delays consistentes
+                const duration = (Math.random() * 3 + 2);
+                const delay = Math.random() * 2;
+
+                particle.style.animationDuration = duration + 's';
+                particle.style.animationDelay = delay + 's';
+                particle.style.opacity = Math.random() * 0.5 + 0.2;
+                
+                // Generar keyframes dinámicos
+                const keyframes = `
+                    @keyframes float${i} {
+                        0% {
+                            transform: translate(0, 0);
+                            opacity: ${particle.style.opacity};
+                        }
+                        50% {
+                            transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px);
+                            opacity: ${Math.random() * 0.8 + 0.2};
+                        }
+                        100% {
+                            transform: translate(0, 0);
+                            opacity: ${particle.style.opacity};
+                        }
+                    }
+                `;
+                
+                // Aplicar keyframes (Necesario para que la animación sea única)
+                const style = document.createElement('style');
+                style.textContent = keyframes;
+                document.head.appendChild(style);
+                
+                particle.style.animation = `float${i} ${duration}s ease-in-out infinite`;
+                
+                document.body.appendChild(particle);
+            }
+        }
+
+        // Scroll reveal animation
+        function revealOnScroll() {
+            const reveals = document.querySelectorAll('.reveal');
+            
+            reveals.forEach(element => {
+                const windowHeight = window.innerHeight;
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+                
+                if (elementTop < windowHeight - elementVisible) {
+                    element.classList.add('active');
+                    
+                    // Llamar a animateCounters SÓLO cuando la sección de Héroe se active
+                    if (element.closest('section.relative.min-h-screen') && !window.countersAnimated) {
+                        animateCounters();
+                        window.countersAnimated = true; // Flag para que no se repita
+                    }
+                }
+            });
+        }
+
+        // Counter animation
+        function animateCounters() {
+            const counters = document.querySelectorAll('.stat-number');
+            
+            counters.forEach(counter => {
+                // Solo animar si contiene '%'
+                if (!counter.textContent.includes('%')) return;
+                
+                let current = 0;
+                const duration = 2000;
+                const steps = duration / 16;
+                const stepValue = 100 / steps;
+                
+                const timer = setInterval(() => {
+                    current += stepValue;
+                    if (current >= 100) {
+                        current = 100;
+                        clearInterval(timer);
+                    }
+                    counter.textContent = Math.floor(current) + '%';
+                }, 16);
+            });
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            createParticles();
+            revealOnScroll();
+        });
+
+        window.addEventListener('scroll', revealOnScroll);
+
+        // Animate on first view
+        setTimeout(() => {
+            const firstReveals = document.querySelectorAll('.reveal');
+            if (firstReveals.length > 0 && window.scrollY < 100) {
+                firstReveals[0].classList.add('active');
+                // Llamar al contador si la vista está en la parte superior
+                animateCounters(); 
+                window.countersAnimated = true;
+            }
+        }, 100);
+    </script>
+</body>
+</html>
         }
 
         @keyframes pulse {
