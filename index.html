@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página con Contador de Cuenta Regresiva</title>
+    
+    <style>
+        /* Estilos generales de la página (adaptar a tu web) */
+        body {
+            font-family: Arial, sans-serif; /* Cambiar por tu fuente */
+            background-color: #f4f4f4; /* Cambiar por el fondo de tu página */
+            color: #333;
+            text-align: center;
+            padding-top: 50px;
+        }
+
+        /* 1. Estilo para el Logo (ya sin link de login) */
+        #site-logo img {
+            max-width: 150px;
+            height: auto;
+            display: block;
+            margin: 0 auto 30px; /* Centrar y espacio inferior */
+        }
+        
+        /* 2. Estilo del Contenedor del Contador */
+        #countdown-container {
+            display: flex;
+            justify-content: center; /* Centrar el contador */
+            gap: 25px; /* Espacio entre los bloques */
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        /* Estilo de cada Bloque (Días, Horas, Minutos, Segundos) */
+        .countdown-item {
+            text-align: center;
+            padding: 15px 20px;
+            
+            /* ** PERSONALIZAR COLORES ** */
+            background-color: #007bff; /* Ejemplo: Fondo azul primario */
+            color: #ffffff; /* Ejemplo: Texto blanco */
+            /* ** FIN PERSONALIZAR COLORES ** */
+            
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-width: 80px;
+        }
+
+        /* Estilo de los Números */
+        .countdown-item span {
+            display: block;
+            font-size: 2.5em; /* Tamaño grande para los números */
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        /* Estilo de las Etiquetas (Días, Horas...) */
+        .countdown-item .label {
+            font-size: 0.8em;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="site-logo">
+        <img src="https://via.placeholder.com/150x50?text=Tu+Logo" alt="Logo de la Empresa">
+    </div>
+    
+    <div id="countdown-container">
+        <div class="countdown-item">
+            <span id="days">00</span>
+            <div class="label">Días</div>
+        </div>
+        <div class="countdown-item">
+            <span id="hours">00</span>
+            <div class="label">Horas</div>
+        </div>
+        <div class="countdown-item">
+            <span id="minutes">00</div>
+            <div class="label">Minutos</div>
+        </div>
+        <div class="countdown-item">
+            <span id="seconds">00</div>
+            <div class="label">Segundos</div>
+        </div>
+    </div>
+
+    <script>
+        // Establecer la fecha y hora objetivo: 24 de Diciembre de 2025 00:00:00
+        // Nota: Asegúrate de que la fecha sea correcta (Año 2025)
+        const endDate = new Date('December 24, 2025 00:00:00').getTime();
+
+        // Función para actualizar el contador
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = endDate - now;
+
+            // Cálculos de tiempo: Asegura que solo se muestren 2 dígitos (con '0' si es necesario)
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            // Función de ayuda para añadir un '0' si el número es menor a 10
+            const formatTime = (time) => (time < 10 && time >= 0) ? "0" + time : time;
+            
+            // Muestra el resultado en los elementos HTML
+            document.getElementById("days").innerHTML = formatTime(days);
+            document.getElementById("hours").innerHTML = formatTime(hours);
+            document.getElementById("minutes").innerHTML = formatTime(minutes);
+            document.getElementById("seconds").innerHTML = formatTime(seconds);
+
+            // Cuando el contador termine
+            if (distance < 0) {
+                clearInterval(countdownInterval);
+                document.getElementById("countdown-container").innerHTML = 
+                    "<h2 style='color: #007bff;'>¡La cuenta regresiva ha terminado!</h2>";
+            }
+        }
+
+        // Actualiza el contador cada 1 segundo (1000ms)
+        const countdownInterval = setInterval(updateCountdown, 1000);
+
+        // Llama a la función una vez para que inicie inmediatamente al cargar
+        updateCountdown();
+    </script>
+
+</body>
+</html>
