@@ -1,132 +1,193 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Página con Contador de Cuenta Regresiva</title>
-    
+    <title>MuzzSnap - Coming Soon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
     <style>
-        /* Estilos generales de la página (adaptar a tu web) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
         body {
-            font-family: Arial, sans-serif; /* Cambiar por tu fuente */
-            background-color: #f4f4f4; /* Cambiar por el fondo de tu página */
-            color: #333;
-            text-align: center;
-            padding-top: 50px;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh; 
         }
 
-        /* 1. Estilo para el Logo (ya sin link de login) */
-        #site-logo img {
-            max-width: 150px;
-            height: auto;
-            display: block;
-            margin: 0 auto 30px; /* Centrar y espacio inferior */
-        }
-        
-        /* 2. Estilo del Contenedor del Contador */
-        #countdown-container {
-            display: flex;
-            justify-content: center; /* Centrar el contador */
-            gap: 25px; /* Espacio entre los bloques */
-            margin-top: 20px;
-            padding: 20px;
+        .muzz-background {
+            background-color: #0a0a0a;
+            position: relative;
+            z-index: 0;
+            min-height: 100vh;
         }
 
-        /* Estilo de cada Bloque (Días, Horas, Minutos, Segundos) */
-        .countdown-item {
-            text-align: center;
-            padding: 15px 20px;
-            
-            /* ** PERSONALIZAR COLORES ** */
-            background-color: #007bff; /* Ejemplo: Fondo azul primario */
-            color: #ffffff; /* Ejemplo: Texto blanco */
-            /* ** FIN PERSONALIZAR COLORES ** */
-            
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            min-width: 80px;
+        .muzz-background::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at 10% 50%, rgba(100,100,100,0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 90% 80%, rgba(50,50,50,0.1) 0%, transparent 60%);
+            z-index: 1;
+            filter: blur(8px);
+            opacity: 0.9;
         }
 
-        /* Estilo de los Números */
-        .countdown-item span {
-            display: block;
-            font-size: 2.5em; /* Tamaño grande para los números */
-            font-weight: bold;
-            line-height: 1.1;
+        .text-x { color: #ffffff; }
+        .text-telegram { color: #229ED9; }
+
+        .countdown-box {
+            min-width: 60px;
         }
 
-        /* Estilo de las Etiquetas (Días, Horas...) */
-        .countdown-item .label {
-            font-size: 0.8em;
-            text-transform: uppercase;
-            margin-top: 5px;
+        .countdown-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .7;
+            }
+        }
+
+        @media (max-width: 639px) {
+            .countdown-box {
+                min-width: 50px;
+            }
         }
     </style>
 </head>
-<body>
+<body class="muzz-background p-4">
 
-    <div id="site-logo">
-        <img src="https://via.placeholder.com/150x50?text=Tu+Logo" alt="Logo de la Empresa">
+    <!-- STATUS BAR -->
+    <div class="absolute top-4 right-4 z-20">
+        <span class="inline-block py-2 px-4 text-sm font-medium text-purple-400 bg-purple-900 rounded-lg shadow-xl">
+            Coming Soon
+        </span>
     </div>
-    
-    <div id="countdown-container">
-        <div class="countdown-item">
-            <span id="days">00</span>
-            <div class="label">Días</div>
+
+    <!-- MAIN CONTENT -->
+    <div class="relative z-10 text-center text-white max-w-sm w-full px-6 py-10 rounded-xl mx-auto mt-20 mb-8 sm:mt-32">
+
+        <!-- LOGO -->
+        <div class="mb-5 relative">
+            <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
+                 alt="MuzzSnap Logo"
+                 class="w-36 h-36 mx-auto rounded-xl shadow-2xl transition duration-500"
+                 onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';">
         </div>
-        <div class="countdown-item">
-            <span id="hours">00</span>
-            <div class="label">Horas</div>
+
+        <!-- TITLE -->
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-tight mt-6">MuzzSnap</h1>
+
+        <p class="text-xs sm:text-sm font-light text-gray-400 mb-4 tracking-wider px-2">
+            🔑 Much more than a simple app...⌛️<br>
+            単なるアプリ以上のもの。
+        </p>
+
+        <!-- COUNTDOWN TIMER -->
+        <div class="mb-8 p-6 rounded-xl bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 backdrop-blur-sm">
+            <p class="text-sm text-gray-300 mb-4 font-semibold">🚀 Launch Countdown</p>
+            <div id="countdown" class="flex justify-center gap-3 sm:gap-4 text-center">
+                <div class="countdown-box">
+                    <div class="bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm border border-purple-500/20">
+                        <span id="days" class="text-2xl sm:text-3xl font-bold text-purple-400 countdown-pulse">00</span>
+                        <p class="text-xs text-gray-400 mt-1">Days</p>
+                    </div>
+                </div>
+                <div class="countdown-box">
+                    <div class="bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm border border-purple-500/20">
+                        <span id="hours" class="text-2xl sm:text-3xl font-bold text-purple-400 countdown-pulse">00</span>
+                        <p class="text-xs text-gray-400 mt-1">Hours</p>
+                    </div>
+                </div>
+                <div class="countdown-box">
+                    <div class="bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm border border-purple-500/20">
+                        <span id="minutes" class="text-2xl sm:text-3xl font-bold text-purple-400 countdown-pulse">00</span>
+                        <p class="text-xs text-gray-400 mt-1">Min</p>
+                    </div>
+                </div>
+                <div class="countdown-box">
+                    <div class="bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm border border-purple-500/20">
+                        <span id="seconds" class="text-2xl sm:text-3xl font-bold text-purple-400 countdown-pulse">00</span>
+                        <p class="text-xs text-gray-400 mt-1">Sec</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-4">December 24, 2025</p>
         </div>
-        <div class="countdown-item">
-            <span id="minutes">00</div>
-            <div class="label">Minutos</div>
+
+        <!-- SOCIAL LINKS -->
+        <div class="flex justify-center space-x-8 sm:space-x-12 mb-8">
+            <a href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               class="transition duration-200 hover:scale-110 active:scale-95" 
+               aria-label="Link to X (Twitter) account">
+                <i class="fab fa-x-twitter text-3xl sm:text-4xl text-x"></i>
+            </a>
+
+            <a href="https://t.me/MuzzleToken" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               class="transition duration-200 hover:scale-110 active:scale-95" 
+               aria-label="Link to Telegram channel">
+                <i class="fab fa-telegram-plane text-3xl sm:text-4xl text-telegram"></i>
+            </a>
         </div>
-        <div class="countdown-item">
-            <span id="seconds">00</div>
-            <div class="label">Segundos</div>
-        </div>
+
+        <!-- FOOTER -->
+        <footer class="mt-16 sm:mt-24 text-xs font-light text-gray-600 tracking-wider">
+            <p>MuzzSnap 2025&trade;</p>
+            <p class="mt-1">&copy; By.Ryachu</p>
+        </footer>
+
     </div>
 
     <script>
-        // Establecer la fecha y hora objetivo: 24 de Diciembre de 2025 00:00:00
-        // Nota: Asegúrate de que la fecha sea correcta (Año 2025)
-        const endDate = new Date('December 24, 2025 00:00:00').getTime();
+        // ==========================================
+        // COUNTDOWN TIMER
+        // ==========================================
+        const countdownDate = new Date("December 24, 2025 00:00:00").getTime();
 
-        // Función para actualizar el contador
         function updateCountdown() {
             const now = new Date().getTime();
-            const distance = endDate - now;
+            const distance = countdownDate - now;
 
-            // Cálculos de tiempo: Asegura que solo se muestren 2 dígitos (con '0' si es necesario)
+            if (distance < 0) {
+                document.getElementById("days").textContent = "00";
+                document.getElementById("hours").textContent = "00";
+                document.getElementById("minutes").textContent = "00";
+                document.getElementById("seconds").textContent = "00";
+                return;
+            }
+
             const days = Math.floor(distance / (1000 * 60 * 60 * 24));
             const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-            // Función de ayuda para añadir un '0' si el número es menor a 10
-            const formatTime = (time) => (time < 10 && time >= 0) ? "0" + time : time;
-            
-            // Muestra el resultado en los elementos HTML
-            document.getElementById("days").innerHTML = formatTime(days);
-            document.getElementById("hours").innerHTML = formatTime(hours);
-            document.getElementById("minutes").innerHTML = formatTime(minutes);
-            document.getElementById("seconds").innerHTML = formatTime(seconds);
-
-            // Cuando el contador termine
-            if (distance < 0) {
-                clearInterval(countdownInterval);
-                document.getElementById("countdown-container").innerHTML = 
-                    "<h2 style='color: #007bff;'>¡La cuenta regresiva ha terminado!</h2>";
-            }
+            document.getElementById("days").textContent = String(days).padStart(2, '0');
+            document.getElementById("hours").textContent = String(hours).padStart(2, '0');
+            document.getElementById("minutes").textContent = String(minutes).padStart(2, '0');
+            document.getElementById("seconds").textContent = String(seconds).padStart(2, '0');
         }
 
-        // Actualiza el contador cada 1 segundo (1000ms)
-        const countdownInterval = setInterval(updateCountdown, 1000);
-
-        // Llama a la función una vez para que inicie inmediatamente al cargar
+        // Actualizar cada segundo
+        setInterval(updateCountdown, 1000);
         updateCountdown();
-    </script>
 
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('MuzzSnap - Coming Soon');
+            console.log('Launch date: December 24, 2025 00:00:00');
+        });
+    </script>
 </body>
 </html>
