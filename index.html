@@ -10,186 +10,405 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
             min-height: 100vh;
+            perspective: 1500px;
         }
 
+        /* Advanced 3D Background */
         .muzz-background {
-            background-color: #0a0a0a;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a1f 50%, #0a0a0a 100%);
             position: relative;
-            z-index: 0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 1rem;
+            overflow: hidden;
         }
 
+        /* Animated 3D Particles */
         .muzz-background::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(circle at 10% 50%, rgba(100,100,100,0.08) 0%, transparent 50%),
-                        radial-gradient(circle at 90% 80%, rgba(50,50,50,0.1) 0%, transparent 60%);
+            background-image: 
+                radial-gradient(2px 2px at 20% 30%, rgba(147, 51, 234, 0.4), transparent),
+                radial-gradient(2px 2px at 60% 70%, rgba(79, 70, 229, 0.3), transparent),
+                radial-gradient(1px 1px at 50% 50%, rgba(236, 72, 153, 0.3), transparent),
+                radial-gradient(1px 1px at 80% 10%, rgba(147, 51, 234, 0.2), transparent),
+                radial-gradient(2px 2px at 90% 60%, rgba(124, 58, 237, 0.25), transparent),
+                radial-gradient(1px 1px at 33% 50%, rgba(168, 85, 247, 0.3), transparent);
+            background-size: 200% 200%, 180% 180%, 220% 220%, 190% 190%, 210% 210%, 195% 195%;
+            background-position: 0% 0%, 100% 100%, 50% 50%, 80% 20%, 20% 80%, 60% 40%;
+            animation: particles 20s ease-in-out infinite;
             z-index: 1;
-            filter: blur(8px);
-            opacity: 0.9;
         }
 
-        /* Animated gradient overlay */
-        .muzz-background::after {
+        @keyframes particles {
+            0%, 100% {
+                background-position: 0% 0%, 100% 100%, 50% 50%, 80% 20%, 20% 80%, 60% 40%;
+            }
+            50% {
+                background-position: 100% 100%, 0% 0%, 80% 20%, 20% 80%, 60% 40%, 40% 60%;
+            }
+        }
+
+        /* Floating Gradient Orbs with 3D effect */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.15;
+            animation: float 15s ease-in-out infinite;
+            transform-style: preserve-3d;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.8), transparent);
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(79, 70, 229, 0.6), transparent);
+            bottom: 10%;
+            right: 10%;
+            animation-delay: 5s;
+        }
+
+        .orb-3 {
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, rgba(236, 72, 153, 0.5), transparent);
+            top: 50%;
+            left: 50%;
+            animation-delay: 10s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate3d(0, 0, 0) scale(1);
+            }
+            33% {
+                transform: translate3d(30px, -30px, 50px) scale(1.1);
+            }
+            66% {
+                transform: translate3d(-20px, 20px, -30px) scale(0.9);
+            }
+        }
+
+        /* 3D Container with parallax */
+        .main-content {
+            position: relative;
+            z-index: 10;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+        }
+
+        /* Ultra-modern glassmorphism */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.3);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            box-shadow: 
+                0 8px 32px 0 rgba(147, 51, 234, 0.2),
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.1),
+                0 0 60px rgba(147, 51, 234, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
             content: '';
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(147, 51, 234, 0.05) 0%, transparent 70%);
-            z-index: 1;
-            animation: pulse-glow 4s ease-in-out infinite;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
         }
 
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 0.6; }
+        .glass-card:hover::before {
+            left: 100%;
         }
 
-        .text-x { color: #ffffff; }
-        .text-telegram { color: #229ED9; }
+        /* 3D Logo Container */
+        .logo-3d {
+            perspective: 1000px;
+            transform-style: preserve-3d;
+        }
 
+        .logo-wrapper {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            animation: logoFloat 6s ease-in-out infinite;
+        }
+
+        .logo-wrapper:hover {
+            transform: rotateY(15deg) rotateX(10deg) scale(1.1);
+        }
+
+        @keyframes logoFloat {
+            0%, 100% {
+                transform: translateY(0px) rotateZ(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotateZ(5deg);
+            }
+        }
+
+        .logo-wrapper::after {
+            content: '';
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.3), transparent 70%);
+            filter: blur(30px);
+            z-index: -1;
+            animation: glow 3s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* 3D Countdown boxes */
         .countdown-box {
             min-width: 70px;
-        }
-
-        .countdown-pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .7; }
-        }
-
-        /* Logo hover animation */
-        .logo-container {
+            transform-style: preserve-3d;
             transition: transform 0.3s ease;
         }
 
-        .logo-container:hover {
-            transform: scale(1.05);
+        .countdown-inner {
+            transform-style: preserve-3d;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
         }
 
-        /* Social icon hover effects */
-        .social-icon {
-            transition: all 0.3s ease;
+        .countdown-box:hover .countdown-inner {
+            transform: translateZ(30px) rotateY(10deg);
         }
 
-        .social-icon:hover {
-            transform: translateY(-5px);
-            filter: drop-shadow(0 10px 20px rgba(147, 51, 234, 0.4));
+        .countdown-inner::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(79, 70, 229, 0.1));
+            border-radius: inherit;
+            transform: translateZ(-10px);
+            opacity: 0.5;
+        }
+
+        /* Number animation */
+        .countdown-number {
+            display: inline-block;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            text-shadow: 
+                0 0 10px rgba(147, 51, 234, 0.5),
+                0 0 20px rgba(147, 51, 234, 0.3),
+                0 0 30px rgba(147, 51, 234, 0.2);
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.7;
+                transform: scale(0.95);
+            }
+        }
+
+        /* 3D Social buttons */
+        .social-button {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .social-button::before {
+            content: '';
+            position: absolute;
+            inset: -5px;
+            background: inherit;
+            border-radius: inherit;
+            filter: blur(15px);
+            opacity: 0;
+            transition: opacity 0.4s;
+            z-index: -1;
+        }
+
+        .social-button:hover {
+            transform: translateY(-10px) translateZ(20px) scale(1.1);
+        }
+
+        .social-button:hover::before {
+            opacity: 0.8;
+        }
+
+        .social-button:active {
+            transform: translateY(-5px) translateZ(10px) scale(1.05);
+        }
+
+        /* Badge with 3D effect */
+        .status-badge {
+            position: relative;
+            transform-style: preserve-3d;
+            animation: badgePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes badgePulse {
+            0%, 100% {
+                transform: translateZ(0);
+                box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
+            }
+            50% {
+                transform: translateZ(10px);
+                box-shadow: 0 0 40px rgba(147, 51, 234, 0.6);
+            }
+        }
+
+        /* Title with 3D text effect */
+        .title-3d {
+            text-shadow: 
+                0 1px 0 rgba(147, 51, 234, 0.3),
+                0 2px 0 rgba(147, 51, 234, 0.25),
+                0 3px 0 rgba(147, 51, 234, 0.2),
+                0 4px 0 rgba(147, 51, 234, 0.15),
+                0 5px 0 rgba(147, 51, 234, 0.1),
+                0 10px 20px rgba(0, 0, 0, 0.3);
+            animation: titleFloat 4s ease-in-out infinite;
+        }
+
+        @keyframes titleFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
         }
 
         /* Responsive adjustments */
         @media (max-width: 639px) {
-            .countdown-box {
-                min-width: 60px;
-            }
+            .countdown-box { min-width: 60px; }
+            .orb { filter: blur(40px); }
         }
 
         @media (min-width: 640px) {
-            .main-content {
-                max-width: 500px;
-            }
+            .main-content { max-width: 500px; }
         }
 
         @media (min-width: 768px) {
-            .main-content {
-                max-width: 600px;
-            }
-            
-            .countdown-box {
-                min-width: 90px;
-            }
+            .main-content { max-width: 600px; }
+            .countdown-box { min-width: 90px; }
         }
 
         @media (min-width: 1024px) {
-            .main-content {
-                max-width: 700px;
-            }
+            .main-content { max-width: 700px; }
         }
 
-        /* Glassmorphism effect */
-        .glass-effect {
-            background: rgba(17, 24, 39, 0.4);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(147, 51, 234, 0.2);
+        /* Shine effect on hover */
+        .shine-effect {
+            position: relative;
+            overflow: hidden;
         }
 
-        /* Improved mobile spacing */
-        @media (max-width: 639px) {
-            .mobile-compact {
-                padding: 1.5rem;
-            }
+        .shine-effect::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s ease-in-out infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
         }
     </style>
 </head>
 <body class="muzz-background">
+    <!-- 3D Floating Orbs -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
 
-    <!-- STATUS BAR -->
+    <!-- STATUS BADGE with 3D -->
     <div class="fixed top-4 right-4 z-20 sm:top-6 sm:right-6">
-        <span class="inline-block py-2 px-4 sm:py-2.5 sm:px-5 text-xs sm:text-sm font-medium text-purple-400 bg-purple-900/80 backdrop-blur-sm rounded-lg shadow-xl border border-purple-500/30 transition-all hover:bg-purple-900">
+        <span class="status-badge inline-block py-2 px-4 sm:py-2.5 sm:px-5 text-xs sm:text-sm font-medium text-purple-400 bg-purple-900/80 backdrop-blur-sm rounded-lg border border-purple-500/30 shine-effect">
             Coming Soon
         </span>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="relative z-10 text-center text-white main-content w-full mobile-compact px-4 sm:px-6 md:px-8 py-8 sm:py-10 md:py-12 rounded-2xl mx-auto">
+    <!-- MAIN CONTENT with 3D -->
+    <div class="main-content w-full px-4 sm:px-6 md:px-8 py-8 sm:py-10 md:py-12" id="mainContent">
 
-        <!-- LOGO -->
-        <div class="mb-6 sm:mb-8 relative logo-container">
-            <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
-                 alt="MuzzSnap Logo"
-                 class="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 lg:w-44 lg:h-44 mx-auto rounded-2xl shadow-2xl transition duration-500 border-2 border-purple-500/30"
-                 onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';">
+        <!-- LOGO with 3D effect -->
+        <div class="mb-6 sm:mb-8 logo-3d">
+            <div class="logo-wrapper mx-auto w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 lg:w-44 lg:h-44">
+                <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
+                     alt="MuzzSnap Logo"
+                     class="w-full h-full rounded-2xl shadow-2xl border-2 border-purple-500/30 object-cover"
+                     onerror="this.onerror=null; this.src='https://placehold.co/144x144/1f2937/ffffff?text=MUZZ';">
+            </div>
         </div>
 
-        <!-- TITLE -->
-        <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-3 sm:mb-4 tracking-tight">
+        <!-- TITLE with 3D -->
+        <h1 class="title-3d text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-3 sm:mb-4 tracking-tight text-center">
             MuzzSnap
         </h1>
 
-        <p class="text-xs sm:text-sm md:text-base font-light text-gray-400 mb-6 sm:mb-8 tracking-wider px-2 sm:px-4 leading-relaxed">
+        <p class="text-xs sm:text-sm md:text-base font-light text-gray-400 mb-6 sm:mb-8 tracking-wider px-2 sm:px-4 leading-relaxed text-center">
             🔑 Much more than a simple app...⌛️<br>
             <span class="text-purple-300">単なるアプリ以上のもの。</span>
         </p>
 
-        <!-- COUNTDOWN TIMER -->
-        <div class="mb-8 sm:mb-10 md:mb-12 p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl glass-effect shadow-2xl">
+        <!-- COUNTDOWN TIMER with 3D glass -->
+        <div class="mb-8 sm:mb-10 md:mb-12 p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl glass-card shadow-2xl">
             <p class="text-xs sm:text-sm md:text-base text-gray-300 mb-4 sm:mb-6 font-semibold flex items-center justify-center gap-2">
                 <span class="text-lg sm:text-xl">🚀</span> Launch Countdown
             </p>
             <div id="countdown" class="flex justify-center gap-2 sm:gap-3 md:gap-4 text-center">
                 <div class="countdown-box">
-                    <div class="bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg transition-all hover:border-purple-400/50 hover:scale-105">
-                        <span id="days" class="block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400 countdown-pulse">00</span>
+                    <div class="countdown-inner bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg">
+                        <span id="days" class="countdown-number block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400">00</span>
                         <p class="text-[10px] sm:text-xs md:text-sm text-gray-400 mt-1 sm:mt-2 font-medium">Days</p>
                     </div>
                 </div>
                 <div class="countdown-box">
-                    <div class="bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg transition-all hover:border-purple-400/50 hover:scale-105">
-                        <span id="hours" class="block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400 countdown-pulse">00</span>
+                    <div class="countdown-inner bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg">
+                        <span id="hours" class="countdown-number block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400">00</span>
                         <p class="text-[10px] sm:text-xs md:text-sm text-gray-400 mt-1 sm:mt-2 font-medium">Hours</p>
                     </div>
                 </div>
                 <div class="countdown-box">
-                    <div class="bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg transition-all hover:border-purple-400/50 hover:scale-105">
-                        <span id="minutes" class="block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400 countdown-pulse">00</span>
+                    <div class="countdown-inner bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg">
+                        <span id="minutes" class="countdown-number block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400">00</span>
                         <p class="text-[10px] sm:text-xs md:text-sm text-gray-400 mt-1 sm:mt-2 font-medium">Min</p>
                     </div>
                 </div>
                 <div class="countdown-box">
-                    <div class="bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg transition-all hover:border-purple-400/50 hover:scale-105">
-                        <span id="seconds" class="block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400 countdown-pulse">00</span>
+                    <div class="countdown-inner bg-gray-800/60 rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 backdrop-blur-sm border border-purple-500/30 shadow-lg">
+                        <span id="seconds" class="countdown-number block text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400">00</span>
                         <p class="text-[10px] sm:text-xs md:text-sm text-gray-400 mt-1 sm:mt-2 font-medium">Sec</p>
                     </div>
                 </div>
@@ -199,31 +418,31 @@
             </p>
         </div>
 
-        <!-- SOCIAL LINKS -->
+        <!-- SOCIAL LINKS with 3D -->
         <div class="flex justify-center items-center space-x-8 sm:space-x-12 md:space-x-16 mb-8 sm:mb-12">
             <a href="https://x.com/MuzzleToken?t=Mb7xMUG3rEfrYvbXZnijCQ&s=09" 
                target="_blank" 
                rel="noopener noreferrer" 
-               class="social-icon group" 
+               class="social-button" 
                aria-label="Link to X (Twitter) account">
-                <div class="p-3 sm:p-4 rounded-full bg-gray-800/50 border border-gray-700/50 group-hover:border-white/30">
-                    <i class="fab fa-x-twitter text-2xl sm:text-3xl md:text-4xl text-x"></i>
+                <div class="p-3 sm:p-4 rounded-full bg-gray-800/50 border border-gray-700/50 backdrop-blur-sm">
+                    <i class="fab fa-x-twitter text-2xl sm:text-3xl md:text-4xl text-white"></i>
                 </div>
             </a>
 
             <a href="https://t.me/MuzzleToken" 
                target="_blank" 
                rel="noopener noreferrer" 
-               class="social-icon group" 
+               class="social-button" 
                aria-label="Link to Telegram channel">
-                <div class="p-3 sm:p-4 rounded-full bg-gray-800/50 border border-gray-700/50 group-hover:border-blue-400/30">
-                    <i class="fab fa-telegram-plane text-2xl sm:text-3xl md:text-4xl text-telegram"></i>
+                <div class="p-3 sm:p-4 rounded-full bg-gray-800/50 border border-gray-700/50 backdrop-blur-sm">
+                    <i class="fab fa-telegram-plane text-2xl sm:text-3xl md:text-4xl text-[#229ED9]"></i>
                 </div>
             </a>
         </div>
 
         <!-- FOOTER -->
-        <footer class="mt-12 sm:mt-16 md:mt-20 text-[10px] sm:text-xs md:text-sm font-light text-gray-600 tracking-wider space-y-1 sm:space-y-2">
+        <footer class="mt-12 sm:mt-16 md:mt-20 text-[10px] sm:text-xs md:text-sm font-light text-gray-600 tracking-wider space-y-1 sm:space-y-2 text-center">
             <p class="font-medium">MuzzSnap 2025&trade;</p>
             <p class="text-purple-400/60">&copy; By.Ryachu</p>
         </footer>
@@ -231,9 +450,7 @@
     </div>
 
     <script>
-        // ==========================================
-        // COUNTDOWN TIMER
-        // ==========================================
+        // Countdown Timer
         const countdownDate = new Date("December 24, 2025 00:00:00").getTime();
 
         function updateCountdown() {
@@ -259,27 +476,65 @@
             document.getElementById("seconds").textContent = String(seconds).padStart(2, '0');
         }
 
-        // Actualizar cada segundo
         setInterval(updateCountdown, 1000);
         updateCountdown();
 
-        // ==========================================
-        // INITIALIZATION
-        // ==========================================
+        // 3D Parallax effect
+        const mainContent = document.getElementById('mainContent');
+        
+        document.addEventListener('mousemove', (e) => {
+            if (window.innerWidth > 768) {
+                const x = (e.clientX - window.innerWidth / 2) / 50;
+                const y = (e.clientY - window.innerHeight / 2) / 50;
+                
+                mainContent.style.transform = `
+                    perspective(1000px)
+                    rotateY(${x}deg)
+                    rotateX(${-y}deg)
+                    translateZ(20px)
+                `;
+            }
+        });
+
+        // Reset on mouse leave
+        document.addEventListener('mouseleave', () => {
+            mainContent.style.transform = 'perspective(1000px) rotateY(0) rotateX(0) translateZ(0)';
+        });
+
+        // Entrance animation
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('MuzzSnap - Coming Soon');
-            console.log('Launch date: December 24, 2025 00:00:00');
+            console.log('MuzzSnap - Coming Soon with 3D');
             
-            // Add subtle entrance animation
-            document.querySelector('.main-content').style.opacity = '0';
-            document.querySelector('.main-content').style.transform = 'translateY(20px)';
+            mainContent.style.opacity = '0';
+            mainContent.style.transform = 'perspective(1000px) translateZ(-100px) scale(0.9)';
             
             setTimeout(() => {
-                document.querySelector('.main-content').style.transition = 'all 0.8s ease';
-                document.querySelector('.main-content').style.opacity = '1';
-                document.querySelector('.main-content').style.transform = 'translateY(0)';
+                mainContent.style.transition = 'all 1s cubic-bezier(0.23, 1, 0.32, 1)';
+                mainContent.style.opacity = '1';
+                mainContent.style.transform = 'perspective(1000px) translateZ(0) scale(1)';
             }, 100);
         });
+
+        // Mobile touch parallax
+        if (window.innerWidth <= 768) {
+            let lastX = 0, lastY = 0;
+            
+            window.addEventListener('deviceorientation', (e) => {
+                const x = e.gamma / 10;
+                const y = e.beta / 10;
+                
+                if (Math.abs(x - lastX) > 0.5 || Math.abs(y - lastY) > 0.5) {
+                    mainContent.style.transform = `
+                        perspective(1000px)
+                        rotateY(${x}deg)
+                        rotateX(${-y}deg)
+                        translateZ(10px)
+                    `;
+                    lastX = x;
+                    lastY = y;
+                }
+            });
+        }
     </script>
 </body>
 </html>
