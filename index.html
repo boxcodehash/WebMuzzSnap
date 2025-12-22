@@ -248,25 +248,20 @@
             transform: translateY(0);
         }
         
-        /* Logo special effect */
-        .muzz-logo {
-            width: 120px;
-            height: 120px;
-            object-fit: contain;
-            border-radius: 20px;
-            animation: logoPulse 2.5s ease-in-out infinite;
-            filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.6));
-            margin: 0 auto;
+        /* Lock icon special effect */
+        .lock-icon {
+            animation: lockPulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.9));
         }
 
-        @keyframes logoPulse {
+        @keyframes lockPulse {
             0%, 100% { 
-                transform: scale(1);
-                filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.6));
+                transform: scale(1) rotate(0deg);
+                filter: drop-shadow(0 0 30px rgba(220, 38, 38, 0.9));
             }
             50% { 
-                transform: scale(1.1);
-                filter: drop-shadow(0 0 40px rgba(220, 38, 38, 0.9));
+                transform: scale(1.1) rotate(-5deg);
+                filter: drop-shadow(0 0 50px rgba(220, 38, 38, 1));
             }
         }
 
@@ -318,20 +313,66 @@
         
         /* --- RESPONSIVIDAD GENERAL --- */
         @media (max-width: 768px) {
-            .glitch-text { font-size: 2.5rem; letter-spacing: 0.02em; }
+            .glitch-text { font-size: 2rem; letter-spacing: 0.02em; }
             .subtitle-glow { font-size: 1.25rem; }
-            .muzz-logo { width: 90px; height: 90px; }
+            .lock-icon { font-size: 4rem; }
             .stat-number { font-size: 1.5rem; }
             .feature-card { padding: 1rem; }
+            .icon-glow { font-size: 3rem; }
             .cta-button { padding: 0.75rem 1.5rem; font-size: 1rem; }
             .language-selector {
                 right: 10px;
                 gap: 6px;
             }
+            .lang-btn {
+                width: 35px;
+                height: 35px;
+                font-size: 0.7rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .glitch-text { font-size: 2rem; }
+            .subtitle-glow { font-size: 1rem; }
+            .lock-icon { font-size: 3rem; }
+            .stat-number { font-size: 1.25rem; }
+            .content-wrapper { padding: 0 1rem; }
+            .px-4 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+            .py-12 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+            .sm\:py-16 { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+        }
+
+        /* --- AJUSTES PARA NAVEGADORES CRYPTO (MetaMask, Trust, etc.) --- */
+        .is-crypto-browser .hero-bg {
+            opacity: 0.7; 
+        }
+
+        .is-crypto-browser .content-wrapper {
+            min-height: auto; 
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .is-crypto-browser .min-h-screen {
+            min-height: 80vh; 
+        }
+
+        .is-crypto-browser .py-12 {
+            padding-top: 1rem !important; 
+            padding-bottom: 1rem !important;
+        }
+
+        .is-crypto-browser .mb-8 {
+            margin-bottom: 0.5rem !important;
+        }
+
+        .is-crypto-browser .text-lg {
+            font-size: 1rem; 
         }
     </style>
 </head>
 <body>
+    <!-- Language Selector -->
     <div class="language-selector">
         <button class="lang-btn active" data-lang="en" title="English">EN</button>
         <button class="lang-btn" data-lang="es" title="Español">ES</button>
@@ -346,13 +387,18 @@
     <div class="content-wrapper min-h-screen">
         
         <section class="relative min-h-screen flex items-center justify-center px-4 py-12 sm:py-16">
+            <div class="hex-decoration hidden md:block" style="top: 10%; left: 10%; opacity: 0.3;"></div>
+
             <div class="max-w-6xl mx-auto text-center reveal active">
-                <div class="mb-6 sm:mb-8">
-                    <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png" alt="MuzzSnap Logo" class="muzz-logo">
-                </div>
-                
+                <div class="mb-4 sm:mb-6">
+    <img src="https://img1.wsimg.com/isteam/ip/58e03cd1-b679-4145-9eb9-8216e0755274/1000033677.png/:/rs=h:175,m" 
+        alt="Lock Icon"
+        class="lock-icon mx-auto w-20 sm:w-32 md:w-40"
+    />
+</div>
+
                 <h1 class="glitch-text text-4xl sm:text-6xl md:text-7xl lg:text-8xl mb-3 sm:mb-4">
-                    
+                    MUZZSNAP
                 </h1>
                 <h2 class="subtitle-glow text-lg sm:text-3xl md:text-4xl font-light mb-5 sm:mb-6 tracking-wide">
                     <span data-i18n="hero.subtitle1">THE FUTURE OF</span> <span class="text-red-600 font-bold" data-i18n="hero.subtitle2">DECENTRALIZED</span> <span data-i18n="hero.subtitle3">COMMUNICATION</span>
@@ -392,52 +438,151 @@
                     <p class="text-base sm:text-lg text-gray-400" data-i18n="features.subtitle">Built for the future of digital communication</p>
                 </div>
                 <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 flicker-border">
+                    
                     <div class="feature-card p-5 sm:p-6 rounded-2xl reveal">
                         <div class="mb-4">
                             <i class="fas fa-globe-americas text-4xl sm:text-5xl text-red-600 icon-glow"></i>
                         </div>
                         <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card1.title">Absolute Privacy</h3>
                         <p class="text-sm text-gray-400 leading-relaxed">
-                            MuzzSnap is the crypto revolution where every message and exchange is private. You own your information.
+                            <span data-i18n="features.card1.desc1">MuzzSnap is the</span> <span class="text-red-500 font-semibold" data-i18n="features.card1.desc2">crypto revolution</span> <span data-i18n="features.card1.desc3">where every message, chat, and exchange is private.</span> <span class="text-white font-semibold" data-i18n="features.card1.desc4">You own</span> <span data-i18n="features.card1.desc5">your information and data.</span>
                         </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center text-xs text-gray-500">
+                                <i class="fas fa-shield-alt mr-2 text-red-600"></i><span data-i18n="features.card1.tag">End-to-end encryption</span>
+                            </div>
+                        </div>
                     </div>
+
                     <div class="feature-card p-5 sm:p-6 rounded-2xl reveal" style="transition-delay: 0.1s;">
                         <div class="mb-4">
-                            <i class="fas fa-comments text-4xl sm:text-5xl text-red-600 icon-glow"></i>
+                            <i class="fas fa-comments text-4xl sm:text-5xl text-red-600 icon-glow" style="animation-delay: -1s;"></i>
                         </div>
-                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white">Multi-Purpose Messaging</h3>
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card2.title">Multi-Purpose Messaging</h3>
                         <p class="text-sm text-gray-400 leading-relaxed">
-                            Messages, exchanges, purchases and more, all integrated into a social platform operating on blockchain.
+                            <span data-i18n="features.card2.desc1">More than just chat.</span> <span class="text-red-500 font-semibold" data-i18n="features.card2.desc2">Messages, exchanges, purchases</span> <span data-i18n="features.card2.desc3">and more, all integrated into a social platform operating on blockchain principles.</span>
                         </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center text-xs text-gray-500">
+                                <i class="fas fa-network-wired mr-2 text-red-600"></i><span data-i18n="features.card2.tag">Blockchain-powered</span>
+                            </div>
+                        </div>
                     </div>
+
                     <div class="feature-card p-5 sm:p-6 rounded-2xl reveal" style="transition-delay: 0.2s;">
                         <div class="mb-4">
-                            <i class="fas fa-user-shield text-4xl sm:text-5xl text-red-600 icon-glow"></i>
+                            <i class="fas fa-user-shield text-4xl sm:text-5xl text-red-600 icon-glow" style="animation-delay: -2s;"></i>
                         </div>
-                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white">Wallet Identity</h3>
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card3.title">Wallet-Powered Identity</h3>
                         <p class="text-sm text-gray-400 leading-relaxed">
-                            Your wallet is your identity. Every interaction is signed and secured, ensuring you have total control.
+                            <span data-i18n="features.card3.desc1">Your wallet is your identity. Every interaction is signed and secured, ensuring</span> <span class="text-white font-semibold" data-i18n="features.card3.desc2">you have control</span> <span data-i18n="features.card3.desc3">over what you do and who you communicate with.</span>
                         </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center text-xs text-gray-500">
+                                <i class="fas fa-key mr-2 text-red-600"></i><span data-i18n="features.card3.tag">Self-sovereign identity</span>
+                            </div>
+                        </div>
                     </div>
+
+                    <div class="feature-card p-5 sm:p-6 rounded-2xl reveal" style="transition-delay: 0.3s;">
+                        <div class="mb-4">
+                            <i class="fas fa-share-alt text-4xl sm:text-5xl text-red-600 icon-glow" style="animation-delay: -3s;"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card4.title">Social Muzz</h3>
+                        <p class="text-sm text-gray-400 leading-relaxed">
+                            <span data-i18n="features.card4.desc1">Your decentralized social network. Post, reply, repost, and like</span> <span class="text-red-500 font-semibold" data-i18n="features.card4.desc2">without limits</span><span data-i18n="features.card4.desc3">. True social freedom powered by blockchain.</span>
+                        </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500">
+                                    <i class="fas fa-coins mr-2 text-red-600"></i><span data-i18n="features.card4.tag">Min: 100M MUZZLE</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card p-5 sm:p-6 rounded-2xl reveal" style="transition-delay: 0.4s;">
+                        <div class="mb-4">
+                            <i class="fas fa-lock text-4xl sm:text-5xl text-red-600 icon-glow" style="animation-delay: -4s;"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card5.title">MuzzChat</h3>
+                        <p class="text-sm text-gray-400 leading-relaxed">
+                            <span data-i18n="features.card5.desc1">Free expression with limits only you define.</span> <span class="text-white font-semibold" data-i18n="features.card5.desc2">Create 2 rooms per user</span> <span data-i18n="features.card5.desc3">and send encrypted P2P messages.</span> <span class="text-red-500 font-semibold" data-i18n="features.card5.desc4">Nothing stored on servers.</span>
+                        </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500">
+                                    <i class="fas fa-coins mr-2 text-red-600"></i><span data-i18n="features.card5.tag">Min: 40M MUZZLE</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="feature-card p-5 sm:p-6 rounded-2xl reveal" style="transition-delay: 0.5s;">
+                        <div class="mb-4">
+                            <i class="fas fa-vote-yea text-4xl sm:text-5xl text-red-600 icon-glow" style="animation-delay: -5s;"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-white" data-i18n="features.card6.title">MuzzDAO</h3>
+                        <p class="text-sm text-gray-400 leading-relaxed">
+                            <span data-i18n="features.card6.desc1">True community governance.</span> <span class="text-red-500 font-semibold" data-i18n="features.card6.desc2">Vote on future changes and ideas</span><span data-i18n="features.card6.desc3">. Every token holder has a voice in shaping the platform's future.</span>
+                        </p>
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center text-xs text-gray-500">
+                                <i class="fas fa-users mr-2 text-red-600"></i><span data-i18n="features.card6.tag">Community-driven</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </section>
 
+        <section class="relative px-4 py-12 sm:py-16">
+            <div class="max-w-5xl mx-auto text-center reveal">
+                <div class="bg-gradient-to-r from-transparent via-red-900/20 to-transparent p-6 sm:p-10 rounded-3xl border border-red-900/30 flicker-border">
+                    <i class="fas fa-quote-left text-xl sm:text-2xl text-red-600 mb-4 opacity-50"></i>
+                    <h3 class="text-xl sm:text-3xl font-bold mb-4 text-white" data-i18n="vision.title">A New Era of Social Connection</h3>
+                    <p class="text-base sm:text-lg text-gray-300 leading-relaxed mb-6">
+                        <span data-i18n="vision.desc1">Where</span> <span class="text-red-500 font-semibold" data-i18n="vision.desc2">decentralization meets communication</span><span data-i18n="vision.desc3">, and every user has true ownership of their digital presence.</span>
+                    </p>
+                    <div class="flex flex-wrap justify-center gap-2 sm:gap-3 text-xs text-gray-400">
+                        <span class="px-3 py-1 sm:px-4 sm:py-2 bg-black/50 rounded-full border border-red-900/30">
+                            <i class="fas fa-check-circle text-red-600 mr-2"></i><span data-i18n="vision.badge2">No Central Authority</span>
+                        </span>
+                        <span class="px-3 py-1 sm:px-4 sm:py-2 bg-black/50 rounded-full border border-red-900/30">
+                            <i class="fas fa-check-circle text-red-600 mr-2"></i><span data-i18n="vision.badge3">Full Transparency</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
         <footer class="relative px-4 py-8 sm:py-12 border-t border-gray-800">
             <div class="max-w-6xl mx-auto text-center">
                 <div class="mb-4">
                     <h4 class="text-xl font-bold mb-1 glitch-text" style="font-size: 1.25rem;">MUZZSNAP</h4>
-                    <p class="text-gray-500 text-xs">The Decentralized Revolution</p>
+                    <p class="text-gray-500 text-xs" data-i18n="footer.tagline">The Decentralized Revolution</p>
                 </div>
+                
+                <div class="flex justify-center space-x-4 mb-4">
+                    <a href="https://x.com/MuzzleToken" target="_blank" class="text-xl text-gray-400 hover:text-red-600 transition duration-300 transform hover:scale-110">
+                        <i class="fab fa-x-twitter"></i>
+                    </a>
+                    <a href="https://t.me/MuzzleTokenV2" target="_blank" class="text-xl text-gray-400 hover:text-red-600 transition duration-300 transform hover:scale-110">
+                        <i class="fab fa-telegram-plane"></i>
+                    </a>
+                </div>
+
                 <div class="text-xs text-gray-600">
-                    <p>MuzzSnap 2025™ | By.Ryachu</p>
+                    <p>MuzzSnap 2025™ </p>
                 </div>
             </div>
         </footer>
+
     </div>
 
     <script>
-        // --- LOGIC PARA PARTÍCULAS, TRADUCCIONES Y REVEAL ---
+        // --- TRANSLATIONS DATABASE ---
         const translations = {
             en: {
                 'hero.subtitle1': 'THE FUTURE OF',
@@ -452,7 +597,50 @@
                 'hero.comingSoon': 'COMING SOON',
                 'stats.decentralized': 'Decentralized',
                 'stats.privacy': 'Privacy First',
-                'stats.powered': 'Powered'
+                'stats.powered': 'Powered',
+                'features.title': 'REVOLUTIONARY FEATURES',
+                'features.subtitle': 'Built for the future of digital communication',
+                'features.card1.title': 'Absolute Privacy',
+                'features.card1.desc1': 'MuzzSnap is the',
+                'features.card1.desc2': 'crypto revolution',
+                'features.card1.desc3': 'where every message, chat, and exchange is private.',
+                'features.card1.desc4': 'You own',
+                'features.card1.desc5': 'your information and data.',
+                'features.card1.tag': 'End-to-end encryption',
+                'features.card2.title': 'Multi-Purpose Messaging',
+                'features.card2.desc1': 'More than just chat.',
+                'features.card2.desc2': 'Messages, exchanges, purchases',
+                'features.card2.desc3': 'and more, all integrated into a social platform operating on blockchain principles.',
+                'features.card2.tag': 'Blockchain-powered',
+                'features.card3.title': 'Wallet-Powered Identity',
+                'features.card3.desc1': 'Your wallet is your identity. Every interaction is signed and secured, ensuring',
+                'features.card3.desc2': 'you have control',
+                'features.card3.desc3': 'over what you do and who you communicate with.',
+                'features.card3.tag': 'Self-sovereign identity',
+                'features.card4.title': 'Social Muzz',
+                'features.card4.desc1': 'Your decentralized social network. Post, reply, repost, and like',
+                'features.card4.desc2': 'without limits',
+                'features.card4.desc3': '. True social freedom powered by blockchain.',
+                'features.card4.tag': 'Min: 100M MUZZLE',
+                'features.card5.title': 'MuzzChat',
+                'features.card5.desc1': 'Free expression with limits only you define.',
+                'features.card5.desc2': 'Create 2 rooms per user',
+                'features.card5.desc3': 'and send encrypted P2P messages.',
+                'features.card5.desc4': 'Nothing stored on servers.',
+                'features.card5.tag': 'Min: 40M MUZZLE',
+                'features.card6.title': 'MuzzDAO',
+                'features.card6.desc1': 'True community governance.',
+                'features.card6.desc2': 'Vote on future changes and ideas',
+                'features.card6.desc3': '. Every token holder has a voice in shaping the platform\'s future.',
+                'features.card6.tag': 'Community-driven',
+                'vision.title': 'A New Era of Social Connection',
+                'vision.desc1': 'Where',
+                'vision.desc2': 'decentralization meets communication',
+                'vision.desc3': ', and every user has true ownership of their digital presence.',
+                'vision.badge1': 'No Censorship',
+                'vision.badge2': 'No Central Authority',
+                'vision.badge3': 'Full Transparency',
+                'footer.tagline': 'The Decentralized Revolution'
             },
             es: {
                 'hero.subtitle1': 'EL FUTURO DE LA',
@@ -467,7 +655,50 @@
                 'hero.comingSoon': 'PRÓXIMAMENTE',
                 'stats.decentralized': 'Descentralizado',
                 'stats.privacy': 'Privacidad Primero',
-                'stats.powered': 'Impulsado'
+                'stats.powered': 'Impulsado',
+                'features.title': 'CARACTERÍSTICAS REVOLUCIONARIAS',
+                'features.subtitle': 'Construido para el futuro de la comunicación digital',
+                'features.card1.title': 'Privacidad Absoluta',
+                'features.card1.desc1': 'MuzzSnap es la',
+                'features.card1.desc2': 'revolución cripto',
+                'features.card1.desc3': 'donde cada mensaje, chat e intercambio es privado.',
+                'features.card1.desc4': 'Tú posees',
+                'features.card1.desc5': 'tu información y datos.',
+                'features.card1.tag': 'Encriptación de extremo a extremo',
+                'features.card2.title': 'Mensajería Multifuncional',
+                'features.card2.desc1': 'Más que solo chat.',
+                'features.card2.desc2': 'Mensajes, intercambios, compras',
+                'features.card2.desc3': 'y más, todo integrado en una plataforma social que opera con principios blockchain.',
+                'features.card2.tag': 'Impulsado por Blockchain',
+                'features.card3.title': 'Identidad Basada en Wallet',
+                'features.card3.desc1': 'Tu wallet es tu identidad. Cada interacción está firmada y asegurada, garantizando que',
+                'features.card3.desc2': 'tengas el control',
+                'features.card3.desc3': 'sobre lo que haces y con quién te comunicas.',
+                'features.card3.tag': 'Identidad auto-soberana',
+                'features.card4.title': 'Social Muzz',
+                'features.card4.desc1': 'Tu red social descentralizada. Publica, responde, reenvía y da me gusta',
+                'features.card4.desc2': 'sin límites',
+                'features.card4.desc3': '. Verdadera libertad social impulsada por blockchain.',
+                'features.card4.tag': 'Mín: 100M MUZZLE',
+                'features.card5.title': 'MuzzChat',
+                'features.card5.desc1': 'Libre expresión con límites que solo tú defines.',
+                'features.card5.desc2': 'Crea 2 salas por usuario',
+                'features.card5.desc3': 'y envía mensajes P2P cifrados.',
+                'features.card5.desc4': 'Nada se guarda en servidores.',
+                'features.card5.tag': 'Mín: 40M MUZZLE',
+                'features.card6.title': 'MuzzDAO',
+                'features.card6.desc1': 'Verdadera gobernanza comunitaria.',
+                'features.card6.desc2': 'Vota en futuros cambios e ideas',
+                'features.card6.desc3': '. Cada poseedor de tokens tiene voz en el futuro de la plataforma.',
+                'features.card6.tag': 'Impulsado por la comunidad',
+                'vision.title': 'Una Nueva Era de Conexión Social',
+                'vision.desc1': 'Donde',
+                'vision.desc2': 'la descentralización se encuentra con la comunicación',
+                'vision.desc3': ', y cada usuario tiene verdadera propiedad de su presencia digital.',
+                'vision.badge1': 'Sin Censura',
+                'vision.badge2': 'Sin Autoridad Central',
+                'vision.badge3': 'Transparencia Total',
+                'footer.tagline': 'La Revolución Descentralizada'
             },
             jp: {
                 'hero.subtitle1': '未来の',
@@ -482,50 +713,204 @@
                 'hero.comingSoon': '近日公開',
                 'stats.decentralized': '分散型',
                 'stats.privacy': 'プライバシー第一',
-                'stats.powered': 'パワード'
+                'stats.powered': 'パワード',
+                'features.title': '革新的な機能',
+                'features.subtitle': 'デジタルコミュニケーションの未来のために構築',
+                'features.card1.title': '完全なプライバシー',
+                'features.card1.desc1': 'MuzzSnapは',
+                'features.card1.desc2': '暗号革命',
+                'features.card1.desc3': 'すべてのメッセージ、チャット、交換がプライベートです。',
+                'features.card1.desc4': 'あなたが所有',
+                'features.card1.desc5': 'あなたの情報とデータを。',
+                'features.card1.tag': 'エンドツーエンド暗号化',
+                'features.card2.title': '多目的メッセージング',
+                'features.card2.desc1': 'チャットだけではありません。',
+                'features.card2.desc2': 'メッセージ、交換、購入',
+                'features.card2.desc3': 'など、すべてブロックチェーン原則で動作するソーシャルプラットフォームに統合されています。',
+                'features.card2.tag': 'ブロックチェーン駆動',
+                'features.card3.title': 'ウォレット駆動ID',
+                'features.card3.desc1': 'あなたのウォレットがあなたのアイデンティティです。すべてのやり取りは署名され保護され、',
+                'features.card3.desc2': 'あなたがコントロール',
+                'features.card3.desc3': 'あなたが何をするか、誰とコミュニケーションするかを。',
+                'features.card3.tag': '自己主権アイデンティティ',
+                'features.card4.title': 'ソーシャル Muzz',
+                'features.card4.desc1': '分散型ソーシャルネットワーク。投稿、返信、リポスト、いいね',
+                'features.card4.desc2': '制限なし',
+                'features.card4.desc3': 'ブロックチェーンが支える真のソーシャル自由。',
+                'features.card4.tag': '最小: 100M MUZZLE',
+                'features.card5.title': 'MuzzChat',
+                'features.card5.desc1': 'あなただけが定義する制限での自由な表現。',
+                'features.card5.desc2': 'ユーザーあたり2つの部屋を作成',
+                'features.card5.desc3': '暗号化されたP2Pメッセージを送信。',
+                'features.card5.desc4': 'サーバーに保存されません。',
+                'features.card5.tag': '最小: 40M MUZZLE',
+                'features.card6.title': 'MuzzDAO',
+                'features.card6.desc1': '真のコミュニティガバナンス。',
+                'features.card6.desc2': '将来の変更やアイデアに投票',
+                'features.card6.desc3': 'すべてのトークン保有者がプラットフォームの未来を形作る声を持つ。',
+                'features.card6.tag': 'コミュニティ主導',
+                'vision.title': '社会的つながりの新時代',
+                'vision.desc1': '',
+                'vision.desc2': '分散化がコミュニケーションと出会う',
+                'vision.desc3': 'そしてすべてのユーザーがデジタルプレゼンスの真の所有権を持つ。',
+                'vision.badge1': '検閲なし',
+                'vision.badge2': '中央権限なし',
+                'vision.badge3': '完全な透明性',
+                'footer.tagline': '分散型革命'
             }
         };
 
+        // --- LANGUAGE FUNCTIONS ---
         let currentLang = 'en';
 
         function changeLanguage(lang) {
             currentLang = lang;
+            
+            // Update all translated elements
             document.querySelectorAll('[data-i18n]').forEach(element => {
                 const key = element.getAttribute('data-i18n');
                 if (translations[lang] && translations[lang][key]) {
                     element.textContent = translations[lang][key];
                 }
             });
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
-            });
-        }
 
-        function createParticles() {
-            for (let i = 0; i < 40; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                p.style.left = Math.random() * 100 + '%';
-                p.style.top = Math.random() * 100 + '%';
-                p.style.animation = `float ${Math.random() * 3 + 2}s infinite`;
-                document.body.appendChild(p);
+            // Update active button
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Save preference
+            try {
+                localStorage.setItem('muzzsnap-lang', lang);
+            } catch (e) {
+                // localStorage not available
             }
         }
 
-        function revealOnScroll() {
-            document.querySelectorAll('.reveal').forEach(el => {
-                if (el.getBoundingClientRect().top < window.innerHeight - 100) el.classList.add('active');
+        // Initialize language selector
+        function initLanguageSelector() {
+            let savedLang = 'en';
+            try {
+                savedLang = localStorage.getItem('muzzsnap-lang') || 'en';
+            } catch (e) {
+                // localStorage not available
+            }
+            changeLanguage(savedLang);
+
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const lang = btn.getAttribute('data-lang');
+                    changeLanguage(lang);
+                });
             });
         }
 
-        window.addEventListener('scroll', revealOnScroll);
+        // --- FUNCIÓN DE DETECCIÓN Y AJUSTE DE NAVEGADOR ---
+        function detectAndAdjustBrowser() {
+            const body = document.body;
+            if (typeof window.ethereum !== 'undefined') {
+                body.classList.add('is-crypto-browser');
+            }
+        }
+
+        // Create floating particles
+        function createParticles() {
+            const particleCount = 50;
+            const style = document.createElement('style');
+            let keyframesCss = '';
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                
+                const duration = (Math.random() * 3 + 2);
+                
+                particle.style.animationDuration = duration + 's';
+                particle.style.animationDelay = Math.random() * 2 + 's';
+                particle.style.opacity = Math.random() * 0.5 + 0.2;
+                
+                keyframesCss += `
+                    @keyframes float${i} {
+                        0% { transform: translate(0, 0); opacity: ${particle.style.opacity}; }
+                        50% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); opacity: ${Math.random() * 0.8 + 0.2}; }
+                        100% { transform: translate(0, 0); opacity: ${particle.style.opacity}; }
+                    }
+                `;
+                
+                particle.style.animation = `float${i} ${duration}s ease-in-out infinite`;
+                
+                document.body.appendChild(particle);
+            }
+            style.textContent = keyframesCss;
+            document.head.appendChild(style);
+        }
+
+        // Scroll reveal animation
+        function revealOnScroll() {
+            const reveals = document.querySelectorAll('.reveal');
+            
+            reveals.forEach(element => {
+                const windowHeight = window.innerHeight;
+                const elementTop = element.getBoundingClientRect().top;
+                const elementVisible = 150;
+                
+                if (elementTop < windowHeight - elementVisible) {
+                    element.classList.add('active');
+                    
+                    if (element.closest('section.relative.min-h-screen') && !window.countersAnimated) {
+                        animateCounters();
+                        window.countersAnimated = true; 
+                    }
+                }
+            });
+        }
+
+        // Counter animation (Sólo anima el 100%)
+        function animateCounters() {
+            const counter = document.getElementById('stat-decentralized');
+            
+            if (!counter || counter.textContent !== '100%') return; 
+            
+            let current = 0;
+            const duration = 2000;
+            const steps = duration / 16;
+            const stepValue = 100 / steps;
+            
+            const timer = setInterval(() => {
+                current += stepValue;
+                if (current >= 100) {
+                    current = 100;
+                    clearInterval(timer);
+                    counter.textContent = '100%';
+                    return;
+                }
+                counter.textContent = Math.floor(current) + '%';
+            }, 16);
+        }
+
+        // Initialize
         window.addEventListener('load', () => {
+            detectAndAdjustBrowser();
+            initLanguageSelector();
             createParticles();
             revealOnScroll();
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.onclick = () => changeLanguage(btn.getAttribute('data-lang'));
-            });
         });
+
+        window.addEventListener('scroll', revealOnScroll);
+
+        setTimeout(() => {
+            const firstReveals = document.querySelectorAll('.reveal');
+            if (firstReveals.length > 0 && window.scrollY < 100) {
+                firstReveals[0].classList.add('active');
+                animateCounters(); 
+                window.countersAnimated = true;
+            }
+        }, 100);
     </script>
 </body>
 </html>
