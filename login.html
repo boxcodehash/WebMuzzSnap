@@ -3,69 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MuzzSnap</title>
+    <title>MuzzSnap | Secure Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; overflow-x: hidden; background-color: #0a0a0a; }
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; background-color: #0a0a0a; color: white; }
         .muzz-background {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
-            background: radial-gradient(circle at 10% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
-                        radial-gradient(circle at 90% 80%, rgba(50, 50, 50, 0.1) 0%, transparent 60%);
+            background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.05) 0%, transparent 100%);
         }
-        #logoButton { cursor: pointer; transition: all 0.3s ease; }
-        #logoButton:hover { opacity: 0.9; transform: scale(1.02); }
-        .pulse-ring {
-            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse-ring {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        #logoButton { cursor: pointer; transition: all 0.3s ease; -webkit-tap-highlight-color: transparent; }
+        #logoButton:active { transform: scale(0.95); }
+        .pulse-red { animation: pulse-red 2s infinite; }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
         }
     </style>
 </head>
-<body class="p-4 text-white">
+<body class="p-4">
     <div class="muzz-background"></div>
 
-    <div id="statusContainer" class="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
-        <span id="walletStatus" class="py-2 px-4 text-xs font-medium text-gray-400 bg-gray-800 rounded-lg border border-gray-700">
-            <i class="fas fa-circle text-gray-500 mr-1"></i> Disconnected
+    <div id="statusContainer" class="absolute top-4 right-4 z-20">
+        <span id="walletStatus" class="py-2 px-4 text-[10px] font-bold uppercase tracking-widest text-gray-500 bg-gray-900/80 rounded-full border border-gray-800">
+            <i class="fas fa-circle mr-2"></i> Disconnected
         </span>
     </div>
 
-    <div class="relative z-10 flex flex-col items-center justify-center min-h-[80vh] max-w-sm mx-auto text-center">
+    <div class="relative z-10 flex flex-col items-center justify-center min-h-[90vh] max-w-sm mx-auto text-center">
         
-        <div id="logoButton" onclick="connectWallet()" class="mb-6 relative group">
+        <div id="logoButton" class="mb-8 relative group pulse-red rounded-2xl">
             <img id="muzzLogo" src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
-                 alt="MuzzSnap" class="w-40 h-40 rounded-2xl shadow-2xl group-hover:rotate-2 transition duration-500">
+                 alt="MuzzSnap" class="w-32 h-32 md:w-40 md:h-40 rounded-2xl shadow-2xl border border-white/10">
             
-            <div id="loadingSpinner" class="hidden absolute inset-0 flex items-center justify-center bg-black/60 rounded-2xl backdrop-blur-sm">
-                <i class="fas fa-spinner fa-spin text-4xl text-white"></i>
+            <div id="loadingSpinner" class="hidden absolute inset-0 flex items-center justify-center bg-black/70 rounded-2xl backdrop-blur-sm">
+                <i class="fas fa-circle-notch fa-spin text-4xl text-red-600"></i>
             </div>
         </div>
 
-        <h1 class="text-4xl font-black mb-2 tracking-tight">MuzzSnap</h1>
-        <p class="text-xs text-gray-500 mb-8 tracking-widest uppercase">
-            Secure Decentralized Chat
+        <h1 class="text-3xl font-black mb-2 tracking-tighter">MUZZSNAP</h1>
+        <p class="text-[10px] text-gray-500 mb-8 tracking-[0.3em] uppercase leading-relaxed">
+            Decentralized Protocol
             <br>
-           単なるアプリ以上のもの。 
+            <span class="text-red-800">単なるアプリ以上のもの</span>
         </p>
 
-        <div id="messageArea" class="hidden w-full mb-8 p-4 bg-gray-900/80 border border-gray-800 rounded-xl backdrop-blur-md">
-            <p id="messageTitle" class="text-sm font-bold text-red-400 mb-1">Error</p>
-            <p id="messageText" class="text-xs text-gray-400 leading-relaxed">Description</p>
+        <div id="messageArea" class="hidden w-full mb-8 p-4 bg-red-950/20 border border-red-900/30 rounded-xl backdrop-blur-md">
+            <p id="messageTitle" class="text-xs font-bold text-red-500 uppercase mb-1">Alert</p>
+            <p id="messageText" class="text-[11px] text-gray-400 leading-tight">Description</p>
         </div>
 
-        <p class="text-xs text-gray-600 pulse-ring mt-4">
-            Click the logo to connect wallet 
-            <br>
-            ロゴをクリックしてウォレットを接続
-        </p>
+        <div id="actionHint" class="text-[10px] text-gray-600 uppercase tracking-widest space-y-2">
+            <p class="animate-pulse">Tap logo to initialize connection</p>
+            <p class="text-gray-800">ロゴをクリックして接続</p>
+        </div>
 
-        <footer class="mt-16 text-[10px] text-gray-700 font-mono">
-            MuzzSnap 2025&trade; &bull; By.Ryachu
+        <footer class="mt-16 text-[9px] text-gray-800 font-mono uppercase tracking-widest">
+            &copy; 2025 MuzzSnap Protocol &bull; Secure Auth
         </footer>
     </div>
 
@@ -73,348 +70,114 @@
         const CONFIG = {
             contractAddress: "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0",
             minTokens: 40000000,
-            requiredChainId: 1,
-            chatUrl: 'chat.html',
-            rpcFallback: 'https://eth.llamarpc.com'
+            requiredChainId: 1, // Ethereum Mainnet
+            chatUrl: 'chat.html'
         };
 
-        const ERC20_ABI = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function decimals() view returns (uint8)"
-        ];
-
         const UI = {
-            spinner: document.getElementById('loadingSpinner'),
             status: document.getElementById('walletStatus'),
             msgArea: document.getElementById('messageArea'),
             msgTitle: document.getElementById('messageTitle'),
             msgText: document.getElementById('messageText'),
+            spinner: document.getElementById('loadingSpinner'),
 
-            setStatus(text, color = 'gray', icon = 'circle') {
-                this.status.innerHTML = `<i class="fas fa-${icon} text-${color}-500 mr-1"></i> ${text}`;
-                this.status.className = `py-2 px-4 text-xs font-medium rounded-lg border bg-gray-900 border-${color}-700 text-${color}-400`;
+            updateStatus(text, colorClass) {
+                this.status.innerHTML = `<i class="fas fa-circle mr-2 text-${colorClass}-600"></i> ${text}`;
+                this.status.classList.add('animate-pulse');
             },
 
-            showMessage(title, text, isError = true) {
+            showError(title, text) {
                 this.msgArea.classList.remove('hidden');
                 this.msgTitle.textContent = title;
-                this.msgTitle.className = `text-sm font-bold mb-1 ${isError ? 'text-red-400' : 'text-green-400'}`;
                 this.msgText.textContent = text;
-            },
-
-            hideMessage() {
-                this.msgArea.classList.add('hidden');
-            },
-
-            showSpinner() {
-                this.spinner.classList.remove('hidden');
-            },
-
-            hideSpinner() {
                 this.spinner.classList.add('hidden');
             }
         };
 
-        const ENV = {
-            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-            
-            isInAppBrowser() {
-                const ua = navigator.userAgent.toLowerCase();
-                return ua.includes('metamask') || 
-                       ua.includes('trust') || 
-                       ua.includes('coinbase') ||
-                       ua.includes('rainbow') ||
-                       ua.includes('imtoken') ||
-                       ua.includes('tokenpocket');
-            },
+        async function startAuth() {
+            UI.msgArea.classList.add('hidden');
+            UI.spinner.classList.remove('hidden');
+            UI.updateStatus('PROBING...', 'yellow');
 
-            hasWeb3() {
-                return typeof window.ethereum !== 'undefined';
-            },
+            // 1. Detección de entorno
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const hasEthereum = typeof window.ethereum !== 'undefined';
 
-            getProvider() {
-                if (!window.ethereum) return null;
-                
-                if (window.ethereum.providers && window.ethereum.providers.length > 0) {
-                    const metamask = window.ethereum.providers.find(p => p.isMetaMask);
-                    if (metamask) return metamask;
-                    
-                    const coinbase = window.ethereum.providers.find(p => p.isCoinbaseWallet);
-                    if (coinbase) return coinbase;
-                    
-                    return window.ethereum.providers[0];
-                }
-                
-                return window.ethereum;
-            }
-        };
-
-        async function connectWallet() {
-            console.log('🔌 Iniciando conexión...');
-            console.log('📱 Móvil:', ENV.isMobile);
-            console.log('🌐 Browser In-App:', ENV.isInAppBrowser());
-            console.log('🦊 Tiene Web3:', ENV.hasWeb3());
-
-            UI.hideMessage();
-            UI.showSpinner();
-            UI.setStatus('Connecting...', 'yellow', 'spinner fa-spin');
-
-            try {
-                if (ENV.isMobile && !ENV.hasWeb3() && !ENV.isInAppBrowser()) {
-                    handleMobileRedirect();
-                    return;
-                }
-
-                if (!ENV.isMobile && !ENV.hasWeb3()) {
-                    handleDesktopNoWallet();
-                    return;
-                }
-
-                await handleWeb3Connection();
-
-            } catch (error) {
-                handleError(error);
-            } finally {
-                UI.hideSpinner();
-            }
-        }
-
-        function handleMobileRedirect() {
-            console.log('📱 Redirigiendo a wallet móvil...');
-            
-            UI.setStatus('Opening Wallet...', 'blue', 'mobile-alt');
-            UI.showMessage(
-                '📱 Opening Wallet App',
-                'Redirecting to MetaMask. If it doesn\'t open, install MetaMask app from your app store.',
-                false
-            );
-
-            const currentUrl = window.location.href;
-            const host = window.location.host;
-            const pathname = window.location.pathname;
-
-            setTimeout(() => {
-                window.location.href = `https://metamask.app.link/dapp/${host}${pathname}`;
-            }, 1000);
-
-            setTimeout(() => {
-                const encodedUrl = encodeURIComponent(currentUrl);
-                window.location.href = `https://link.trustwallet.com/open_url?url=${encodedUrl}`;
-            }, 3000);
-
-            UI.hideSpinner();
-        }
-
-        function handleDesktopNoWallet() {
-            console.log('🖥️ Desktop sin wallet detectado');
-            
-            UI.setStatus('Wallet Required', 'red', 'exclamation-triangle');
-            UI.showMessage(
-                '🦊 Wallet Extension Required',
-                'Please install MetaMask, Coinbase Wallet, or another Web3 wallet extension to continue. Click here to install MetaMask.',
-                true
-            );
-
-            UI.hideSpinner();
-
-            UI.msgArea.style.cursor = 'pointer';
-            UI.msgArea.onclick = () => {
-                window.open('https://metamask.io/download/', '_blank');
-            };
-        }
-
-        async function handleWeb3Connection() {
-            console.log('🔗 Conectando con Web3...');
-            
-            const provider = ENV.getProvider();
-            if (!provider) {
-                throw new Error('No Web3 provider available');
-            }
-
-            const ethersProvider = new ethers.providers.Web3Provider(provider, 'any');
-
-            UI.setStatus('Requesting Access...', 'yellow', 'hand-paper');
-            
-            let accounts;
-            try {
-                accounts = await ethersProvider.send("eth_requestAccounts", []);
-            } catch (err) {
-                if (err.code === 4001) {
-                    throw new Error('User rejected the connection request');
-                }
-                throw err;
-            }
-
-            const address = accounts[0];
-            if (!address) {
-                throw new Error('No account returned from wallet');
-            }
-
-            console.log('✅ Cuenta conectada:', address);
-
-            UI.setStatus('Checking Network...', 'blue', 'network-wired');
-            
-            const network = await ethersProvider.getNetwork();
-            console.log('🌐 Red actual:', network.chainId);
-
-            if (network.chainId !== CONFIG.requiredChainId) {
-                console.log('⚠️ Red incorrecta, intentando cambiar...');
-                
-                try {
-                    await provider.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x1' }],
-                    });
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    
-                    await handleWeb3Connection();
-                    return;
-                    
-                } catch (switchError) {
-                    console.error('❌ No se pudo cambiar de red:', switchError);
-                    throw new Error('Please switch to Ethereum Mainnet (Network ID: 1) in your wallet');
-                }
-            }
-
-            UI.setStatus('Checking Balance...', 'purple', 'coins');
-            
-            const contract = new ethers.Contract(
-                CONFIG.contractAddress,
-                ERC20_ABI,
-                ethersProvider
-            );
-
-            const [decimals, balanceBN] = await Promise.all([
-                contract.decimals(),
-                contract.balanceOf(address)
-            ]);
-
-            const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
-            
-            console.log('💰 Balance:', balance.toLocaleString(), 'MUZZ');
-            console.log('📊 Requerido:', CONFIG.minTokens.toLocaleString(), 'MUZZ');
-
-            if (balance < CONFIG.minTokens) {
-                const balanceStr = Math.floor(balance).toLocaleString();
-                const requiredStr = CONFIG.minTokens.toLocaleString();
-                throw new Error(`Insufficient balance: ${balanceStr} MUZZ. Required: ${requiredStr} MUZZ`);
-            }
-
-            console.log('✅ Verificación exitosa');
-            
-            UI.setStatus('Access Granted!', 'green', 'check-circle');
-            UI.showMessage(
-                '✅ Verification Complete',
-                'Redirecting to secure chat...',
-                false
-            );
-
-            sessionStorage.setItem('muzz_auth_pending', 'true');
-            sessionStorage.setItem('muzz_wallet_address', address);
-            sessionStorage.setItem('muzz_balance', balance.toString());
-            sessionStorage.setItem('muzz_network', network.chainId.toString());
-            sessionStorage.setItem('muzz_timestamp', Date.now().toString());
-
-            console.log('📦 Sesión guardada:', {
-                address: sessionStorage.getItem('muzz_wallet_address'),
-                balance: sessionStorage.getItem('muzz_balance'),
-                pending: sessionStorage.getItem('muzz_auth_pending')
-            });
-
-            console.log('🔄 Redirigiendo a:', CONFIG.chatUrl);
-
-            setTimeout(() => {
-                try {
-                    window.location.href = CONFIG.chatUrl;
-                } catch (e) {
-                    console.error('❌ Error al redirigir:', e);
-                    alert('Redirección falló. Por favor abre chat.html manualmente.');
-                }
-            }, 1500);
-        }
-
-        function handleError(error) {
-            console.error('❌ Error:', error);
-            
-            UI.setStatus('Error', 'red', 'exclamation-circle');
-
-            let title = 'Connection Error';
-            let message = error.message || 'An unexpected error occurred';
-
-            if (error.message.includes('Insufficient balance')) {
-                title = '❌ Insufficient Balance';
-                message = error.message;
-            } else if (error.message.includes('rejected')) {
-                title = '🚫 Connection Rejected';
-                message = 'You rejected the connection request in your wallet';
-            } else if (error.code === -32002) {
-                title = '⏳ Pending Request';
-                message = 'Please check your wallet for a pending connection request';
-            } else if (error.message.includes('switch to Ethereum')) {
-                title = '🌐 Wrong Network';
-                message = error.message;
-            }
-
-            UI.showMessage(title, message, true);
-        }
-
-        window.addEventListener('load', async () => {
-            console.log('🚀 MuzzSnap cargado');
-            
-            await new Promise(resolve => setTimeout(resolve, 800));
-
-            if (ENV.hasWeb3()) {
-                const provider = ENV.getProvider();
-                if (provider) {
-                    try {
-                        const ethersProvider = new ethers.providers.Web3Provider(provider);
-                        const accounts = await ethersProvider.listAccounts();
-                        
-                        if (accounts.length > 0) {
-                            console.log('✅ Wallet ya conectada:', accounts[0]);
-                            UI.setStatus('Connected', 'green', 'check-circle');
-                        }
-                    } catch (e) {
-                        console.log('ℹ️ No hay conexión previa');
-                    }
-                }
-            }
-
-            if (window.ethereum) {
-                window.ethereum.on('accountsChanged', (accounts) => {
-                    console.log('🔄 Cuenta cambiada:', accounts[0]);
-                    if (accounts.length === 0) {
-                        UI.setStatus('Disconnected', 'red', 'times-circle');
-                        sessionStorage.clear();
-                    } else {
-                        UI.setStatus('Account Changed', 'yellow', 'exchange-alt');
-                    }
-                });
-
-                window.ethereum.on('chainChanged', (chainId) => {
-                    console.log('🌐 Red cambiada:', chainId);
-                    window.location.reload();
-                });
-            }
-        });
-
-        let isConnecting = false;
-        const originalConnect = connectWallet;
-        connectWallet = async function() {
-            if (isConnecting) {
-                console.log('⏳ Ya hay una conexión en proceso...');
+            // 2. Lógica de redirección para móviles (si no hay in-app browser)
+            if (isMobile && !hasEthereum) {
+                UI.updateStatus('REDIRECTING...', 'blue');
+                const dappUrl = window.location.host + window.location.pathname;
+                // Usamos el deep link oficial de MetaMask
+                setTimeout(() => {
+                    window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+                }, 500);
                 return;
             }
-            isConnecting = true;
-            try {
-                await originalConnect();
-            } finally {
-                setTimeout(() => {
-                    isConnecting = false;
-                }, 2000);
+
+            // 3. Lógica para Desktop sin Wallet
+            if (!hasEthereum) {
+                UI.showError('EXTENSION MISSING', 'Please install MetaMask to access the decentralized chat.');
+                return;
             }
-        };
+
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+                
+                // Pedir cuentas
+                const accounts = await provider.send("eth_requestAccounts", []);
+                const address = accounts[0];
+
+                // Verificar Red
+                const network = await provider.getNetwork();
+                if (network.chainId !== CONFIG.requiredChainId) {
+                    UI.updateStatus('WRONG NETWORK', 'red');
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x1' }],
+                        });
+                    } catch (e) {
+                        UI.showError('NETWORK ERROR', 'Please switch your wallet to Ethereum Mainnet.');
+                        return;
+                    }
+                }
+
+                // Verificar Token MUZZLE
+                UI.updateStatus('VERIFYING MUZZ...', 'red');
+                const abi = ["function balanceOf(address owner) view returns (uint256)"];
+                const contract = new ethers.Contract(CONFIG.contractAddress, abi, provider);
+                const balanceBN = await contract.balanceOf(address);
+                const balance = parseFloat(ethers.utils.formatUnits(balanceBN, 18)); // Asumiendo 18 decimales
+
+                if (balance < CONFIG.minTokens) {
+                    UI.showError('ACCESS DENIED', `Minimum 40M MUZZLE required. Your balance: ${Math.floor(balance).toLocaleString()}`);
+                    return;
+                }
+
+                // Éxito: Guardar sesión y entrar
+                UI.updateStatus('GRANTED', 'green');
+                sessionStorage.setItem('muzz_verified', 'true');
+                sessionStorage.setItem('muzz_addr', address);
+                
+                setTimeout(() => {
+                    window.location.href = CONFIG.chatUrl;
+                }, 1000);
+
+            } catch (err) {
+                console.error(err);
+                UI.showError('AUTH FAILED', err.message || 'Connection error');
+                UI.spinner.classList.add('hidden');
+            }
+        }
+
+        // Asignar el evento al cargar
+        document.getElementById('logoButton').addEventListener('click', startAuth);
+
+        // Listener para cambios de cuenta
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', () => window.location.reload());
+            window.ethereum.on('chainChanged', () => window.location.reload());
+        }
     </script>
 </body>
 </html>
