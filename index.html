@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Muzzle Token | Ultra Premium</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#030303">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
@@ -18,14 +24,13 @@
             background-color: var(--bg);
             color: #fff;
             font-family: 'Rajdhani', sans-serif;
-            overflow-x: hidden; /* Evita el scroll horizontal */
+            overflow-x: hidden;
             margin: 0;
             width: 100%;
         }
 
         #tsparticles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
         
-        /* --- Ajustes Glitch y Tipografía Responsiva --- */
         .glitch {
             position: relative;
             animation: glitch 5s infinite;
@@ -39,14 +44,13 @@
             100% { text-shadow: 0 0 0 transparent; }
         }
 
-        /* --- Tarjetas Responsivas --- */
         .card-container {
             position: relative;
             background: rgba(10, 10, 10, 0.8);
             border: 1px solid rgba(255, 0, 0, 0.1);
             overflow: hidden;
             z-index: 10;
-            height: 100%; /* Asegura que todas las tarjetas tengan el mismo alto */
+            height: 100%;
         }
 
         .card-container::before {
@@ -62,7 +66,7 @@
         .card-inner {
             background: #080808;
             margin: 2px;
-            padding: 1.5rem; /* Reducido para móvil */
+            padding: 1.5rem;
             height: calc(100% - 4px);
             display: flex;
             flex-direction: column;
@@ -91,6 +95,8 @@
             position: relative;
             transition: 0.4s;
             overflow: hidden;
+            cursor: pointer;
+            z-index: 20;
         }
 
         @media (min-width: 768px) {
@@ -139,7 +145,9 @@
             <p class="max-w-2xl mx-auto text-gray-400 text-sm md:text-lg mb-12 tracking-widest font-light px-4" data-i18n="hero.desc">
                 DECENTRALIZED COMMUNICATION INTERFACE
             </p>
-            <button class="btn-action" data-i18n="hero.cta">INITIALIZE</button>
+            <button onclick="window.location.href='login.html'" class="btn-action">
+                <i class="fas fa-sign-in-alt mr-2"></i> <span data-i18n="hero.cta">LOGIN</span>
+            </button>
         </div>
     </section>
 
@@ -199,7 +207,7 @@
     <script>
         tsParticles.load("tsparticles", {
             particles: {
-                number: { value: 60 }, /* Reducido para mejor performance en móvil */
+                number: { value: 60 },
                 color: { value: "#ff0000" },
                 opacity: { value: 0.5, random: true },
                 size: { value: { min: 1, max: 3 } },
@@ -216,14 +224,14 @@
         const translations = {
             en: {
                 'hero.desc': 'DECENTRALIZED COMMUNICATION INTERFACE',
-                'hero.cta': 'INITIALIZE',
+                'hero.cta': 'LOGIN',
                 'social.desc': 'The first truly borderless social grid. Immutable, censorship-resistant, and community-owned.',
                 'chat.desc': 'Encrypted P2P nodes. Secure 2-room architecture per user. No logs, no traces.',
                 'dao.desc': 'The core authority. Propose and execute protocols. Power is distributed.'
             },
             es: {
                 'hero.desc': 'INTERFAZ DE COMUNICACIÓN DESCENTRALIZADA',
-                'hero.cta': 'INICIALIZAR',
+                'hero.cta': 'ENTRAR',
                 'social.desc': 'La primera red social sin fronteras. Inmutable, resistente a la censura y propiedad de la comunidad.',
                 'chat.desc': 'Nodos P2P cifrados. Arquitectura segura de 2 salas por usuario. Sin registros ni rastros.',
                 'dao.desc': 'La autoridad central. Propón y ejecuta protocolos. El poder está distribuido.'
@@ -232,9 +240,19 @@
 
         function setLang(lang) {
             document.querySelectorAll('[data-i18n]').forEach(el => {
-                el.innerText = translations[lang][el.getAttribute('data-i18n')];
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang][key]) {
+                    el.innerText = translations[lang][key];
+                }
             });
+            localStorage.setItem('muzzle-lang', lang);
         }
+
+        // Cargar idioma guardado al iniciar
+        window.addEventListener('load', () => {
+            const savedLang = localStorage.getItem('muzzle-lang') || 'en';
+            setLang(savedLang);
+        });
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('active'); });
