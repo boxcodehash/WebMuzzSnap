@@ -19,70 +19,54 @@
     @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700&display=swap');
     :root { --muzz-red: #ff0000; --deep-black: #050505; --panel-bg: #0c0c0c; --neon-green: #39ff14; --ryachu-gold: #ffcc00; }
     
-    body { font-family: 'Inter', sans-serif; background-color: var(--deep-black); color: white; overflow: hidden; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--deep-black); color: white; overflow: hidden; margin: 0; }
 
-    /* Estética 3D Ryachu Edition */
     .panel-3d {
       background: var(--panel-bg);
       box-shadow: inset 1px 1px 2px rgba(255,255,255,0.05), 10px 10px 20px rgba(0,0,0,0.5);
       border: 1px solid rgba(255,0,0,0.1);
     }
 
-    /* Nombre especial Ryachu */
     .ryachu-name {
       color: var(--ryachu-gold);
-      text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 204, 0, 0.4);
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
       font-weight: 800;
-      letter-spacing: 1px;
     }
 
     .channel-btn-3d.active {
       background: #000;
-      box-shadow: inset 4px 4px 8px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.05);
       border: 1px solid rgba(255,0,0,0.5);
       color: var(--muzz-red);
-      transform: scale(0.97);
     }
 
-    /* Burbujas iPhone 3D */
     .bubble-3d {
-      padding: 12px 18px;
-      border-radius: 20px;
-      margin-bottom: 8px;
-      max-width: 80%;
-      box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
+      padding: 10px 15px;
+      border-radius: 18px;
+      margin-bottom: 4px;
+      max-width: 85%;
+      word-wrap: break-word;
     }
 
     .bubble-3d.me {
-      background: linear-gradient(145deg, #ff0000, #b30000);
+      background: linear-gradient(145deg, #ff0000, #990000);
       align-self: flex-end;
-      border-bottom-right-radius: 4px;
-    }
-
-    /* Burbuja especial para Ryachu cuando otros lo ven */
-    .bubble-3d.ryachu-bubble {
-      background: linear-gradient(145deg, #222, #000);
-      border: 1px solid var(--ryachu-gold);
-      box-shadow: 0 0 15px rgba(255, 204, 0, 0.1);
+      border-bottom-right-radius: 2px;
     }
 
     .bubble-3d.other {
-      background: linear-gradient(145deg, #222, #111);
+      background: #1a1a1a;
       align-self: flex-start;
-      border-bottom-left-radius: 4px;
+      border-bottom-left-radius: 2px;
       border: 1px solid rgba(255,255,255,0.05);
     }
 
     .hacker-input {
       font-family: 'Fira Code', monospace;
       color: var(--neon-green) !important;
-      text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
     }
 
-    .cooldown-active { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
-
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: var(--muzz-red); border-radius: 10px; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--muzz-red); }
   </style>
 </head>
 <body>
@@ -111,8 +95,7 @@
       { id: "general", name: "GENERAL" },
       { id: "spanish", name: "SPANISH" },
       { id: "english", name: "ENGLISH" },
-      { id: "crypto", name: "CRYPTO" },
-      { id: "gamers", name: "GAMERS" }
+      { id: "crypto", name: "CRYPTO" }
     ];
 
     function App() {
@@ -121,40 +104,40 @@
       const [messages, setMessages] = useState([]);
       const [onlineUsers, setOnlineUsers] = useState([]);
       const [inputText, setInputText] = useState("");
-      const [lastMsgTime, setLastMsgTime] = useState(0);
-      const [cooldown, setCooldown] = useState(false);
       const [isMobileMenu, setIsMobileMenu] = useState(false);
       const dummyRef = useRef(null);
 
       useEffect(() => {
+        // MODIFICACIÓN CRÍTICA: Sincronización con login.html
         const wallet = sessionStorage.getItem('muzz_wallet_address');
-        if (!wallet) return;
+        
+        if (!wallet) {
+          console.log("No auth detected, redirecting...");
+          window.location.href = 'index.html'; // O tu archivo de login
+          return;
+        }
 
         auth.signInAnonymously().then(async (userCredential) => {
           const uid = userCredential.user.uid;
           const walletKey = wallet.toLowerCase();
           
           const myPresenceRef = database.ref(`presence/${uid}`);
-          const walletSessionRef = database.ref(`wallet_sessions/${walletKey}`);
           const connectedRef = database.ref(".info/connected");
 
           connectedRef.on("value", (snap) => {
             if (snap.val() === true) {
               myPresenceRef.onDisconnect().remove();
-              walletSessionRef.onDisconnect().remove();
               
-              // Lógica de identidad especial Ryachu
               const isRyachu = walletKey === RYACHU_WALLET;
               const userData = {
                 username: isRyachu ? "Ryachu" : `Node_${wallet.slice(-4)}`,
-                wallet: isRyachu ? "HIDDEN_ADMIN" : walletKey,
+                wallet: walletKey,
                 online: true,
                 uid: uid,
                 isRyachu: isRyachu
               };
 
               myPresenceRef.set(userData);
-              walletSessionRef.set(uid);
               setUser({ ...userData, address: wallet });
             }
           });
@@ -179,10 +162,8 @@
       useEffect(() => { dummyRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
       const handleSend = async () => {
-        const now = Date.now();
-        if (!inputText.trim() || (now - lastMsgTime < 2000)) return;
+        if (!inputText.trim()) return;
 
-        setCooldown(true);
         await database.ref('messages/' + selectedChannel.id).push({
           content: inputText,
           userId: user.uid,
@@ -191,69 +172,68 @@
           timestamp: firebase.database.ServerValue.TIMESTAMP
         });
 
-        setLastMsgTime(now);
         setInputText("");
-        setTimeout(() => setCooldown(false), 2000);
       };
 
-      if (!user) return <div className="h-screen bg-black flex items-center justify-center text-red-600 font-mono">ESTABLISHING_SECURE_CONNECTION...</div>;
+      if (!user) return (
+        <div className="h-screen bg-black flex flex-col items-center justify-center">
+            <i className="fas fa-shield-halved text-red-600 text-4xl mb-4 animate-pulse"></i>
+            <div className="text-red-600 font-mono text-xs tracking-[0.3em]">VALIDATING_ENCRYPTED_SESSION...</div>
+        </div>
+      );
 
       return (
         <div className="flex h-screen bg-[#050505] p-2 lg:p-4 gap-4 overflow-hidden">
           
-          {/* ASIDE */}
+          {/* SIDEBAR */}
           <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-64 panel-3d rounded-3xl p-6 flex flex-col transition-transform duration-300 ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
             <div className="mb-8 flex items-center gap-3">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.5)]">
-                <i className="fas fa-crown text-white text-xs"></i>
+                <i className="fas fa-ghost text-white text-xs"></i>
               </div>
-              <h1 className="font-bold text-xl italic tracking-tighter">MUZZ<span className="text-red-600">SNAP</span></h1>
+              <h1 className="font-bold text-xl italic tracking-tighter font-orbitron">MUZZ<span className="text-red-600">SNAP</span></h1>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 custom-scroll">
-              <p className="text-[10px] text-gray-600 font-bold tracking-[0.3em] mb-4">ACCESS_POINTS</p>
+            <div className="flex-1 overflow-y-auto pr-2">
+              <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mb-4 uppercase">Access_Channels</p>
               {CHANNELS.map(ch => (
-                <button key={ch.id} onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-gray-300'}`}>
-                  <span className={selectedChannel.id === ch.id ? 'text-red-600' : 'text-gray-800'}>#</span>
-                  {ch.name}
+                <button key={ch.id} onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-gray-300'}`}>
+                  <span className="text-red-900">#</span> {ch.name}
                 </button>
               ))}
 
-              <p className="text-[10px] text-gray-600 font-bold tracking-[0.3em] mt-8 mb-4">ACTIVE_NODES ({onlineUsers.length})</p>
+              <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mt-8 mb-4 uppercase">Nodes_Online ({onlineUsers.length})</p>
               {onlineUsers.map((u, i) => (
-                <div key={i} className={`flex items-center gap-2 text-xs px-2 py-1 ${u.isRyachu ? 'ryachu-name' : 'text-gray-500'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${u.isRyachu ? 'bg-yellow-400 shadow-[0_0_8px_#ffcc00]' : 'bg-green-500 shadow-[0_0_5px_#39ff14]'}`}></div>
+                <div key={i} className={`flex items-center gap-2 text-[11px] px-2 py-1 ${u.isRyachu ? 'ryachu-name' : 'text-gray-400'}`}>
+                  <div className={`w-1 h-1 rounded-full ${u.isRyachu ? 'bg-yellow-400' : 'bg-green-500'}`}></div>
                   {u.username}
                 </div>
               ))}
             </div>
-            <button onClick={() => {sessionStorage.clear(); window.location.href='index.html'}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg hover:text-red-600 transition uppercase tracking-tighter">Terminate_Session</button>
+
+            <button onClick={() => {sessionStorage.clear(); window.location.reload()}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg uppercase">Disconnect</button>
           </aside>
 
-          {/* MAIN */}
+          {/* CHAT MAIN */}
           <main className="flex-1 panel-3d rounded-3xl flex flex-col overflow-hidden relative border border-white/5">
-            <header className="h-16 flex items-center justify-between px-6 bg-white/5 backdrop-blur-md border-b border-white/5">
+            <header className="h-14 flex items-center justify-between px-6 bg-white/5 backdrop-blur-md border-b border-white/5">
               <div className="flex items-center gap-4">
-                <button onClick={() => setIsMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars text-xl"></i></button>
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-red-600 font-mono tracking-widest animate-pulse uppercase leading-none">{user.isRyachu ? "ROOT_ACCESS_ACTIVE" : "ENCRYPTED_NODE"}</span>
-                  <h2 className="text-lg font-bold"># {selectedChannel.name}</h2>
-                </div>
+                <button onClick={() => setIsMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars"></i></button>
+                <h2 className="text-sm font-bold tracking-widest text-red-600">#{selectedChannel.name}</h2>
               </div>
-              <div className="text-[9px] font-mono text-gray-600 hidden sm:block">
-                {user.isRyachu ? <span className="ryachu-name animate-pulse">ADMIN: RYACHU</span> : `SOURCE: ${user.address.slice(0,14)}...`}
+              <div className="text-[9px] font-mono text-gray-600">
+                {user.isRyachu ? "ROOT_ADMIN" : `ADDR: ${user.address.slice(0,6)}...${user.address.slice(-4)}`}
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4 lg:p-8 flex flex-col bg-[radial-gradient(circle_at_top,_rgba(20,0,0,0.3)_0%,_transparent_70%)]">
+            <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col">
               {messages.map(msg => {
                 const isMe = msg.userId === user.uid;
-                const isRyachuMsg = msg.isRyachu;
                 return (
-                  <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-3`}>
-                    {!isMe && <span className={`text-[10px] font-bold ml-2 mb-1 uppercase tracking-widest ${isRyachuMsg ? 'ryachu-name' : 'text-red-900'}`}>{msg.username}</span>}
-                    <div className={`bubble-3d ${isMe ? 'me' : (isRyachuMsg ? 'ryachu-bubble other' : 'other')}`}>
-                      <p className={`text-sm ${isRyachuMsg && !isMe ? 'text-yellow-400 font-medium' : 'text-white'}`}>{msg.content}</p>
+                  <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-4`}>
+                    {!isMe && <span className={`text-[9px] font-bold ml-1 mb-1 uppercase ${msg.isRyachu ? 'ryachu-name' : 'text-gray-600'}`}>{msg.username}</span>}
+                    <div className={`bubble-3d ${isMe ? 'me' : 'other'}`}>
+                      <p className="text-[13px] leading-relaxed">{msg.content}</p>
                     </div>
                   </div>
                 );
@@ -261,18 +241,23 @@
               <div ref={dummyRef}></div>
             </div>
 
-            <div className="p-6">
-              <div className="max-w-4xl mx-auto flex items-center bg-black/50 border border-red-900/20 rounded-full p-2 pl-6 focus-within:border-red-600 transition-all">
-                <span className="text-red-600 mr-2 font-mono">{user.isRyachu ? "#" : "$"}</span>
-                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={user.isRyachu ? "Execute command, Master..." : "Type message..."} className="flex-1 bg-transparent border-none focus:ring-0 text-sm hacker-input" />
-                <button onClick={handleSend} disabled={cooldown || !inputText.trim()} className={`w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-[0_5px_15px_rgba(255,0,0,0.4)] hover:scale-110 transition-all ${cooldown ? 'cooldown-active' : ''}`}>
-                  <i className="fas fa-paper-plane text-white text-xs"></i>
+            <div className="p-4 bg-black/20">
+              <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-2 pl-4">
+                <input 
+                  value={inputText} 
+                  onChange={e => setInputText(e.target.value)} 
+                  onKeyDown={e => e.key === 'Enter' && handleSend()} 
+                  placeholder="Transmit message..." 
+                  className="flex-1 bg-transparent border-none focus:ring-0 text-xs hacker-input" 
+                />
+                <button onClick={handleSend} className="w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <i className="fas fa-paper-plane text-[10px]"></i>
                 </button>
               </div>
-              {cooldown && <p className="text-center text-[9px] text-red-600 mt-2 font-mono uppercase tracking-widest">COOLDOWN_ACTIVE: 2s</p>}
             </div>
           </main>
-          {isMobileMenu && <div onClick={() => setIsMobileMenu(false)} className="fixed inset-0 bg-black/90 z-40 lg:hidden backdrop-blur-sm"></div>}
+          
+          {isMobileMenu && <div onClick={() => setIsMobileMenu(false)} className="fixed inset-0 bg-black/80 z-40 lg:hidden backdrop-blur-sm"></div>}
         </div>
       );
     }
