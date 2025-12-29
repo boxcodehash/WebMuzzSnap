@@ -3,177 +3,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MuzzSnap | Secure Login</title>
+    <title>MuzzSnap | Protocol Login</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0a">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; overflow-x: hidden; background-color: #0a0a0a; color: white; }
-        .muzz-background {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
-            background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.05) 0%, transparent 100%);
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Inter:wght@300;700&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #050505; 
+            color: white; 
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        #logoButton { cursor: pointer; transition: all 0.3s ease; -webkit-tap-highlight-color: transparent; }
+
+        .bg-glow {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100vw; height: 100vh;
+            background: radial-gradient(circle at center, rgba(255, 0, 0, 0.07) 0%, transparent 70%);
+            z-index: -1;
+        }
+
+        #logoButton { 
+            cursor: pointer; 
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        #logoButton:hover { transform: scale(1.05) rotate(2deg); }
         #logoButton:active { transform: scale(0.95); }
-        .pulse-red { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-            70% { box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+
+        .status-badge {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+            font-size: 10px;
+            border: 1px solid rgba(255, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
         }
+
+        .error-box {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            animation: slideUp 0.4s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loading-ring {
+            border: 2px solid transparent;
+            border-top-color: #ff0000;
+            border-radius: 50%;
+            width: 100%; height: 100%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="p-4">
-    <div class="muzz-background"></div>
+<body>
+    <div class="bg-glow"></div>
 
-    <div id="statusContainer" class="absolute top-4 right-4 z-20">
-        <span id="walletStatus" class="py-2 px-4 text-[10px] font-bold uppercase tracking-widest text-gray-500 bg-gray-900/80 rounded-full border border-gray-800">
-            <i class="fas fa-circle mr-2"></i> Disconnected
-        </span>
+    <div class="absolute top-6 right-6 z-20">
+        <div id="statusIndicator" class="status-badge px-4 py-2 rounded-full text-gray-400">
+            <i class="fas fa-circle text-gray-700 mr-2"></i> SYSTEM_IDLE
+        </div>
     </div>
 
-    <div class="relative z-10 flex flex-col items-center justify-center min-h-[90vh] max-w-sm mx-auto text-center">
+    <div class="relative z-10 w-full max-w-sm px-6 text-center">
         
-        <div id="logoButton" class="mb-8 relative group pulse-red rounded-2xl">
-            <img id="muzzLogo" src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
-                 alt="MuzzSnap" class="w-32 h-32 md:w-40 md:h-40 rounded-2xl shadow-2xl border border-white/10">
-            
-            <div id="loadingSpinner" class="hidden absolute inset-0 flex items-center justify-center bg-black/70 rounded-2xl backdrop-blur-sm">
-                <i class="fas fa-circle-notch fa-spin text-4xl text-red-600"></i>
+        <div id="logoButton" class="relative inline-block mb-8">
+            <div id="spinnerFrame" class="hidden absolute inset-0 -margin-2">
+                <div class="loading-ring"></div>
             </div>
+            <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
+                 alt="Muzzle" class="w-32 h-32 md:w-40 md:h-40 rounded-3xl shadow-[0_0_50px_rgba(255,0,0,0.2)] border border-white/10 relative z-10">
         </div>
 
-        <h1 class="text-3xl font-black mb-2 tracking-tighter">MUZZSNAP</h1>
-        <p class="text-[10px] text-gray-500 mb-8 tracking-[0.3em] uppercase leading-relaxed">
-            Decentralized Protocol
-            <br>
-            <span class="text-red-800">単なるアプリ以上のもの</span>
-        </p>
+        <h1 class="text-3xl font-black tracking-tighter mb-1 font-orbitron italic">MUZZ<span class="text-red-600">SNAP</span></h1>
+        <p class="text-[10px] text-gray-500 uppercase tracking-[0.4em] mb-10">Secure Node Access</p>
 
-        <div id="messageArea" class="hidden w-full mb-8 p-4 bg-red-950/20 border border-red-900/30 rounded-xl backdrop-blur-md">
-            <p id="messageTitle" class="text-xs font-bold text-red-500 uppercase mb-1">Alert</p>
-            <p id="messageText" class="text-[11px] text-gray-400 leading-tight">Description</p>
+        <div id="feedbackArea" class="hidden mb-8 p-4 rounded-xl error-box">
+            <p id="feedbackTitle" class="text-red-500 text-xs font-bold uppercase mb-1"></p>
+            <p id="feedbackMsg" class="text-gray-400 text-[11px] leading-tight"></p>
         </div>
 
-        <div id="actionHint" class="text-[10px] text-gray-600 uppercase tracking-widest space-y-2">
-            <p class="animate-pulse">Tap logo to initialize connection</p>
-            <p class="text-gray-800">ロゴをクリックして接続</p>
+        <div id="actionText" class="text-[11px] text-gray-600 uppercase tracking-widest animate-pulse">
+            Tap the core to authenticate<br>
+            <span class="text-[9px] opacity-50">認証するにはコアをタップしてください</span>
         </div>
 
-        <footer class="mt-16 text-[9px] text-gray-800 font-mono uppercase tracking-widest">
-            &copy; 2025 MuzzSnap Protocol &bull; Secure Auth
+        <footer class="absolute bottom-[-100px] left-0 right-0 text-[9px] text-gray-800 font-mono tracking-[0.5em] uppercase">
+            MuzzSnap v2.0 &bull; Developed by Ryachu
         </footer>
     </div>
 
     <script>
-        const CONFIG = {
-            contractAddress: "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0",
-            minTokens: 40000000,
-            requiredChainId: 1, // Ethereum Mainnet
-            chatUrl: 'chat.html'
+        const PROTOCOL_CONFIG = {
+            tokenAddress: "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0",
+            minHold: 20000000, // Mínimo 20 Millones
+            chainId: 1, // Mainnet
+            target: 'chat.html'
         };
 
         const UI = {
-            status: document.getElementById('walletStatus'),
-            msgArea: document.getElementById('messageArea'),
-            msgTitle: document.getElementById('messageTitle'),
-            msgText: document.getElementById('messageText'),
-            spinner: document.getElementById('loadingSpinner'),
-
-            updateStatus(text, colorClass) {
-                this.status.innerHTML = `<i class="fas fa-circle mr-2 text-${colorClass}-600"></i> ${text}`;
-                this.status.classList.add('animate-pulse');
+            indicator: document.getElementById('statusIndicator'),
+            feedback: document.getElementById('feedbackArea'),
+            title: document.getElementById('feedbackTitle'),
+            msg: document.getElementById('feedbackMsg'),
+            spinner: document.getElementById('spinnerFrame'),
+            
+            update(text, colorClass) {
+                this.indicator.innerHTML = `<i class="fas fa-circle text-${colorClass}-600 mr-2"></i> ${text}`;
+                this.indicator.className = `status-badge px-4 py-2 rounded-full text-${colorClass}-500`;
             },
 
-            showError(title, text) {
-                this.msgArea.classList.remove('hidden');
-                this.msgTitle.textContent = title;
-                this.msgText.textContent = text;
+            notify(title, message) {
+                this.feedback.classList.remove('hidden');
+                this.title.innerText = title;
+                this.msg.innerText = message;
                 this.spinner.classList.add('hidden');
             }
         };
 
-        async function startAuth() {
-            UI.msgArea.classList.add('hidden');
+        async function initializeLogin() {
+            UI.feedback.classList.add('hidden');
             UI.spinner.classList.remove('hidden');
-            UI.updateStatus('PROBING...', 'yellow');
+            UI.update('CONNECTING', 'yellow');
 
-            // 1. Detección de entorno
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            const hasEthereum = typeof window.ethereum !== 'undefined';
-
-            // 2. Lógica de redirección para móviles (si no hay in-app browser)
-            if (isMobile && !hasEthereum) {
-                UI.updateStatus('REDIRECTING...', 'blue');
-                const dappUrl = window.location.host + window.location.pathname;
-                // Usamos el deep link oficial de MetaMask
-                setTimeout(() => {
+            // 1. Detección de Wallet
+            if (typeof window.ethereum === 'undefined') {
+                if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                    const dappUrl = window.location.host + window.location.pathname;
                     window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
-                }, 500);
-                return;
-            }
-
-            // 3. Lógica para Desktop sin Wallet
-            if (!hasEthereum) {
-                UI.showError('EXTENSION MISSING', 'Please install MetaMask to access the decentralized chat.');
+                } else {
+                    UI.notify('CORE NOT FOUND', 'Please install MetaMask to proceed.');
+                }
                 return;
             }
 
             try {
-                const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
                 
-                // Pedir cuentas
+                // 2. Conexión de Cuenta
                 const accounts = await provider.send("eth_requestAccounts", []);
                 const address = accounts[0];
 
-                // Verificar Red
-                const network = await provider.getNetwork();
-                if (network.chainId !== CONFIG.requiredChainId) {
-                    UI.updateStatus('WRONG NETWORK', 'red');
-                    try {
-                        await window.ethereum.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x1' }],
-                        });
-                    } catch (e) {
-                        UI.showError('NETWORK ERROR', 'Please switch your wallet to Ethereum Mainnet.');
-                        return;
-                    }
-                }
+                // 3. Firma Digital (Seguridad Ryachu Edition)
+                UI.update('SIGNING', 'blue');
+                const timestamp = new Date().getTime();
+                const message = `MUZZSNAP AUTHENTICATION\n\nNode: ${address}\nUnix: ${timestamp}\n\nSecurity clearance required for encrypted chat access.`;
+                const signature = await provider.getSigner().signMessage(message);
 
-                // Verificar Token MUZZLE
-                UI.updateStatus('VERIFYING MUZZ...', 'red');
-                const abi = ["function balanceOf(address owner) view returns (uint256)"];
-                const contract = new ethers.Contract(CONFIG.contractAddress, abi, provider);
-                const balanceBN = await contract.balanceOf(address);
-                const balance = parseFloat(ethers.utils.formatUnits(balanceBN, 18)); // Asumiendo 18 decimales
-
-                if (balance < CONFIG.minTokens) {
-                    UI.showError('ACCESS DENIED', `Minimum 40M MUZZLE required. Your balance: ${Math.floor(balance).toLocaleString()}`);
+                // 4. Verificación de Red
+                const { chainId } = await provider.getNetwork();
+                if (chainId !== PROTOCOL_CONFIG.chainId) {
+                    UI.notify('NETWORK ERROR', 'Please switch your wallet to Ethereum Mainnet.');
                     return;
                 }
 
-                // Éxito: Guardar sesión y entrar
-                UI.updateStatus('GRANTED', 'green');
-                sessionStorage.setItem('muzz_verified', 'true');
-                sessionStorage.setItem('muzz_addr', address);
-                
+                // 5. Verificación de Balance (20,000,000 MUZZLE)
+                UI.update('SCANNING', 'red');
+                const abi = ["function balanceOf(address owner) view returns (uint256)"];
+                const contract = new ethers.Contract(PROTOCOL_CONFIG.tokenAddress, abi, provider);
+                const balanceBN = await contract.balanceOf(address);
+                const balance = parseFloat(ethers.utils.formatUnits(balanceBN, 18));
+
+                if (balance < PROTOCOL_CONFIG.minHold) {
+                    UI.notify('ACCESS DENIED', `Required: 20M MUZZLE. Detected: ${Math.floor(balance).toLocaleString()}`);
+                    return;
+                }
+
+                // 6. Autorización Exitosa
+                UI.update('AUTHORIZED', 'green');
+                sessionStorage.setItem('muzz_wallet_address', address.toLowerCase());
+                sessionStorage.setItem('muzz_auth_sig', signature);
+
                 setTimeout(() => {
-                    window.location.href = CONFIG.chatUrl;
+                    window.location.href = PROTOCOL_CONFIG.target;
                 }, 1000);
 
             } catch (err) {
                 console.error(err);
-                UI.showError('AUTH FAILED', err.message || 'Connection error');
-                UI.spinner.classList.add('hidden');
+                UI.update('FAILED', 'red');
+                const errorMsg = err.code === 4001 ? 'Request rejected by user.' : 'Connection protocol failed.';
+                UI.notify('SECURITY ERROR', errorMsg);
             }
         }
 
-        // Asignar el evento al cargar
-        document.getElementById('logoButton').addEventListener('click', startAuth);
+        document.getElementById('logoButton').addEventListener('click', initializeLogin);
 
-        // Listener para cambios de cuenta
+        // Auto-reload si cambian la cuenta
         if (window.ethereum) {
             window.ethereum.on('accountsChanged', () => window.location.reload());
             window.ethereum.on('chainChanged', () => window.location.reload());
