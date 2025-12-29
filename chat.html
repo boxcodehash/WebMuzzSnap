@@ -3,58 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap - Secure Channel</title>
+  <title>MuzzSnap - Terminal Ryachu Edition</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-    body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; overflow: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700&display=swap');
+    :root { --muzz-red: #ff0000; --deep-black: #050505; --panel-bg: #0c0c0c; --neon-green: #39ff14; --ryachu-gold: #ffcc00; }
+    
+    body { font-family: 'Inter', sans-serif; background-color: var(--deep-black); color: white; overflow: hidden; }
+
+    /* Estética 3D Ryachu Edition */
+    .panel-3d {
+      background: var(--panel-bg);
+      box-shadow: inset 1px 1px 2px rgba(255,255,255,0.05), 10px 10px 20px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,0,0,0.1);
+    }
+
+    /* Nombre especial Ryachu */
+    .ryachu-name {
+      color: var(--ryachu-gold);
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 204, 0, 0.4);
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+
+    .channel-btn-3d.active {
+      background: #000;
+      box-shadow: inset 4px 4px 8px rgba(0,0,0,0.6), inset -1px -1px 2px rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,0,0,0.5);
+      color: var(--muzz-red);
+      transform: scale(0.97);
+    }
+
+    /* Burbujas iPhone 3D */
+    .bubble-3d {
+      padding: 12px 18px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+      max-width: 80%;
+      box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
+    }
+
+    .bubble-3d.me {
+      background: linear-gradient(145deg, #ff0000, #b30000);
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    /* Burbuja especial para Ryachu cuando otros lo ven */
+    .bubble-3d.ryachu-bubble {
+      background: linear-gradient(145deg, #222, #000);
+      border: 1px solid var(--ryachu-gold);
+      box-shadow: 0 0 15px rgba(255, 204, 0, 0.1);
+    }
+
+    .bubble-3d.other {
+      background: linear-gradient(145deg, #222, #111);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .hacker-input {
+      font-family: 'Fira Code', monospace;
+      color: var(--neon-green) !important;
+      text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
+    }
+
+    .cooldown-active { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #111827; }
-    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb { background: var(--muzz-red); border-radius: 10px; }
   </style>
-
-  <script type="module">
-    import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.1.11'
-
-    // 1. OBTÉN TU PROJECT ID GRATIS EN https://cloud.walletconnect.com/
-    const projectId = '96a7adfe9324271d76ea3a19e400a216'; 
-
-    // 2. Set chains
-    const mainnet = {
-      chainId: 1,
-      name: 'Ethereum',
-      currency: 'ETH',
-      explorerUrl: 'https://etherscan.io',
-      rpcUrl: 'https://cloudflare-eth.com'
-    }
-
-    // 3. Create modal
-    const metadata = {
-      name: 'MuzzSnap',
-      description: 'MuzzSnap Secure Chat',
-      url: 'https://web-muzz-snap.vercel.app', // Tu URL real
-      icons: ['https://avatars.mywebsite.com/']
-    }
-
-    window.web3Modal = createWeb3Modal({
-      ethersConfig: defaultConfig({ metadata }),
-      chains: [mainnet],
-      projectId,
-      enableAnalytics: true
-    });
-  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -62,7 +91,6 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyAe1-JfNde0NKIMdE7phfEXlm9JaqUH0jY",
       authDomain: "pulsari.firebaseapp.com",
@@ -76,324 +104,175 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const database = firebase.database();
-    
-    const CONTRACT_ADDRESS = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
-    const MIN_REQUIRED = 40000000;
-    const EMOJIS = ['😀','😃','😄','😁','😅','😂','😉','😊','🥰','😍','😘','😜','😎','🥳','😡','😭','👍','👎','🔥','❤️'];
-    const ERC20_ABI = ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"];
+
+    const RYACHU_WALLET = "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase();
+
+    const CHANNELS = [
+      { id: "general", name: "GENERAL" },
+      { id: "spanish", name: "SPANISH" },
+      { id: "english", name: "ENGLISH" },
+      { id: "crypto", name: "CRYPTO" },
+      { id: "gamers", name: "GAMERS" }
+    ];
 
     function App() {
       const [user, setUser] = useState(null);
-      const [isLoading, setIsLoading] = useState(true);
-      const [statusMsg, setStatusMsg] = useState("Initializing...");
-      const [error, setError] = useState(null);
-
-      // Chat Data
-      const [channels, setChannels] = useState([]);
-      const [selectedChannel, setSelectedChannel] = useState(null);
+      const [selectedChannel, setSelectedChannel] = useState(CHANNELS[0]);
       const [messages, setMessages] = useState([]);
       const [onlineUsers, setOnlineUsers] = useState([]);
-      
       const [inputText, setInputText] = useState("");
-      const [showSidebar, setShowSidebar] = useState(window.innerWidth > 1024);
-      const [showEmoji, setShowEmoji] = useState(false);
-      const [showNewChannel, setShowNewChannel] = useState(false);
-      const [newChName, setNewChName] = useState("");
-      
+      const [lastMsgTime, setLastMsgTime] = useState(0);
+      const [cooldown, setCooldown] = useState(false);
+      const [isMobileMenu, setIsMobileMenu] = useState(false);
       const dummyRef = useRef(null);
 
-      // --- LOGIC: WalletConnect + Firebase ---
-      const connectAndLogin = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            // 1. Abrir WalletConnect Modal
-            if (!window.web3Modal) throw new Error("WalletConnect not initialized");
-            
-            setStatusMsg("Please connect wallet...");
-            await window.web3Modal.open();
-            
-            // Esperar a que se conecte
-            const provider = window.web3Modal.getWalletProvider();
-            if (!provider) {
-                // Si el usuario cierra el modal sin conectar
-                const checkInterval = setInterval(async () => {
-                    const p = window.web3Modal.getWalletProvider();
-                    if(p) {
-                        clearInterval(checkInterval);
-                        await processLogin(p);
-                    }
-                }, 1000);
-                setIsLoading(false); // Dejar que el usuario interactúe
-                return;
-            }
-            await processLogin(provider);
-
-        } catch (e) {
-            console.error(e);
-            setError(e.message || "Connection failed");
-            setIsLoading(false);
-        }
-      };
-
-      const processLogin = async (walletProvider) => {
-        setStatusMsg("Checking Balance...");
-        try {
-            const ethersProvider = new ethers.providers.Web3Provider(walletProvider);
-            const signer = ethersProvider.getSigner();
-            const address = await signer.getAddress();
-            
-            // 2. CHECK BALANCE
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, ERC20_ABI, ethersProvider);
-            const decimals = await contract.decimals();
-            const balanceBN = await contract.balanceOf(address);
-            const balance = parseFloat(ethers.utils.formatUnits(balanceBN, decimals));
-
-            if (balance < MIN_REQUIRED) {
-                throw new Error(`Insufficient Balance: ${balance.toFixed(0)} / 40M required`);
-            }
-
-            // 3. FIREBASE LOGIN
-            setStatusMsg("Authenticating...");
-            await auth.signInAnonymously();
-            
-            const nickname = `User ${address.slice(0,5)}...${address.slice(-4)}`;
-            setUser({ uid: auth.currentUser.uid, address: address, nickname: nickname });
-            
-            database.ref('users/' + auth.currentUser.uid).update({
-                username: nickname,
-                wallet: address,
-                lastSeen: firebase.database.ServerValue.TIMESTAMP
-            });
-            setIsLoading(false);
-
-        } catch (err) {
-            console.error("Login process error:", err);
-            if(err.code === 'auth/admin-restricted-operation') {
-                setError("CONFIG ERROR: Enable 'Anonymous' in Firebase Console.");
-            } else {
-                setError(err.message);
-            }
-            setIsLoading(false);
-        }
-      };
-
-      // Auto-start if already connected via WalletConnect
       useEffect(() => {
-        const checkConnection = async () => {
-            if(window.web3Modal && window.web3Modal.getIsConnected()) {
-                const provider = window.web3Modal.getWalletProvider();
-                if(provider) await processLogin(provider);
-                else setIsLoading(false);
-            } else {
-                setIsLoading(false);
+        const wallet = sessionStorage.getItem('muzz_wallet_address');
+        if (!wallet) return;
+
+        auth.signInAnonymously().then(async (userCredential) => {
+          const uid = userCredential.user.uid;
+          const walletKey = wallet.toLowerCase();
+          
+          const myPresenceRef = database.ref(`presence/${uid}`);
+          const walletSessionRef = database.ref(`wallet_sessions/${walletKey}`);
+          const connectedRef = database.ref(".info/connected");
+
+          connectedRef.on("value", (snap) => {
+            if (snap.val() === true) {
+              myPresenceRef.onDisconnect().remove();
+              walletSessionRef.onDisconnect().remove();
+              
+              // Lógica de identidad especial Ryachu
+              const isRyachu = walletKey === RYACHU_WALLET;
+              const userData = {
+                username: isRyachu ? "Ryachu" : `Node_${wallet.slice(-4)}`,
+                wallet: isRyachu ? "HIDDEN_ADMIN" : walletKey,
+                online: true,
+                uid: uid,
+                isRyachu: isRyachu
+              };
+
+              myPresenceRef.set(userData);
+              walletSessionRef.set(uid);
+              setUser({ ...userData, address: wallet });
             }
-        };
-        setTimeout(checkConnection, 1000);
+          });
+        });
+
+        database.ref('presence').on('value', snap => {
+          const data = snap.val();
+          setOnlineUsers(data ? Object.values(data) : []);
+        });
       }, []);
 
-
-      // --- DATA LISTENERS ---
       useEffect(() => {
         if (!user) return;
-        const presenceRef = database.ref('presence/' + user.uid);
-        const connectedRef = database.ref('.info/connected');
-        connectedRef.on('value', (snap) => {
-          if (snap.val()) {
-            presenceRef.onDisconnect().remove();
-            presenceRef.set({ online: true, username: user.nickname });
-          }
-        });
-        const chRef = database.ref('channels');
-        chRef.on('value', (snap) => {
-          const data = snap.val();
-          const list = data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : [];
-          setChannels(list);
-          if (!selectedChannel && list.length > 0) setSelectedChannel(list[0]);
-        });
-        const usersRef = database.ref('presence');
-        usersRef.on('value', (snap) => {
-           const data = snap.val();
-           setOnlineUsers(data ? Object.values(data) : []);
-        });
-        return () => { chRef.off(); usersRef.off(); connectedRef.off(); }
-      }, [user]);
-
-      useEffect(() => {
-        if (!selectedChannel) return;
         const msgRef = database.ref('messages/' + selectedChannel.id).limitToLast(50);
-        msgRef.on('value', (snap) => {
+        msgRef.on('value', snap => {
           const data = snap.val();
           setMessages(data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : []);
         });
         return () => msgRef.off();
-      }, [selectedChannel]);
+      }, [selectedChannel, user]);
 
       useEffect(() => { dummyRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-
-      // --- ACTIONS ---
       const handleSend = async () => {
-        if (!inputText.trim() || !selectedChannel) return;
-        try {
-            await database.ref('messages/' + selectedChannel.id).push({
-              content: inputText,
-              username: user.nickname,
-              userId: user.uid,
-              timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-            setInputText("");
-            setShowEmoji(false);
-        } catch(e) { alert("Error sending"); }
+        const now = Date.now();
+        if (!inputText.trim() || (now - lastMsgTime < 2000)) return;
+
+        setCooldown(true);
+        await database.ref('messages/' + selectedChannel.id).push({
+          content: inputText,
+          userId: user.uid,
+          username: user.username,
+          isRyachu: user.isRyachu,
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        setLastMsgTime(now);
+        setInputText("");
+        setTimeout(() => setCooldown(false), 2000);
       };
 
-      const handleCreateChannel = async () => {
-        if(!newChName.trim()) return;
-        await database.ref('channels').push({ name: newChName.trim(), createdBy: user.uid });
-        setNewChName("");
-        setShowNewChannel(false);
-      };
+      if (!user) return <div className="h-screen bg-black flex items-center justify-center text-red-600 font-mono">ESTABLISHING_SECURE_CONNECTION...</div>;
 
-      const handleLogout = async () => {
-          await auth.signOut();
-          if(window.web3Modal) await window.web3Modal.disconnect();
-          window.location.reload();
-      };
-
-
-      // --- RENDER STATES ---
-
-      // 1. Loading
-      if (isLoading && !user) return (
-        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center text-white gap-4">
-          <i className="fas fa-circle-notch fa-spin text-4xl text-purple-600"></i>
-          <p className="text-sm text-gray-400 animate-pulse">{statusMsg}</p>
-        </div>
-      );
-
-      // 2. Login Screen (WalletConnect Style)
-      if (!user) return (
-        <div className="h-screen w-full bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
-            <div className="mb-8">
-                <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
-                     className="w-32 h-32 rounded-2xl shadow-2xl mx-auto mb-4" />
-                <h1 className="text-3xl font-bold text-white">MuzzSnap</h1>
-                <p className="text-gray-400 text-sm">Secure Token-Gated Chat</p>
-            </div>
-            
-            {error && (
-                <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-xl mb-6 max-w-sm">
-                    <p className="font-bold text-sm mb-1">Connection Failed</p>
-                    <p className="text-xs break-words">{error}</p>
-                </div>
-            )}
-
-            <button onClick={connectAndLogin} 
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 flex items-center gap-2">
-                <i className="fas fa-wallet"></i> Connect Wallet
-            </button>
-            <p className="mt-4 text-xs text-gray-600">Works in Chrome, Safari & MetaMask App</p>
-        </div>
-      );
-
-      // 3. Chat Interface (Igual que antes)
       return (
-        <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
-            {!showSidebar && (
-                <button onClick={() => setShowSidebar(true)} className="lg:hidden absolute top-4 left-4 z-40 bg-gray-800 p-2 rounded shadow border border-gray-700">
-                    <i className="fas fa-bars"></i>
+        <div className="flex h-screen bg-[#050505] p-2 lg:p-4 gap-4 overflow-hidden">
+          
+          {/* ASIDE */}
+          <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-64 panel-3d rounded-3xl p-6 flex flex-col transition-transform duration-300 ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+            <div className="mb-8 flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.5)]">
+                <i className="fas fa-crown text-white text-xs"></i>
+              </div>
+              <h1 className="font-bold text-xl italic tracking-tighter">MUZZ<span className="text-red-600">SNAP</span></h1>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 custom-scroll">
+              <p className="text-[10px] text-gray-600 font-bold tracking-[0.3em] mb-4">ACCESS_POINTS</p>
+              {CHANNELS.map(ch => (
+                <button key={ch.id} onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-gray-300'}`}>
+                  <span className={selectedChannel.id === ch.id ? 'text-red-600' : 'text-gray-800'}>#</span>
+                  {ch.name}
                 </button>
-            )}
+              ))}
 
-            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 flex flex-col`}>
-                <div className="h-16 flex items-center justify-between px-4 border-b border-gray-700 bg-gray-800">
-                    <h1 className="font-bold text-lg text-purple-400 flex items-center gap-2">
-                        <i className="fas fa-shield-alt"></i> MuzzSnap
-                    </h1>
-                    <button onClick={() => setShowSidebar(false)} className="lg:hidden text-gray-400">✕</button>
+              <p className="text-[10px] text-gray-600 font-bold tracking-[0.3em] mt-8 mb-4">ACTIVE_NODES ({onlineUsers.length})</p>
+              {onlineUsers.map((u, i) => (
+                <div key={i} className={`flex items-center gap-2 text-xs px-2 py-1 ${u.isRyachu ? 'ryachu-name' : 'text-gray-500'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${u.isRyachu ? 'bg-yellow-400 shadow-[0_0_8px_#ffcc00]' : 'bg-green-500 shadow-[0_0_5px_#39ff14]'}`}></div>
+                  {u.username}
                 </div>
-                <div className="p-4 overflow-y-auto flex-1">
-                    <div className="flex justify-between items-center mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        <span>Channels</span>
-                        <button onClick={() => setShowNewChannel(true)} className="hover:text-white bg-gray-700 px-2 rounded">+</button>
-                    </div>
-                    <div className="space-y-1 mb-6">
-                        {channels.map(ch => (
-                            <button key={ch.id} onClick={() => { setSelectedChannel(ch); if(window.innerWidth < 1024) setShowSidebar(false); }}
-                                className={`w-full text-left px-3 py-2 rounded text-sm truncate flex items-center gap-2 transition-colors ${selectedChannel?.id === ch.id ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
-                                <span className="opacity-50">#</span> {ch.name}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">Online ({onlineUsers.length})</div>
-                    <div className="space-y-2">
-                        {onlineUsers.map((u, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm text-gray-400 px-2">
-                                <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
-                                <span className="truncate">{u.username}</span>
-                            </div>
-                        ))}
-                    </div>
+              ))}
+            </div>
+            <button onClick={() => {sessionStorage.clear(); window.location.href='index.html'}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg hover:text-red-600 transition uppercase tracking-tighter">Terminate_Session</button>
+          </aside>
+
+          {/* MAIN */}
+          <main className="flex-1 panel-3d rounded-3xl flex flex-col overflow-hidden relative border border-white/5">
+            <header className="h-16 flex items-center justify-between px-6 bg-white/5 backdrop-blur-md border-b border-white/5">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setIsMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars text-xl"></i></button>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-red-600 font-mono tracking-widest animate-pulse uppercase leading-none">{user.isRyachu ? "ROOT_ACCESS_ACTIVE" : "ENCRYPTED_NODE"}</span>
+                  <h2 className="text-lg font-bold"># {selectedChannel.name}</h2>
                 </div>
-                <div className="p-4 bg-gray-900 border-t border-gray-700">
-                    <div className="text-[10px] uppercase text-gray-500 mb-1 font-bold">Connected as</div>
-                    <div className="font-mono text-xs text-purple-400 truncate mb-3 bg-gray-800 p-2 rounded border border-gray-700">
-                        {user.address}
+              </div>
+              <div className="text-[9px] font-mono text-gray-600 hidden sm:block">
+                {user.isRyachu ? <span className="ryachu-name animate-pulse">ADMIN: RYACHU</span> : `SOURCE: ${user.address.slice(0,14)}...`}
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8 flex flex-col bg-[radial-gradient(circle_at_top,_rgba(20,0,0,0.3)_0%,_transparent_70%)]">
+              {messages.map(msg => {
+                const isMe = msg.userId === user.uid;
+                const isRyachuMsg = msg.isRyachu;
+                return (
+                  <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-3`}>
+                    {!isMe && <span className={`text-[10px] font-bold ml-2 mb-1 uppercase tracking-widest ${isRyachuMsg ? 'ryachu-name' : 'text-red-900'}`}>{msg.username}</span>}
+                    <div className={`bubble-3d ${isMe ? 'me' : (isRyachuMsg ? 'ryachu-bubble other' : 'other')}`}>
+                      <p className={`text-sm ${isRyachuMsg && !isMe ? 'text-yellow-400 font-medium' : 'text-white'}`}>{msg.content}</p>
                     </div>
-                    <button onClick={handleLogout} className="w-full py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-xs hover:bg-red-500/20 transition flex items-center justify-center gap-2">
-                        <i className="fas fa-sign-out-alt"></i> Disconnect
-                    </button>
-                </div>
+                  </div>
+                );
+              })}
+              <div ref={dummyRef}></div>
             </div>
 
-            <div className="flex-1 flex flex-col min-w-0 bg-gray-900">
-                <div className="h-16 border-b border-gray-700 flex items-center px-12 lg:px-6 bg-gray-800/50 backdrop-blur z-10">
-                    <div className="font-bold text-lg text-white">
-                        {selectedChannel ? `# ${selectedChannel.name}` : 'Select a channel'}
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map(msg => {
-                        const isMe = msg.userId === user.uid;
-                        return (
-                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-md ${isMe ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'}`}>
-                                    {!isMe && <div className="text-[10px] text-purple-400 font-bold mb-1 opacity-80">{msg.username}</div>}
-                                    {msg.content}
-                                </div>
-                            </div>
-                        )
-                    })}
-                    <div ref={dummyRef}></div>
-                </div>
-                {selectedChannel && (
-                    <div className="p-3 border-t border-gray-700 bg-gray-800">
-                        <div className="relative flex items-center gap-2 bg-gray-900 rounded-xl px-4 py-2 border border-gray-700 focus-within:border-purple-500 transition-colors">
-                            <button onClick={() => setShowEmoji(!showEmoji)} className="text-gray-400 hover:text-yellow-400 transition"><i className="far fa-smile text-xl"></i></button>
-                            {showEmoji && (
-                                <div className="absolute bottom-16 left-0 bg-gray-800 p-2 rounded-xl shadow-2xl grid grid-cols-5 gap-1 border border-gray-700 w-64 h-48 overflow-y-auto z-50">
-                                    {EMOJIS.map(e => <button key={e} onClick={() => setInputText(prev => prev + e)} className="text-xl hover:bg-gray-700 rounded p-2 transition">{e}</button>)}
-                                </div>
-                            )}
-                            <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="flex-1 bg-transparent border-none focus:ring-0 text-white placeholder-gray-500" placeholder={`Message #${selectedChannel.name}`} />
-                            <button onClick={handleSend} disabled={!inputText.trim()} className="text-purple-500 disabled:opacity-50 hover:text-purple-400 transition"><i className="fas fa-paper-plane text-lg"></i></button>
-                        </div>
-                    </div>
-                )}
+            <div className="p-6">
+              <div className="max-w-4xl mx-auto flex items-center bg-black/50 border border-red-900/20 rounded-full p-2 pl-6 focus-within:border-red-600 transition-all">
+                <span className="text-red-600 mr-2 font-mono">{user.isRyachu ? "#" : "$"}</span>
+                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder={user.isRyachu ? "Execute command, Master..." : "Type message..."} className="flex-1 bg-transparent border-none focus:ring-0 text-sm hacker-input" />
+                <button onClick={handleSend} disabled={cooldown || !inputText.trim()} className={`w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-[0_5px_15px_rgba(255,0,0,0.4)] hover:scale-110 transition-all ${cooldown ? 'cooldown-active' : ''}`}>
+                  <i className="fas fa-paper-plane text-white text-xs"></i>
+                </button>
+              </div>
+              {cooldown && <p className="text-center text-[9px] text-red-600 mt-2 font-mono uppercase tracking-widest">COOLDOWN_ACTIVE: 2s</p>}
             </div>
-            
-             {showNewChannel && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
-                    <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 shadow-2xl">
-                        <h3 className="font-bold mb-4 text-white text-lg">New Channel</h3>
-                        <input autoFocus value={newChName} onChange={e => setNewChName(e.target.value.toLowerCase().replace(/\s/g, '-'))} className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 mb-4 text-white focus:outline-none focus:border-purple-500" placeholder="channel-name" />
-                        <div className="flex justify-end gap-3">
-                            <button onClick={() => setShowNewChannel(false)} className="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
-                            <button onClick={handleCreateChannel} className="bg-purple-600 px-6 py-2 rounded-lg text-white hover:bg-purple-500 transition shadow-lg">Create</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+          </main>
+          {isMobileMenu && <div onClick={() => setIsMobileMenu(false)} className="fixed inset-0 bg-black/90 z-40 lg:hidden backdrop-blur-sm"></div>}
         </div>
       );
     }
