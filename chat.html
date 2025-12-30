@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap - Terminal Ryachu Edition</title>
+  <title>MuzzSnap - Terminal Edition</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -29,7 +29,7 @@
 
     .ryachu-name {
       color: var(--ryachu-gold);
-      text-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+      text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
       font-weight: 800;
     }
 
@@ -89,7 +89,11 @@
     const auth = firebase.auth();
     const database = firebase.database();
 
+    // Wallets Especiales
     const RYACHU_WALLET = "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase();
+    const ITSUKI_WALLET = "0xfab5835ca14fb3f9f478c5e4d733734e6394e03f".toLowerCase();
+
+    const QUICK_EMOJIS = ["🔥", "🚀", "💎", "💻", "⚡", "🤖", "🔴", "👑"];
 
     const CHANNELS = [
       { id: "general", name: "GENERAL" },
@@ -108,12 +112,10 @@
       const dummyRef = useRef(null);
 
       useEffect(() => {
-        // MODIFICACIÓN CRÍTICA: Sincronización con login.html
         const wallet = sessionStorage.getItem('muzz_wallet_address');
         
         if (!wallet) {
-          console.log("No auth detected, redirecting...");
-          window.location.href = 'index.html'; // O tu archivo de login
+          window.location.href = 'index.html';
           return;
         }
 
@@ -128,13 +130,23 @@
             if (snap.val() === true) {
               myPresenceRef.onDisconnect().remove();
               
-              const isRyachu = walletKey === RYACHU_WALLET;
+              let finalUsername = `Node_${wallet.slice(-4)}`;
+              let isAdmin = false;
+
+              if (walletKey === RYACHU_WALLET) {
+                finalUsername = "Ryachu";
+                isAdmin = true;
+              } else if (walletKey === ITSUKI_WALLET) {
+                finalUsername = "Itsuki";
+                isAdmin = true;
+              }
+
               const userData = {
-                username: isRyachu ? "Ryachu" : `Node_${wallet.slice(-4)}`,
+                username: finalUsername,
                 wallet: walletKey,
                 online: true,
                 uid: uid,
-                isRyachu: isRyachu
+                isRyachu: isAdmin
               };
 
               myPresenceRef.set(userData);
@@ -163,7 +175,6 @@
 
       const handleSend = async () => {
         if (!inputText.trim()) return;
-
         await database.ref('messages/' + selectedChannel.id).push({
           content: inputText,
           userId: user.uid,
@@ -171,7 +182,6 @@
           isRyachu: user.isRyachu,
           timestamp: firebase.database.ServerValue.TIMESTAMP
         });
-
         setInputText("");
       };
 
@@ -242,16 +252,25 @@
             </div>
 
             <div className="p-4 bg-black/20">
-              <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-2 pl-4">
+              {/* Barra de Emojis Rápidos */}
+              <div className="flex gap-3 mb-3 px-2">
+                {QUICK_EMOJIS.map(emoji => (
+                  <button key={emoji} onClick={() => setInputText(inputText + emoji)} className="hover:scale-125 transition-transform text-lg grayscale hover:grayscale-0">
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-2 pl-4 shadow-inner">
                 <input 
                   value={inputText} 
                   onChange={e => setInputText(e.target.value)} 
                   onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                  placeholder="Transmit message..." 
+                  placeholder="Transmit encrypted message..." 
                   className="flex-1 bg-transparent border-none focus:ring-0 text-xs hacker-input" 
                 />
-                <button onClick={handleSend} className="w-8 h-8 bg-red-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <i className="fas fa-paper-plane text-[10px]"></i>
+                <button onClick={handleSend} className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.3)] hover:bg-red-500 transition-colors">
+                  <i className="fas fa-paper-plane text-[12px]"></i>
                 </button>
               </div>
             </div>
