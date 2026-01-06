@@ -24,7 +24,8 @@
     .bubble-3d.me { background: linear-gradient(145deg, #ff0000, #990000); align-self: flex-end; border-bottom-right-radius: 2px; }
     .bubble-3d.other { background: #1a1a1a; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid rgba(255,255,255,0.05); }
     .hacker-input { font-family: 'Fira Code', monospace; color: var(--neon-green) !important; }
-    .active { background: #000; border: 1px solid rgba(255,0,0,0.5); color: var(--muzz-red); }
+    .channel-btn { transition: all 0.3s; border: 1px solid transparent; }
+    .channel-btn.active { background: #000; border: 1px solid rgba(255,0,0,0.5); color: var(--muzz-red); }
   </style>
 </head>
 <body>
@@ -46,6 +47,13 @@
     const database = firebase.database();
     const RYACHU_WALLET = "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase();
 
+    const CHANNELS = [
+      { id: "general", name: "GENERAL" },
+      { id: "spanish", name: "SPANISH" },
+      { id: "english", name: "ENGLISH" },
+      { id: "crypto", name: "CRYPTO" }
+    ];
+
     function App() {
       const [user, setUser] = useState(null);
       const [messages, setMessages] = useState([]);
@@ -53,7 +61,7 @@
       const [inputText, setInputText] = useState("");
       const [lastSent, setLastSent] = useState(0);
       const [error, setError] = useState("");
-      const [selectedChannel, setSelectedChannel] = useState({ id: "general", name: "GENERAL" });
+      const [selectedChannel, setSelectedChannel] = useState(CHANNELS[0]);
       const [isMobileMenu, setIsMobileMenu] = useState(false);
       const dummyRef = useRef(null);
 
@@ -67,31 +75,35 @@
           let finalUsername = isWallet ? `Node_${sessionData.slice(-4)}` : sessionData.replace('guest_', '');
           if (sessionData.toLowerCase() === RYACHU_WALLET) finalUsername = "Ryachu";
 
-          const userData = { username: finalUsername, uid, isWallet, isRyachu: (sessionData.toLowerCase() === RYACHU_WALLET) };
-          setUser(userData);
+          setUser({ username: finalUsername, uid, isWallet, isRyachu: (sessionData.toLowerCase() === RYACHU_WALLET) });
 
           database.ref('settings/pinned').on('value', snap => setPinnedMsg(snap.val()));
-          database.ref('messages/general').limitToLast(50).on('value', snap => {
-            const data = snap.val();
-            setMessages(data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : []);
-          });
         });
       }, []);
+
+      // Escuchar mensajes cuando cambia el canal
+      useEffect(() => {
+        if (!user) return;
+        const msgRef = database.ref('messages/' + selectedChannel.id).limitToLast(50);
+        msgRef.on('value', snap => {
+          const data = snap.val();
+          setMessages(data ? Object.keys(data).map(k => ({ id: k, ...data[k] })) : []);
+        });
+        return () => msgRef.off();
+      }, [selectedChannel, user]);
 
       useEffect(() => { dummyRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
       const handleSend = async () => {
         if (!inputText.trim()) return;
 
-        // COMANDOS DE ADMIN
         if (inputText.startsWith("/") && user.isRyachu) {
           if (inputText.startsWith("/pin ")) await database.ref('settings/pinned').set(inputText.replace("/pin ", ""));
-          else if (inputText === "/clear") await database.ref('messages/general').remove();
+          else if (inputText === "/clear") await database.ref('messages/' + selectedChannel.id).remove();
           else if (inputText === "/unpin") await database.ref('settings/pinned').remove();
           setInputText(""); return;
         }
 
-        // REGLAS PARA GUESTS
         if (!user.isWallet) {
           const now = Date.now();
           if (now - lastSent < 3000) { setError("COOLDOWN 3s"); setTimeout(() => setError(""), 2000); return; }
@@ -99,7 +111,7 @@
           if (/[\u{1F600}-\u{1F64F}]/u.test(inputText)) { setError("EMOJIS FORBIDDEN"); return; }
         }
 
-        await database.ref('messages/general').push({
+        await database.ref('messages/' + selectedChannel.id).push({
           content: inputText, userId: user.uid, username: user.username,
           isRyachu: user.isRyachu, timestamp: firebase.database.ServerValue.TIMESTAMP
         });
@@ -110,14 +122,26 @@
 
       return (
         <div className="flex h-screen bg-[#050505] p-2 lg:p-4 gap-4 overflow-hidden">
+          {/* SIDEBAR CON CANALES DINÁMICOS */}
           <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-64 panel-3d rounded-3xl p-6 flex flex-col transition-transform duration-300 ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
             <div className="mb-8 flex items-center gap-3">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.5)]"><i className="fas fa-ghost text-white text-xs"></i></div>
               <h1 className="font-bold text-xl italic tracking-tighter font-orbitron uppercase">MUZZ<span className="text-red-600">SNAP</span></h1>
             </div>
-            <div className="flex-1">
-               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold active"><span className="text-red-900">#</span> GENERAL</button>
+            
+            <div className="flex-1 overflow-y-auto">
+              <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mb-4 uppercase">Access_Channels</p>
+              {CHANNELS.map(ch => (
+                <button 
+                  key={ch.id} 
+                  onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} 
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold mb-1 channel-btn ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  <span className="text-red-900">#</span> {ch.name}
+                </button>
+              ))}
             </div>
+
             <button onClick={() => {sessionStorage.clear(); window.location.href='login.html'}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg uppercase">Disconnect</button>
           </aside>
 
