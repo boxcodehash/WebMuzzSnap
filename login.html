@@ -42,8 +42,8 @@
         <p id="statusText" class="text-[10px] text-gray-500 uppercase tracking-[0.3em] mb-8">Tap logo for Wallet or use Guest below</p>
 
         <div class="space-y-4 mb-8">
-            <input type="text" id="usernameInput" placeholder="ENTER_USERNAME..." 
-                   class="w-full p-3 rounded-xl hacker-input text-center text-xs">
+            <input type="text" id="usernameInput" placeholder="ENTER_NICKNAME..." 
+                   class="w-full p-3 rounded-xl hacker-input text-center text-xs border-dashed">
             <button onclick="accessWithGuest()" class="w-full py-2 text-[9px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors">
                 [ Initialize Guest Protocol ]
             </button>
@@ -60,7 +60,6 @@
     </div>
 
     <script>
-        const statusText = document.getElementById('statusText');
         const loadingUI = document.getElementById('loadingUI');
         const errorBox = document.getElementById('errorBox');
 
@@ -71,8 +70,9 @@
             loadingUI.classList.add('hidden');
         }
 
-        // Lógica para Wallet (Logo)
         async function accessWithWallet() {
+            errorBox.classList.add('hidden');
+            
             if (typeof window.ethereum !== 'undefined') {
                 try {
                     loadingUI.classList.remove('hidden');
@@ -80,25 +80,30 @@
                     sessionStorage.setItem('muzz_wallet_address', accounts[0]);
                     window.location.href = 'chat.html';
                 } catch (err) {
-                    showError("AUTH_FAILED", "Connection rejected by user.");
+                    showError("AUTH_FAILED", "Conexión rechazada.");
                 }
             } else {
-                showError("NO_WALLET", "Please install MetaMask or a Web3 browser.");
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                    // Intenta abrir el sitio dentro de la App de MetaMask
+                    const dappUrl = window.location.href.split('//')[1];
+                    window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+                } else {
+                    showError("NO_WALLET", "Instala MetaMask o usa un navegador Web3.");
+                }
             }
         }
 
-        // Lógica para Guest (Username)
         function accessWithGuest() {
             const user = document.getElementById('usernameInput').value.trim();
             if (!user) {
-                showError("REQUIRED_FIELD", "Enter a username to proceed as guest.");
+                showError("REQUIRED", "Ingresa un nickname.");
                 return;
             }
-            // Guardamos con prefijo guest_ para que el chat aplique el timer de 3s y bloqueos
+            // Guarda con prefijo para aplicar restricciones en chat.html
             sessionStorage.setItem('muzz_wallet_address', `guest_${user}`);
             window.location.href = 'chat.html';
         }
     </script>
-
 </body>
 </html>
