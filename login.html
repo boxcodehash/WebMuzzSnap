@@ -16,18 +16,19 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Fira+Code&display=swap');
         body { background-color: #050505; color: white; font-family: sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
         .logo-glow { box-shadow: 0 0 40px rgba(255, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); transition: 0.3s; cursor: pointer; }
         .logo-glow:active { transform: scale(0.95); }
         .loading-spinner { animation: spin 1s linear infinite; border: 3px solid transparent; border-top-color: #ff0000; border-radius: 50%; }
+        .hacker-input { font-family: 'Fira Code', monospace; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,0,0,0.2); color: #39ff14; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
     <div class="text-center px-6 w-full max-w-sm">
-        <div id="btnConnect" class="relative inline-block mb-6">
+        <div id="btnConnect" class="relative inline-block mb-6" onclick="accessWithWallet()">
             <div id="loadingUI" class="hidden absolute inset-0 z-20 flex items-center justify-center bg-black/50 rounded-3xl">
                 <div class="loading-spinner w-12 h-12"></div>
             </div>
@@ -38,7 +39,15 @@
         <h1 style="font-family: 'Orbitron';" class="text-2xl font-black tracking-tighter italic mb-1">
             MUZZ<span class="text-red-600">SNAP</span>
         </h1>
-        <p id="statusText" class="text-[10px] text-gray-500 uppercase tracking-[0.3em] mb-8">Tap logo to enter</p>
+        <p id="statusText" class="text-[10px] text-gray-500 uppercase tracking-[0.3em] mb-8">Tap logo for Wallet or use Guest below</p>
+
+        <div class="space-y-4 mb-8">
+            <input type="text" id="usernameInput" placeholder="ENTER_USERNAME..." 
+                   class="w-full p-3 rounded-xl hacker-input text-center text-xs">
+            <button onclick="accessWithGuest()" class="w-full py-2 text-[9px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors">
+                [ Initialize Guest Protocol ]
+            </button>
+        </div>
 
         <div id="errorBox" class="hidden p-3 rounded-lg bg-red-900/20 border border-red-500/50 mb-6">
             <p id="errorTitle" class="text-red-500 text-[10px] font-bold uppercase mb-1"></p>
@@ -50,7 +59,46 @@
         </div>
     </div>
 
-    <script src="login.js"></script>
+    <script>
+        const statusText = document.getElementById('statusText');
+        const loadingUI = document.getElementById('loadingUI');
+        const errorBox = document.getElementById('errorBox');
+
+        function showError(title, desc) {
+            errorBox.classList.remove('hidden');
+            document.getElementById('errorTitle').innerText = title;
+            document.getElementById('errorDesc').innerText = desc;
+            loadingUI.classList.add('hidden');
+        }
+
+        // Lógica para Wallet (Logo)
+        async function accessWithWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    loadingUI.classList.remove('hidden');
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    sessionStorage.setItem('muzz_wallet_address', accounts[0]);
+                    window.location.href = 'chat.html';
+                } catch (err) {
+                    showError("AUTH_FAILED", "Connection rejected by user.");
+                }
+            } else {
+                showError("NO_WALLET", "Please install MetaMask or a Web3 browser.");
+            }
+        }
+
+        // Lógica para Guest (Username)
+        function accessWithGuest() {
+            const user = document.getElementById('usernameInput').value.trim();
+            if (!user) {
+                showError("REQUIRED_FIELD", "Enter a username to proceed as guest.");
+                return;
+            }
+            // Guardamos con prefijo guest_ para que el chat aplique el timer de 3s y bloqueos
+            sessionStorage.setItem('muzz_wallet_address', `guest_${user}`);
+            window.location.href = 'chat.html';
+        }
+    </script>
 
 </body>
 </html>
