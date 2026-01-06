@@ -16,16 +16,17 @@
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;700&family=Orbitron:wght@400;900&display=swap');
-    :root { --muzz-red: #ff0000; --deep-black: #050505; --panel-bg: #0c0c0c; --neon-green: #39ff14; --ryachu-gold: #ffcc00; }
+    :root { --muzz-red: #ff0000; --deep-black: #050505; --panel-bg: #0c0c0c; --neon-green: #39ff14; --ryachu-gold: #ffcc00; --itsuki-blue: #00d4ff; }
     body { font-family: 'Inter', sans-serif; background-color: var(--deep-black); color: white; overflow: hidden; margin: 0; }
     .panel-3d { background: var(--panel-bg); box-shadow: inset 1px 1px 2px rgba(255,255,255,0.05), 10px 10px 20px rgba(0,0,0,0.5); border: 1px solid rgba(255,0,0,0.1); }
     .ryachu-name { color: var(--ryachu-gold); text-shadow: 0 0 10px rgba(255, 204, 0, 0.5); font-weight: 800; }
+    .itsuki-name { color: var(--itsuki-blue); text-shadow: 0 0 10px rgba(0, 212, 255, 0.5); font-weight: 800; }
     .bubble-3d { padding: 10px 15px; border-radius: 18px; margin-bottom: 4px; max-width: 85%; word-wrap: break-word; }
     .bubble-3d.me { background: linear-gradient(145deg, #ff0000, #990000); align-self: flex-end; border-bottom-right-radius: 2px; }
     .bubble-3d.other { background: #1a1a1a; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid rgba(255,255,255,0.05); }
     .hacker-input { font-family: 'Fira Code', monospace; color: var(--neon-green) !important; }
-    .channel-btn { transition: all 0.3s; border: 1px solid transparent; }
     .channel-btn.active { background: #000; border: 1px solid rgba(255,0,0,0.5); color: var(--muzz-red); }
+    .online-indicator { width: 6px; height: 6px; background: #39ff14; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px #39ff14; }
   </style>
 </head>
 <body>
@@ -45,18 +46,23 @@
 
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-    const RYACHU_WALLET = "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase();
+    
+    // Wallets de Administradores
+    const ADMINS = {
+      RYACHU: "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase(),
+      ITSUKI: "0xCOLOCA_AQUI_WALLET_DE_ITSUKI".toLowerCase()
+    };
 
     const CHANNELS = [
       { id: "general", name: "GENERAL" },
-      { id: "spanish", name: "SPANISH" },
-      { id: "english", name: "ENGLISH" },
-      { id: "crypto", name: "CRYPTO" }
+      { id: "spanish", name: "ESPAÑOL" },
+      { id: "english", name: "ENGLISH" }
     ];
 
     function App() {
       const [user, setUser] = useState(null);
       const [messages, setMessages] = useState([]);
+      const [onlineUsers, setOnlineUsers] = useState([]);
       const [pinnedMsg, setPinnedMsg] = useState("");
       const [inputText, setInputText] = useState("");
       const [lastSent, setLastSent] = useState(0);
@@ -72,16 +78,35 @@
         firebase.auth().signInAnonymously().then((userCredential) => {
           const uid = userCredential.user.uid;
           const isWallet = !sessionData.startsWith('guest_');
-          let finalUsername = isWallet ? `Node_${sessionData.slice(-4)}` : sessionData.replace('guest_', '');
-          if (sessionData.toLowerCase() === RYACHU_WALLET) finalUsername = "Ryachu";
+          let finalUsername = "";
+          let role = "user";
 
-          setUser({ username: finalUsername, uid, isWallet, isRyachu: (sessionData.toLowerCase() === RYACHU_WALLET) });
+          if (isWallet) {
+            const wallet = sessionData.toLowerCase();
+            if (wallet === ADMINS.RYACHU) { finalUsername = "Ryachu"; role = "ryachu"; }
+            else if (wallet === ADMINS.ITSUKI) { finalUsername = "Itsuki"; role = "itsuki"; }
+            else { finalUsername = `Node_${sessionData.slice(-4)}`; }
+          } else {
+            finalUsername = sessionData.replace('guest_', '');
+          }
+
+          const userData = { username: finalUsername, uid, isWallet, role };
+          setUser(userData);
+
+          // Sistema de Presencia (Online)
+          const myPresenceRef = database.ref(`status/${uid}`);
+          myPresenceRef.onDisconnect().remove();
+          myPresenceRef.set({ username: finalUsername, role: role, lastActive: Date.now() });
+
+          database.ref('status').on('value', snap => {
+            const val = snap.val();
+            setOnlineUsers(val ? Object.values(val) : []);
+          });
 
           database.ref('settings/pinned').on('value', snap => setPinnedMsg(snap.val()));
         });
       }, []);
 
-      // Escuchar mensajes cuando cambia el canal
       useEffect(() => {
         if (!user) return;
         const msgRef = database.ref('messages/' + selectedChannel.id).limitToLast(50);
@@ -97,7 +122,8 @@
       const handleSend = async () => {
         if (!inputText.trim()) return;
 
-        if (inputText.startsWith("/") && user.isRyachu) {
+        // Comandos Admin (Ryachu o Itsuki)
+        if (inputText.startsWith("/") && (user.role === 'ryachu' || user.role === 'itsuki')) {
           if (inputText.startsWith("/pin ")) await database.ref('settings/pinned').set(inputText.replace("/pin ", ""));
           else if (inputText === "/clear") await database.ref('messages/' + selectedChannel.id).remove();
           else if (inputText === "/unpin") await database.ref('settings/pinned').remove();
@@ -113,39 +139,51 @@
 
         await database.ref('messages/' + selectedChannel.id).push({
           content: inputText, userId: user.uid, username: user.username,
-          isRyachu: user.isRyachu, timestamp: firebase.database.ServerValue.TIMESTAMP
+          role: user.role, timestamp: firebase.database.ServerValue.TIMESTAMP
         });
         setLastSent(Date.now()); setInputText(""); setError("");
       };
 
-      if (!user) return <div className="h-screen bg-black flex items-center justify-center text-red-600 font-mono italic">SYNCING_PROTOCOL...</div>;
+      if (!user) return <div className="h-screen bg-black flex items-center justify-center text-red-600 font-mono">INITIALIZING...</div>;
 
       return (
         <div className="flex h-screen bg-[#050505] p-2 lg:p-4 gap-4 overflow-hidden">
-          {/* SIDEBAR CON CANALES DINÁMICOS */}
-          <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-64 panel-3d rounded-3xl p-6 flex flex-col transition-transform duration-300 ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+          <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-64 panel-3d rounded-3xl p-6 flex flex-col transition-all duration-300 ${isMobileMenu ? 'translate-x-0 shadow-2xl shadow-red-900/40' : '-translate-x-full lg:translate-x-0'}`}>
             <div className="mb-8 flex items-center gap-3">
               <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.5)]"><i className="fas fa-ghost text-white text-xs"></i></div>
-              <h1 className="font-bold text-xl italic tracking-tighter font-orbitron uppercase">MUZZ<span className="text-red-600">SNAP</span></h1>
+              <h1 className="font-bold text-xl font-orbitron uppercase italic">MUZZ<span className="text-red-600">SNAP</span></h1>
             </div>
             
-            <div className="flex-1 overflow-y-auto">
-              <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mb-4 uppercase">Access_Channels</p>
-              {CHANNELS.map(ch => (
-                <button 
-                  key={ch.id} 
-                  onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} 
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold mb-1 channel-btn ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  <span className="text-red-900">#</span> {ch.name}
-                </button>
-              ))}
+            <div className="flex-1 overflow-y-auto space-y-6">
+              <div>
+                <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mb-3 uppercase">Channels</p>
+                {CHANNELS.map(ch => (
+                  <button key={ch.id} onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} 
+                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'active' : 'text-gray-500 hover:text-white'}`}>
+                    <span className="text-red-900">#</span> {ch.name}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <p className="text-[9px] text-gray-600 font-bold tracking-[0.2em] mb-3 uppercase">Online — {onlineUsers.length}</p>
+                <div className="space-y-2">
+                  {onlineUsers.map((u, i) => (
+                    <div key={i} className="flex items-center gap-2 px-2">
+                      <span className="online-indicator"></span>
+                      <span className={`text-[10px] truncate ${u.role === 'ryachu' ? 'ryachu-name' : u.role === 'itsuki' ? 'itsuki-name' : 'text-gray-400'}`}>
+                        {u.role === 'ryachu' && '👑 '}{u.username}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <button onClick={() => {sessionStorage.clear(); window.location.href='login.html'}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg uppercase">Disconnect</button>
+            <button onClick={() => {sessionStorage.clear(); window.location.href='login.html'}} className="mt-4 w-full py-2 text-[10px] border border-red-900/30 text-red-900 rounded-lg uppercase hover:bg-red-900/10 transition-colors">Disconnect</button>
           </aside>
 
-          <main className="flex-1 panel-3d rounded-3xl flex flex-col overflow-hidden relative">
+          <main className="flex-1 panel-3d rounded-3xl flex flex-col overflow-hidden relative border border-white/5">
             {pinnedMsg && (
               <div className="bg-red-600/10 border-b border-red-600/30 p-2 px-6 flex items-center gap-3">
                 <i className="fas fa-thumbtack text-red-600 text-[10px] animate-pulse"></i>
@@ -155,26 +193,30 @@
             <header className="h-14 flex items-center justify-between px-6 bg-white/5 border-b border-white/5">
               <div className="flex items-center gap-4">
                 <button onClick={() => setIsMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars"></i></button>
-                <h2 className="text-sm font-bold tracking-widest text-red-600 uppercase"># {selectedChannel.name}</h2>
+                <h2 className="text-sm font-bold tracking-widest text-red-600 uppercase italic"># {selectedChannel.name}</h2>
               </div>
-              <div className="text-[9px] font-mono text-gray-600 uppercase">{error || (user.isRyachu ? "ROOT_ADMIN" : user.username)}</div>
+              <div className="text-[9px] font-mono text-gray-600">{error || user.username}</div>
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col">
               {messages.map(msg => (
                 <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'} mb-4`}>
-                  <span className={`text-[9px] font-bold mb-1 uppercase ${msg.isRyachu ? 'ryachu-name' : 'text-gray-600'}`}>{msg.isRyachu && '👑 '}{msg.username}</span>
-                  <div className={`bubble-3d ${msg.userId === user.uid ? 'me' : 'other'}`}><p className="text-[13px]">{msg.content}</p></div>
+                  <span className={`text-[9px] font-bold mb-1 uppercase ${msg.role === 'ryachu' ? 'ryachu-name' : msg.role === 'itsuki' ? 'itsuki-name' : 'text-gray-600'}`}>
+                    {msg.role === 'ryachu' && '👑 '}{msg.username}
+                  </span>
+                  <div className={`bubble-3d ${msg.userId === user.uid ? 'me' : 'other'}`}>
+                    <p className="text-[13px]">{msg.content}</p>
+                  </div>
                 </div>
               ))}
               <div ref={dummyRef}></div>
             </div>
 
-            <div className="p-4 bg-black/20">
+            <div className="p-4 bg-black/40">
               <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-2 pl-4">
                 <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                  placeholder={user.isRyachu ? "Enter Admin Command..." : "Transmit message..."} className="flex-1 bg-transparent border-none focus:ring-0 text-xs hacker-input" />
-                <button onClick={handleSend} className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(255,0,0,0.3)]"><i className="fas fa-paper-plane text-[12px]"></i></button>
+                  placeholder="Transmit encrypted message..." className="flex-1 bg-transparent border-none focus:ring-0 text-xs hacker-input" />
+                <button onClick={handleSend} className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-500 transition-colors"><i className="fas fa-paper-plane text-[12px]"></i></button>
               </div>
             </div>
           </main>
