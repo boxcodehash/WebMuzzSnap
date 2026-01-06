@@ -19,40 +19,41 @@
     
     :root { --muzz-red: #ff0000; --ryachu-gold: #ffcc00; --itsuki-blue: #00d4ff; }
 
-    /* TEMAS DINÁMICOS */
+    /* FIX: Asegurar que el body no haga scroll */
+    html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+
     body.dark-theme { background: #050505; color: white; }
     body.light-theme { background: #f0f2f5; color: #1a1a1a; }
 
-    .panel-3d { border-radius: 24px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .panel-3d { border-radius: 24px; transition: all 0.3s ease; display: flex; flex-direction: column; height: 100%; }
     .dark-theme .panel-3d { background: #0c0c0c; border: 1px solid rgba(255,0,0,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
     .light-theme .panel-3d { background: #ffffff; border: 1px solid #e0e0e0; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
 
-    .bubble-3d { padding: 12px 16px; border-radius: 20px; font-size: 14px; max-width: 85%; line-height: 1.4; }
-    .bubble-3d.me { background: linear-gradient(145deg, #ff0000, #b30000); color: white; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 12px rgba(255,0,0,0.2); }
-    
+    /* Burbujas */
+    .bubble-3d { padding: 12px 16px; border-radius: 20px; font-size: 14px; max-width: 85%; line-height: 1.4; position: relative; }
+    .bubble-3d.me { background: linear-gradient(145deg, #ff0000, #b30000); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
     .dark-theme .bubble-3d.other { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.05); }
-    .light-theme .bubble-3d.other { background: #ffffff; border: 1px solid #e0e0e0; color: black; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .light-theme .bubble-3d.other { background: #ffffff; border: 1px solid #e0e0e0; color: black; }
 
-    .ryachu-name { color: var(--ryachu-gold); text-shadow: 0 0 8px rgba(255, 204, 0, 0.4); font-weight: 800; }
-    .itsuki-name { color: var(--itsuki-blue); text-shadow: 0 0 8px rgba(0, 212, 255, 0.4); font-weight: 800; }
+    .ryachu-name { color: var(--ryachu-gold); font-weight: 800; }
+    .itsuki-name { color: var(--itsuki-blue); font-weight: 800; }
 
     .hacker-input { font-family: 'Fira Code', monospace; }
     .dark-theme .hacker-input { color: #39ff14 !important; }
-    .light-theme .hacker-input { color: #000 !important; }
 
-    /* Emoji Picker */
-    .emoji-window { max-height: 200px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; padding: 15px; }
+    /* Emojis */
+    .emoji-window { max-height: 180px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; padding: 15px; }
     .emoji-btn { font-size: 1.5rem; cursor: pointer; transition: transform 0.2s; display: flex; justify-content: center; }
-    .emoji-btn:hover { transform: scale(1.3); }
-
-    .online-indicator { width: 8px; height: 8px; background: #39ff14; border-radius: 50%; box-shadow: 0 0 8px #39ff14; }
     
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-thumb { background: var(--muzz-red); border-radius: 10px; }
+    /* Scrollbar personalizado solo para mensajes */
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--muzz-red); border-radius: 10px; }
+    
+    .online-indicator { width: 8px; height: 8px; background: #39ff14; border-radius: 50%; box-shadow: 0 0 8px #39ff14; }
   </style>
 </head>
 <body class="dark-theme">
-  <div id="root"></div>
+  <div id="root" class="h-full"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -72,7 +73,7 @@
 
     const ADMINS = {
       RYACHU: "0x208157b5ec396759e8754058108ecf53e32392ff".toLowerCase(),
-      ITSUKI: "0xCOLOCA_AQUI_WALLET_ITSUKI".toLowerCase()
+      ITSUKI: "0x000".toLowerCase()
     };
 
     const EMOJIS = {
@@ -94,6 +95,7 @@
       const [user, setUser] = useState(null);
       const [messages, setMessages] = useState([]);
       const [onlineUsers, setOnlineUsers] = useState([]);
+      const [pinnedMsg, setPinnedMsg] = useState("");
       const [inputText, setInputText] = useState("");
       const [isDark, setIsDark] = useState(true);
       const [showEmoji, setShowEmoji] = useState(false);
@@ -126,17 +128,12 @@
             role = "guest";
           }
 
-          const userData = { username: name, uid, role, isWallet };
-          setUser(userData);
+          setUser({ username: name, uid, role, isWallet });
 
-          const statusRef = database.ref(`status/${uid}`);
-          statusRef.onDisconnect().remove();
-          statusRef.set({ username: name, role, uid });
-
-          database.ref('status').on('value', snap => {
-            const val = snap.val();
-            setOnlineUsers(val ? Object.values(val) : []);
-          });
+          database.ref(`status/${uid}`).onDisconnect().remove();
+          database.ref(`status/${uid}`).set({ username: name, role, uid });
+          database.ref('status').on('value', snap => setOnlineUsers(snap.val() ? Object.values(snap.val()) : []));
+          database.ref('settings/pinned').on('value', snap => setPinnedMsg(snap.val() || ""));
         });
       }, []);
 
@@ -158,40 +155,55 @@
           content: inputText, username: user.username, role: user.role, userId: user.uid,
           timestamp: Date.now()
         });
-        setInputText("");
-        setShowEmoji(false);
+        setInputText(""); setShowEmoji(false);
       };
 
-      if (!user) return <div className="h-screen flex items-center justify-center text-red-600 font-orbitron animate-pulse">CONNECTING_SECURE_NODE...</div>;
+      const adminActions = {
+        clearChat: () => { if(confirm("¿Borrar historial?")) database.ref('messages/'+selectedChannel.id).remove(); },
+        setPin: () => { const msg = prompt("Mensaje fijado:", pinnedMsg); if(msg !== null) database.ref('settings/pinned').set(msg); },
+        removePin: () => database.ref('settings/pinned').remove()
+      };
+
+      if (!user) return <div className="h-full flex items-center justify-center text-red-600 font-orbitron animate-pulse">CONNECTING...</div>;
 
       return (
-        <div className="flex h-screen p-2 md:p-4 lg:p-6 gap-4 md:gap-6 overflow-hidden max-w-[1600px] mx-auto">
+        <div className="flex h-screen p-2 md:p-4 lg:p-6 gap-4 md:gap-6 max-w-[1600px] mx-auto overflow-hidden">
           
-          {/* SIDEBAR CON CANALES Y ONLINE */}
-          <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-72 md:w-80 lg:w-64 transition-all duration-300 transform panel-3d p-6 flex flex-col ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-            <div className="mb-10 flex items-center gap-3">
+          {/* SIDEBAR FIJO */}
+          <aside className={`fixed lg:relative z-50 inset-y-0 left-0 w-72 lg:w-64 transition-all duration-300 transform panel-3d p-6 flex flex-col ${isMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 shadow-2xl lg:shadow-none'}`}>
+            <div className="mb-8 flex items-center gap-3">
               <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/30"><i className="fas fa-ghost text-white text-sm"></i></div>
               <h1 className="font-orbitron font-black text-xl italic tracking-tighter">MUZZ<span className="text-red-600">SNAP</span></h1>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-8 pr-2">
+            <div className="flex-1 overflow-y-auto custom-scroll space-y-8 pr-2">
+              {(user.role === 'ryachu' || user.role === 'itsuki') && (
+                <div>
+                  <p className="text-[9px] text-red-600 font-bold tracking-[0.3em] mb-4 uppercase">Admin_Console</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={adminActions.setPin} className="text-[9px] bg-red-600/10 border border-red-600/30 py-2 rounded-lg text-red-600 font-bold hover:bg-red-600 hover:text-white transition-all">PIN</button>
+                    <button onClick={adminActions.clearChat} className="text-[9px] bg-red-600/10 border border-red-600/30 py-2 rounded-lg text-red-600 font-bold hover:bg-red-600 hover:text-white transition-all">CLEAR</button>
+                  </div>
+                </div>
+              )}
+
               <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.3em] mb-4 uppercase">Protocol_Channels</p>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.3em] mb-4 uppercase">Channels</p>
                 {CHANNELS.map(ch => (
                   <button key={ch.id} onClick={() => { setSelectedChannel(ch); setIsMobileMenu(false); }} 
-                    className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'bg-red-600/10 text-red-600 border-l-2 border-red-600' : 'text-gray-500 hover:text-white'}`}>
+                    className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold mb-1 transition-all ${selectedChannel.id === ch.id ? 'bg-red-600/10 text-red-600 border-l-2 border-red-600 shadow-lg shadow-red-600/5' : 'text-gray-500 hover:text-white'}`}>
                     # {ch.name}
                   </button>
                 ))}
               </div>
 
               <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.3em] mb-4 uppercase flex items-center gap-2">Online — {onlineUsers.length}</p>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.3em] mb-4 uppercase">Online — {onlineUsers.length}</p>
                 <div className="space-y-3">
                   {onlineUsers.map((u, i) => (
                     <div key={i} className="flex items-center gap-3 px-2">
                       <span className="online-indicator"></span>
-                      <span className={`text-[11px] truncate font-bold uppercase tracking-tight ${u.role === 'ryachu' ? 'ryachu-name' : u.role === 'itsuki' ? 'itsuki-name' : 'text-gray-400'}`}>
+                      <span className={`text-[11px] truncate font-bold uppercase ${u.role === 'ryachu' ? 'ryachu-name' : u.role === 'itsuki' ? 'itsuki-name' : 'text-gray-400'}`}>
                         {u.role === 'ryachu' && '👑 '}{u.username}
                       </span>
                     </div>
@@ -205,9 +217,16 @@
             </button>
           </aside>
 
-          {/* PANEL DE CHAT PRINCIPAL */}
-          <main className="flex-1 panel-3d flex flex-col overflow-hidden relative border border-white/5">
-            <header className="h-16 flex items-center justify-between px-8 bg-white/5 border-b border-white/5">
+          {/* CHAT MAIN PANEL - ESTRUCTURA FIJA */}
+          <main className="flex-1 panel-3d flex flex-col overflow-hidden border border-white/5 h-full relative">
+            {pinnedMsg && (
+              <div className="bg-red-600/10 border-b border-red-600/30 py-2 px-6 flex items-center gap-4 flex-shrink-0">
+                <i className="fas fa-thumbtack text-red-600 text-[10px] animate-pulse"></i>
+                <marquee className="text-[10px] font-bold tracking-[0.2em] text-red-500 uppercase">{pinnedMsg}</marquee>
+              </div>
+            )}
+
+            <header className="h-16 flex items-center justify-between px-8 bg-white/5 border-b border-white/5 flex-shrink-0">
               <div className="flex items-center gap-4">
                 <button onClick={() => setIsMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars"></i></button>
                 <h2 className="text-sm font-black tracking-[0.2em] text-red-600 uppercase italic">/ {selectedChannel.name}</h2>
@@ -217,7 +236,8 @@
               </button>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-5">
+            {/* AREA DE MENSAJES: UNICO LUGAR CON SCROLL */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-5 custom-scroll">
               {messages.map(msg => (
                 <div key={msg.id} className={`flex flex-col ${msg.userId === user.uid ? 'items-end' : 'items-start'}`}>
                   <span className={`text-[10px] font-black mb-1.5 uppercase px-2 ${msg.role === 'ryachu' ? 'ryachu-name' : msg.role === 'itsuki' ? 'itsuki-name' : 'text-gray-500'}`}>
@@ -231,40 +251,29 @@
               <div ref={dummyRef}></div>
             </div>
 
-            {/* AREA DE INPUT Y EMOJIS */}
-            <div className={`p-4 md:p-6 ${isDark ? 'bg-black/40' : 'bg-gray-50'} border-t border-white/5`}>
+            {/* AREA DE INPUT: FIJA AL FONDO */}
+            <div className={`p-4 md:p-6 ${isDark ? 'bg-black/40' : 'bg-gray-50'} border-t border-white/5 flex-shrink-0`}>
               {showEmoji && (
-                <div className={`mb-4 panel-3d border border-red-600/20 overflow-hidden shadow-2xl`}>
-                  <div className="flex bg-black/10 border-b border-white/5 overflow-x-auto scroll-hide">
+                <div className={`mb-4 panel-3d border border-red-600/20 overflow-hidden shadow-2xl h-auto flex-shrink-0`}>
+                  <div className="flex bg-black/10 border-b border-white/5 overflow-x-auto custom-scroll">
                     {Object.keys(EMOJIS).map(tab => (
-                      <button key={tab} onClick={() => setEmojiTab(tab)} 
-                        className={`px-4 py-2 text-[9px] font-black uppercase tracking-tighter ${emojiTab === tab ? 'text-red-600 bg-red-600/5' : 'text-gray-500'}`}>
-                        {tab}
-                      </button>
+                      <button key={tab} onClick={() => setEmojiTab(tab)} className={`px-4 py-2 text-[9px] font-black uppercase tracking-tighter ${emojiTab === tab ? 'text-red-600 bg-red-600/5' : 'text-gray-500'}`}>{tab}</button>
                     ))}
                   </div>
-                  <div className="emoji-window">
-                    {EMOJIS[emojiTab].map(e => (
-                      <span key={e} onClick={() => setInputText(inputText + e)} className="emoji-btn">{e}</span>
-                    ))}
+                  <div className="emoji-window custom-scroll">
+                    {EMOJIS[emojiTab].map(e => (<span key={e} onClick={() => setInputText(inputText + e)} className="emoji-btn">{e}</span>))}
                   </div>
                 </div>
               )}
 
               <div className="flex items-center bg-black/30 border border-white/10 rounded-2xl p-2.5 pl-5 focus-within:border-red-600/50 transition-all shadow-inner">
-                <button onClick={() => setShowEmoji(!showEmoji)} className="text-gray-500 hover:text-red-600 transition-colors mr-3">
-                  <i className="far fa-laugh-beam text-xl"></i>
-                </button>
-                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} 
-                  placeholder="Transmit encrypted message..." className="flex-1 bg-transparent border-none focus:ring-0 text-xs md:text-sm hacker-input" />
-                <button onClick={handleSend} className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-500 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,0,0,0.3)]">
-                  <i className="fas fa-paper-plane text-white"></i>
-                </button>
+                <button onClick={() => setShowEmoji(!showEmoji)} className="text-gray-500 hover:text-red-600 transition-colors mr-3"><i className="far fa-laugh-beam text-xl"></i></button>
+                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Transmit message..." className="flex-1 bg-transparent border-none focus:ring-0 text-sm hacker-input" />
+                <button onClick={handleSend} className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-500 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,0,0,0.3)]"><i className="fas fa-paper-plane text-white"></i></button>
               </div>
             </div>
           </main>
-
-          {isMobileMenu && <div onClick={() => setIsMobileMenu(false)} className="fixed inset-0 bg-black/90 z-40 lg:hidden backdrop-blur-md transition-opacity duration-300"></div>}
+          {isMobileMenu && <div onClick={() => setIsMobileMenu(false)} className="fixed inset-0 bg-black/90 z-40 lg:hidden backdrop-blur-md"></div>}
         </div>
       );
     }
