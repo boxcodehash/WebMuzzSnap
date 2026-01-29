@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Muzzle Token | Ultra Premium</title>
+    <title>Muzzle Token</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,67 +13,394 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@300;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
         :root {
             --neon: #ff0000;
-            --bg: #030303;
+            --neon-glow: rgba(255, 0, 0, 0.4);
+            --bg: #0a0a0a;
+            --sidebar-bg: #0f0f0f;
+            --card-bg: #141414;
+            --border: rgba(255, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            background-color: var(--bg);
+            background: linear-gradient(135deg, #0a0a0a 0%, #0f0000 100%);
             color: #fff;
             font-family: 'Rajdhani', sans-serif;
             overflow-x: hidden;
             margin: 0;
             width: 100%;
+            height: 100vh;
+            display: flex;
         }
 
-        #tsparticles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-        
-        .glitch {
-            position: relative;
-            animation: glitch 5s infinite;
-            line-height: 1;
-            word-wrap: break-word;
-        }
-        @keyframes glitch {
-            0% { text-shadow: 2px 0 var(--neon), -2px 0 #00fff9; }
-            2% { text-shadow: -2px 0 var(--neon), 2px 0 #00fff9; }
-            4% { text-shadow: 0 0 0 transparent; }
-            100% { text-shadow: 0 0 0 transparent; }
-        }
-
-        .card-container {
-            position: relative;
-            background: rgba(10, 10, 10, 0.8);
-            border: 1px solid rgba(255, 0, 0, 0.1);
-            overflow: hidden;
-            z-index: 10;
-            height: 100%;
+        /* Mobile menu toggle */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 200;
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid var(--border);
+            color: var(--neon);
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
         }
 
-        .card-container::before {
-            content: '';
-            position: absolute;
-            top: -50%; left: -50%;
-            width: 200%; height: 200%;
-            background: conic-gradient(transparent, transparent, transparent, var(--neon));
-            animation: rotate-border 4s linear infinite;
-            z-index: -1;
+        .mobile-menu-btn:hover {
+            background: rgba(255, 0, 0, 0.1);
+            box-shadow: 0 0 20px var(--neon-glow);
         }
 
-        .card-inner {
-            background: #080808;
-            margin: 2px;
-            padding: 1.5rem;
-            height: calc(100% - 4px);
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, var(--sidebar-bg) 0%, rgba(15, 0, 0, 0.8) 100%);
+            height: 100vh;
+            padding: 32px 20px;
             display: flex;
             flex-direction: column;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+            box-shadow: 4px 0 30px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
         }
 
-        @media (min-width: 768px) {
-            .card-inner { padding: 2.5rem; }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 48px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .logo-icon {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(135deg, var(--neon), #cc0000);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            box-shadow: 0 4px 20px var(--neon-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+        }
+
+        .logo-icon::after {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 14px;
+            padding: 2px;
+            background: linear-gradient(135deg, var(--neon), transparent);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0.6;
+        }
+
+        .logo-text {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 1.4rem;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--neon);
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .nav-section {
+            margin-bottom: 32px;
+        }
+
+        .nav-label {
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            color: rgba(255, 255, 255, 0.35);
+            font-weight: 600;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            padding-left: 16px;
+        }
+
+        .nav-item {
+            padding: 14px 16px;
+            margin-bottom: 6px;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, var(--neon-glow), transparent);
+            transition: width 0.3s ease;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 0, 0, 0.08);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .nav-item:hover::before {
+            width: 100%;
+        }
+
+        .nav-item.active {
+            background: rgba(255, 0, 0, 0.15);
+            color: var(--neon);
+            border-left: 3px solid var(--neon);
+            padding-left: 13px;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
+        }
+
+        .nav-item i {
+            font-size: 1.1rem;
+            width: 24px;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item:hover i {
+            transform: scale(1.1);
+        }
+
+        .disconnect-btn {
+            margin-top: auto;
+            padding: 14px 18px;
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            color: var(--neon);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .disconnect-btn:hover {
+            background: rgba(255, 0, 0, 0.1);
+            border-color: var(--neon);
+            box-shadow: 0 0 20px var(--neon-glow);
+            transform: translateY(-2px);
+        }
+
+        .main-content {
+            margin-left: 280px;
+            flex: 1;
+            height: 100vh;
+            overflow-y: auto;
+            background: transparent;
+            transition: margin-left 0.3s ease;
+        }
+
+        .top-bar {
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.25em;
+            color: var(--neon);
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .lang-switch {
+            display: flex;
+            gap: 8px;
+            background: rgba(20, 20, 20, 0.6);
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .lang-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: rgba(255, 255, 255, 0.6);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .lang-btn:hover {
+            background: rgba(255, 0, 0, 0.1);
+            color: var(--neon);
+            border-color: var(--border);
+        }
+
+        .content-area {
+            padding: 60px 40px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 80px;
+            position: relative;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--neon-glow) 0%, transparent 70%);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .glitch {
+            position: relative;
+            animation: glitch 6s infinite;
+            line-height: 1;
+        }
+
+        @keyframes glitch {
+            0%, 96%, 100% { text-shadow: 0 0 20px var(--neon-glow); }
+            97% { text-shadow: 3px 0 var(--neon), -3px 0 #00fff9; }
+            98% { text-shadow: -3px 0 var(--neon), 3px 0 #00fff9; }
+            99% { text-shadow: 0 0 20px var(--neon-glow); }
+        }
+
+        .hero-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 900;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: clamp(0.8rem, 2vw, 1rem);
+            letter-spacing: 0.4em;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 32px;
+            margin-bottom: 80px;
+            perspective: 1000px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, rgba(20, 20, 20, 0.9) 0%, rgba(30, 0, 0, 0.6) 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px 32px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(transparent, transparent, rgba(255, 0, 0, 0.3));
+            animation: rotate-border 6s linear infinite;
+            z-index: 0;
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, rgba(255, 0, 0, 0.1), transparent 50%);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 0, 0, 0.5);
+            box-shadow: 0 16px 48px rgba(255, 0, 0, 0.3), 0 0 40px rgba(255, 0, 0, 0.1);
+            transform: translateY(-8px) rotateX(2deg);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card:hover::after {
+            opacity: 1;
+        }
+
+        .card > * {
+            position: relative;
+            z-index: 1;
         }
 
         @keyframes rotate-border {
@@ -81,181 +408,466 @@
             100% { transform: rotate(360deg); }
         }
 
-        .text-neon { color: var(--neon); text-shadow: 0 0 10px var(--neon); }
-        .font-orbitron { font-family: 'Orbitron', sans-serif; }
-        
-        .btn-action {
-            padding: 12px 30px;
-            background: transparent;
-            border: 1px solid var(--neon);
+        .card-icon {
+            font-size: 3rem;
+            color: var(--neon);
+            margin-bottom: 24px;
+            filter: drop-shadow(0 0 15px var(--neon-glow));
+            transition: transform 0.4s ease;
+        }
+
+        .card:hover .card-icon {
+            transform: scale(1.1) translateZ(20px);
+        }
+
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-desc {
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-bottom: 28px;
+        }
+
+        .card-footer {
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--neon);
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .contract-section {
+            background: linear-gradient(135deg, rgba(255, 0, 0, 0.05) 0%, rgba(30, 0, 0, 0.1) 100%);
+            border-left: 4px solid var(--neon);
+            padding: 40px;
+            border-radius: 12px;
+            margin-bottom: 60px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 0, 0, 0.1);
+        }
+
+        .contract-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.35em;
+            color: var(--neon);
+            margin-bottom: 24px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .contract-info {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .contract-info p {
+            margin-bottom: 14px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+
+        .contract-info p:hover {
+            background: rgba(0, 0, 0, 0.5);
+            transform: translateX(4px);
+        }
+
+        .contract-info span {
             color: white;
-            font-family: 'Orbitron';
-            font-size: 0.7rem;
-            letter-spacing: 2px;
-            position: relative;
-            transition: 0.4s;
-            overflow: hidden;
-            cursor: pointer;
-            z-index: 20;
+            font-weight: 600;
         }
 
-        @media (min-width: 768px) {
-            .btn-action { padding: 15px 40px; font-size: 0.8rem; letter-spacing: 4px; }
+        .contract-address {
+            color: var(--neon) !important;
+            word-break: break-all;
+            text-shadow: 0 0 8px var(--neon-glow);
         }
 
-        .btn-action:hover {
-            background: var(--neon);
-            box-shadow: 0 0 50px var(--neon);
-            color: black;
-            font-weight: 900;
+        .footer {
+            text-align: center;
+            padding: 50px 40px;
+            border-top: 1px solid var(--border);
+            background: linear-gradient(180deg, transparent 0%, rgba(15, 0, 0, 0.3) 100%);
         }
 
-        .scanline {
-            width: 100%; height: 2px; background: rgba(255,0,0,0.1);
-            position: fixed; top: 0; left: 0; z-index: 5;
-            animation: scan 4s linear infinite;
+        .footer-copy {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.3);
+            letter-spacing: 0.3em;
+            margin-bottom: 20px;
+            text-transform: uppercase;
         }
-        @keyframes scan { from { top: 0%; } to { top: 100%; } }
 
-        .reveal { opacity: 0; transform: scale(0.95); transition: 1.2s all ease; }
-        .reveal.active { opacity: 1; transform: scale(1); }
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 28px;
+            font-size: 1.3rem;
+            flex-wrap: wrap;
+        }
+
+        .social-links a {
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .social-links a:hover {
+            color: var(--neon);
+            background: rgba(255, 0, 0, 0.1);
+            border-color: var(--neon);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px var(--neon-glow);
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 1024px) {
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .top-bar {
+                padding: 16px 20px 16px 80px;
+            }
+
+            .content-area {
+                padding: 40px 20px 20px;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+
+            .hero-section::before {
+                width: 400px;
+                height: 400px;
+            }
+
+            .contract-section {
+                padding: 24px 20px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .logo-text {
+                font-size: 1.2rem;
+            }
+
+            .section-title {
+                font-size: 0.75rem;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .card {
+                padding: 28px 20px;
+            }
+
+            .social-links a {
+                width: 44px;
+                height: 44px;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <div id="tsparticles"></div>
-    <div class="scanline"></div>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-    <nav class="relative z-50 flex justify-between items-center p-6 md:p-8 max-w-7xl mx-auto">
-        <div class="font-orbitron font-black text-xl md:text-2xl tracking-tighter italic">
-            MUZZLE<span class="text-neon">TOKEN</span>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="logo-container">
+            <div class="logo-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div class="logo-text">
+                MUZZ<span>SNAP</span>
+            </div>
         </div>
-        <div class="flex space-x-2">
-            <button onclick="setLang('en')" class="text-[10px] border border-white/20 px-3 py-1 hover:border-red-600 transition">EN</button>
-            <button onclick="setLang('es')" class="text-[10px] border border-white/20 px-3 py-1 hover:border-red-600 transition">ES</button>
-        </div>
-    </nav>
 
-    <section class="relative z-10 min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-        <div class="reveal">
-            <p class="font-orbitron text-neon text-[10px] md:text-xs tracking-[0.5em] md:tracking-[1em] mb-6 uppercase">System Pulsari</p>
-            <h1 class="glitch font-orbitron text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-black mb-8 uppercase">
-                MUZZLE<span class="text-white">TOKEN</span>
-            </h1>
-            <p class="max-w-2xl mx-auto text-gray-400 text-sm md:text-lg mb-12 tracking-widest font-light px-4" data-i18n="hero.desc">MUZZSNAP IS LIVE ENTER NOW</p>
-            <button onclick="window.location.href='login.html'" class="btn-action">
-                <i class="fas fa-sign-in-alt mr-2"></i> <span data-i18n="hero.cta">ENTER/LOGIN</span>
-            </button>
+        <div class="nav-section">
+            <div class="nav-label">Navigation</div>
+            <a href="https://muzzsnap.com" class="nav-item active">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </a>
+            <a href="login.html" class="nav-item">
+                <i class="fas fa-rocket"></i>
+                <span>MuzzSnap</span>
+            </a>
+            <a href="#whitepaper" class="nav-item">
+                <i class="fas fa-file-alt"></i>
+                <span>Whitepaper</span>
+            </a>
+            <a href="#roadmap" class="nav-item">
+                <i class="fas fa-route"></i>
+                <span>Roadmap</span>
+            </a>
+            <a href="#about" class="nav-item">
+                <i class="fas fa-info-circle"></i>
+                <span>About</span>
+            </a>
+            <a href="swap.html" target="_blank" class="nav-item">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Buy Muzz</span>
+            </a>
         </div>
-    </section>
 
-    <section class="relative z-10 py-16 md:py-32 px-6 max-w-7xl mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-            
-            <div class="card-container reveal">
-                <div class="card-inner text-center">
-                    <i class="fas fa-project-diagram text-neon text-4xl mb-6"></i>
-                    <h3 class="font-orbitron text-xl mb-4 uppercase">MuzzSocial</h3>
-                    <p class="text-gray-500 mb-8" data-i18n="social.desc">The first truly borderless social grid. Immutable, censorship-resistant, and community-owned.</p>
-                    <div class="mt-auto pt-6 border-t border-white/5 font-orbitron text-[10px] text-neon">STAKE: 20-Million MUZZLE</div>
+        <button class="disconnect-btn">
+            <i class="fas fa-power-off"></i>
+            <span>Disconnect</span>
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="section-title"></div>
+            <div class="lang-switch">
+                <button onclick="setLang('en')" class="lang-btn">EN</button>
+                <button onclick="setLang('es')" class="lang-btn">ES</button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Hero Section -->
+            <div class="hero-section">
+                <div class="hero-subtitle">MuzzSnap</div>
+                <h1 class="glitch hero-title">
+                    MUZZLE<span style="color: white;">TOKEN</span>
+                </h1>
+                <p class="hero-subtitle">DECENTRALIZED COMMUNICATION INTERFACE</p>
+            </div>
+
+            <!-- Cards Grid -->
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h3 class="card-title">MuzzSocial</h3>
+                    <p class="card-desc">The first truly borderless social grid. Immutable, censorship-resistant, and community-owned.</p>
+                    <div class="card-footer">STAKE: 20-Million MUZZLE</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-ghost"></i>
+                    </div>
+                    <h3 class="card-title">MuzzChat</h3>
+                    <p class="card-desc">Encrypted P2P nodes. Secure 2-room architecture per user. No logs, no traces, total silence.</p>
+                    <div class="card-footer">STAKE: 20-Million MUZZLE</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-shield-virus"></i>
+                    </div>
+                    <h3 class="card-title">MuzzDAO</h3>
+                    <p class="card-desc">The core authority. Propose and execute protocols. Power is distributed, not centralized.</p>
+                    <div class="card-footer">GOVERNANCE OPEN</div>
                 </div>
             </div>
 
-            <div class="card-container reveal" style="transition-delay: 0.2s;">
-                <div class="card-inner text-center">
-                    <i class="fas fa-ghost text-neon text-4xl mb-6"></i>
-                    <h3 class="font-orbitron text-xl mb-4 uppercase">MuzzChat</h3>
-                    <p class="text-gray-500 mb-8" data-i18n="chat.desc">Encrypted P2P nodes. Secure 2-room architecture per user. No logs, no traces, total silence.</p>
-                    <div class="mt-auto pt-6 border-t border-white/5 font-orbitron text-[10px] text-neon">STAKE: 20-Million MUZZLE</div>
+            <!-- Contract Section -->
+            <div class="contract-section">
+                <h4 class="contract-title">Access Contract</h4>
+                <div class="contract-info">
+                    <p>SYMBOL: <span>MUZZLE</span></p>
+                    <p>CHAIN: <span>ERC-20 (ETH)</span></p>
+                    <p>ADDRESS: <span class="contract-address">0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0</span></p>
                 </div>
             </div>
 
-            <div class="card-container reveal" style="transition-delay: 0.4s;">
-                <div class="card-inner text-center">
-                    <i class="fas fa-shield-virus text-neon text-4xl mb-6"></i>
-                    <h3 class="font-orbitron text-xl mb-4 uppercase">MuzzDAO</h3>
-                    <p class="text-gray-500 mb-8" data-i18n="dao.desc">The core authority. Propose and execute protocols. Power is distributed, not centralized.</p>
-                    <div class="mt-auto pt-6 border-t border-white/5 font-orbitron text-[10px] text-neon">GOVERNANCE OPEN</div>
+            <!-- Footer -->
+            <div class="footer">
+                <p class="footer-copy">MuzzSnap © 2025</p>
+                <div class="social-links">
+                    <a href="https://x.com/MuzzleToken" target="_blank" title="X (Twitter)">
+                        <i class="fab fa-x-twitter"></i>
+                    </a>
+                    <a href="https://t.me/MuzzSnap" target="_blank" title="Telegram">
+                        <i class="fab fa-telegram"></i>
+                    </a>
+                    <a href="https://www.mexc.com/dex/trade?pair_ca=0x06D9CdDD7FCaF2e93573D04bE5DE2fc4dEA45F45&chain_id=1&token_ca=0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0&from=search" target="_blank" title="MEXC Exchange" style="font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 0.85rem;">
+                        MEXC
+                    </a>
+                    <a href="https://coinmarketcap.com/currencies/muzzletoken/" target="_blank" title="CoinMarketCap">
+                        <svg style="width: 22px; height: 22px; display: inline-block;" viewBox="0 0 128 128" fill="currentColor">
+                            <path d="M96.4 96.5C89.7 103.2 81.1 107.9 71.7 110.2 62.3 112.5 52.5 112.3 43.2 109.7 33.9 107.1 25.5 102.2 18.7 95.5 12 88.8 7.3 80.2 5 71.1 2.7 61.9 2.9 52.3 5.6 43.2 8.3 34.1 13.3 25.9 20.1 19.4 26.9 12.9 35.3 8.4 44.4 6.4 53.6 4.3 63.1 4.7 72 7.5L72 32.5C67.7 31.3 63.2 31.3 58.9 32.4 54.6 33.6 50.7 35.9 47.5 39.1 44.3 42.3 42 46.2 40.8 50.5 39.7 54.8 39.7 59.3 40.9 63.6 42.1 67.9 44.4 71.8 47.6 75 50.8 78.2 54.7 80.5 59 81.7 63.3 82.8 67.8 82.8 72.1 81.7 76.4 80.5 80.3 78.2 83.5 75L96.4 96.5Z"/>
+                            <path d="M112.2 71.7C109.9 81.1 105.2 89.7 98.5 96.4L85.6 83.5C88.8 80.3 91.1 76.4 92.3 72.1 93.4 67.8 93.4 63.3 92.3 59 91.1 54.7 88.8 50.8 85.6 47.6 82.4 44.4 78.5 42.1 74.2 40.9 69.9 39.8 65.4 39.8 61.1 41 56.8 42.2 52.9 44.5 49.7 47.7L36.8 34.8C43.6 28 52.1 23.2 61.4 20.8 70.6 18.4 80.3 18.5 89.5 21.1 98.8 23.7 107.2 28.6 114 35.3 120.7 42 125.4 50.4 127.7 59.6 130 68.8 129.8 78.4 127.1 87.5 124.4 96.6 119.4 104.8 112.6 111.3L99.7 98.4C103.9 94.2 106.9 89.1 108.4 83.5 109.9 77.9 109.9 72 108.4 66.4 106.9 60.8 103.9 55.7 99.7 51.5 95.5 47.3 90.4 44.3 84.8 42.8 79.2 41.3 73.3 41.3 67.7 42.8 62.1 44.3 57 47.3 52.8 51.5L65.7 64.4C68.1 62 71 60.2 74.2 59.3 77.4 58.4 80.8 58.4 84 59.3 87.2 60.2 90.1 62 92.5 64.4 94.9 66.8 96.7 69.7 97.6 72.9 98.5 76.1 98.5 79.5 97.6 82.7 96.7 85.9 94.9 88.8 92.5 91.2L105.4 104.1C109.6 99.9 112.6 94.8 114.1 89.2 115.6 83.6 115.6 77.7 114.1 72.1Z"/>
+                        </svg>
+                    </a>
                 </div>
             </div>
-
         </div>
-    </section>
+    </div>
 
-    <section class="relative z-10 py-10 md:py-20 px-6">
-        <div class="max-w-2xl mx-auto border-l-2 border-red-600 bg-red-600/5 p-6 md:p-10 reveal">
-            <h4 class="font-orbitron text-xs tracking-[0.5em] mb-6 text-neon uppercase">Access Contract</h4>
-            <div class="font-mono text-xs md:text-sm space-y-2 text-gray-400">
-                <p>SYMBOL: <span class="text-white">MUZZLE</span></p>
-                <p>CHAIN: <span class="text-white">ERC-20 (ETH)</span></p>
-                <p>ADDRESS: <span class="text-red-500 break-all block md:inline">0xef3daa5fda8ad7aabff4658f1f78061fd626b8f0</span></p>
-            </div>
-        </div>
-    </section>
-
-    <footer class="relative z-10 py-20 text-center border-t border-white/5">
-        <p class="text-[10px] text-gray-600 font-orbitron tracking-[0.5em] uppercase mb-4">MuzzSnap © 2025</p>
-        <div class="flex justify-center space-x-8 text-gray-500">
-            <a href="https://x.com/MuzzleToken" class="hover:text-neon transition"><i class="fab fa-x-twitter"></i></a>
-            <a href="https://t.me/MuzzSnap" class="hover:text-neon transition"><i class="fab fa-telegram"></i></a>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
     <script>
-        tsParticles.load("tsparticles", {
-            particles: {
-                number: { value: 60 },
-                color: { value: "#ff0000" },
-                opacity: { value: 0.5, random: true },
-                size: { value: { min: 1, max: 3 } },
-                move: {
-                    enable: true,
-                    speed: 1.5,
-                    direction: "top",
-                    random: true,
-                    out_mode: "out"
-                }
-            }
-        });
+        // Debug: verificar que el script se carga
+        console.log('✅ Script cargado correctamente');
 
-        const translations = {
-            en: {
-                'hero.desc': 'DECENTRALIZED COMMUNICATION INTERFACE',
-                'hero.cta': 'LOGIN',
-                'social.desc': 'The first truly borderless social grid. Immutable, censorship-resistant, and community-owned.',
-                'chat.desc': 'Encrypted P2P nodes. Secure 2-room architecture per user. No logs, no traces.',
-                'dao.desc': 'The core authority. Propose and execute protocols. Power is distributed.'
-            },
-            es: {
-                'hero.desc': 'INTERFAZ DE COMUNICACIÓN DESCENTRALIZADA',
-                'hero.cta': 'ENTRAR',
-                'social.desc': 'La primera red social sin fronteras. Inmutable, resistente a la censura y propiedad de la comunidad.',
-                'chat.desc': 'Nodos P2P cifrados. Arquitectura segura de 2 salas por usuario. Sin registros ni rastros.',
-                'dao.desc': 'La autoridad central. Propón y ejecuta protocolos. El poder está distribuido.'
+        // Toggle mobile menu con prevención de propagación
+        function toggleMobileMenu(event) {
+            if (event) {
+                event.stopPropagation();
             }
-        };
-
-        function setLang(lang) {
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (translations[lang][key]) {
-                    el.innerText = translations[lang][key];
-                }
-            });
-            localStorage.setItem('muzzle-lang', lang);
+            
+            const sidebar = document.getElementById('sidebar');
+            const menuBtn = document.getElementById('mobileMenuBtn');
+            
+            console.log('🔘 Toggle menu clicked');
+            
+            // Obtener el estado actual de manera más robusta
+            const currentTransform = window.getComputedStyle(sidebar).transform;
+            const isHidden = sidebar.style.transform === 'translateX(-100%)' || 
+                            currentTransform === 'matrix(1, 0, 0, 1, -280, 0)' ||
+                            sidebar.style.transform === '';
+            
+            if (isHidden) {
+                // Mostrar menú
+                sidebar.style.transform = 'translateX(0)';
+                menuBtn.innerHTML = '<i class="fas fa-times"></i>';
+                console.log('✅ Menú abierto');
+            } else {
+                // Ocultar menú
+                sidebar.style.transform = 'translateX(-100%)';
+                menuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                console.log('❌ Menú cerrado');
+            }
         }
 
-        // Cargar idioma guardado al iniciar
-        window.addEventListener('load', () => {
-            const savedLang = localStorage.getItem('muzzle-lang') || 'en';
-            setLang(savedLang);
+        // Esperar a que el DOM esté completamente cargado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ DOM cargado completamente');
+            
+            const sidebar = document.getElementById('sidebar');
+            const menuBtn = document.getElementById('mobileMenuBtn');
+            
+            // Verificar que los elementos existen
+            if (!sidebar) {
+                console.error('❌ Error: No se encontró el elemento sidebar');
+                return;
+            }
+            
+            if (!menuBtn) {
+                console.error('❌ Error: No se encontró el botón del menú');
+                return;
+            }
+            
+            console.log('✅ Elementos del menú encontrados');
+            
+            // Inicializar estado del sidebar
+            function initializeSidebar() {
+                if (window.innerWidth <= 1024) {
+                    sidebar.style.transform = 'translateX(-100%)';
+                    menuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                    console.log('📱 Sidebar inicializado para MOBILE');
+                } else {
+                    sidebar.style.transform = '';
+                    console.log('💻 Sidebar inicializado para DESKTOP');
+                }
+            }
+            
+            // Inicializar al cargar
+            initializeSidebar();
+            
+            // Asignar evento al botón
+            menuBtn.addEventListener('click', toggleMobileMenu);
+            console.log('✅ Event listener del botón configurado');
+            
+            // Cerrar menú al hacer clic fuera
+            document.addEventListener('click', function(event) {
+                if (window.innerWidth <= 1024) {
+                    const isClickInsideSidebar = sidebar.contains(event.target);
+                    const isClickOnButton = menuBtn.contains(event.target);
+                    
+                    if (!isClickInsideSidebar && !isClickOnButton) {
+                        const isVisible = sidebar.style.transform === 'translateX(0px)' ||
+                                         sidebar.style.transform === 'translateX(0)';
+                        
+                        if (isVisible) {
+                            sidebar.style.transform = 'translateX(-100%)';
+                            menuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                            console.log('❌ Menú cerrado (click fuera)');
+                        }
+                    }
+                }
+            });
+            console.log('✅ Event listener de click fuera configurado');
+            
+            // Cerrar menú al hacer clic en nav items
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    if (window.innerWidth <= 1024) {
+                        sidebar.style.transform = 'translateX(-100%)';
+                        menuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+                        console.log('❌ Menú cerrado (nav item clicked)');
+                    }
+                });
+            });
+            console.log('✅ Event listeners de nav items configurados (' + navItems.length + ' items)');
+            
+            // Manejar redimensionamiento de ventana
+            let resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    initializeSidebar();
+                    console.log('🔄 Ventana redimensionada - sidebar reinicializado');
+                }, 250);
+            });
+            console.log('✅ Event listener de resize configurado');
+            
+            console.log('🎉 Todos los event listeners configurados correctamente');
         });
 
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('active'); });
-        });
-        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+        // Language switch function
+        function setLang(lang) {
+            console.log('🌐 Idioma cambiado a: ' + lang);
+            // Aquí puedes agregar la lógica de cambio de idioma
+        }
+        
+        console.log('🚀 Script completamente cargado y listo');
     </script>
+
 </body>
 </html>
