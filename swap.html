@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muzzle Token | Terminal</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#030303">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;600;700&display=swap');
+
+        :root {
+            --neon: #ff0000;
+            --neon-glow: rgba(255, 0, 0, 0.4);
+            --sidebar-bg: #0f0f0f;
+            --border: rgba(255, 0, 0, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden; /* Evita scroll doble en desktop */
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, var(--sidebar-bg) 0%, #000 100%);
+            height: 100vh;
+            padding: 32px 20px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            left: 0; top: 0; z-index: 100;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .logo-container {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 30px; padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .logo-icon {
+            width: 45px; height: 45px;
+            background: var(--neon);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; box-shadow: 0 0 20px var(--neon-glow);
+        }
+
+        .logo-text { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 1.2rem; }
+        .logo-text span { color: var(--neon); }
+
+        .nav-item {
+            padding: 12px 16px; margin-bottom: 4px; border-radius: 10px;
+            color: rgba(255, 255, 255, 0.5); display: flex; align-items: center;
+            gap: 14px; text-decoration: none; transition: all 0.3s;
+            text-transform: uppercase; font-size: 0.85rem;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 0, 0, 0.1); color: #fff;
+            border-left: 3px solid var(--neon);
+        }
+
+        /* MAIN CONTENT */
+        .main-content {
+            margin-left: 280px;
+            flex: 1;
+            height: 100vh;
+            overflow-y: auto;
+            background: radial-gradient(circle at top right, #1a0000, #000);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* UNISWAP ADAPTATION */
+        .swap-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 40px auto;
+            padding: 0 15px;
+        }
+
+        .uniswap-card {
+            width: 100%;
+            height: 650px;
+            background: #191b1f;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+
+        .uniswap-card iframe { width: 100%; height: 100%; border: none; }
+
+        /* FOOTER & SOCIALS (CENTRALIZADO) */
+        .footer {
+            margin-top: auto;
+            padding: 40px 20px;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .social-btn {
+            width: 50px; height: 50px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; transition: 0.3s; font-size: 1.2rem;
+        }
+
+        .social-btn:hover {
+            background: rgba(255,0,0,0.1);
+            color: var(--neon);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px var(--neon-glow);
+        }
+
+        /* MOBILE OVERLAY & TOGGLE */
+        .mobile-toggle {
+            display: none;
+            position: fixed; top: 15px; left: 15px; z-index: 200;
+            background: #111; border: 1px solid var(--neon);
+            color: var(--neon); width: 45px; height: 45px; border-radius: 10px;
+        }
+
+        .overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 90;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { margin-left: 0; padding-top: 60px; }
+            .mobile-toggle { display: flex; align-items: center; justify-content: center; }
+            .overlay.active { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="mobile-toggle" id="menuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="overlay" id="overlay"></div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="logo-container">
+            <div class="logo-icon"><i class="fas fa-bolt"></i></div>
+            <div class="logo-text">MUZZ<span>SNAP</span></div>
+        </div>
+
+        <nav>
+            <a href="home.html" class="nav-item"><i class="fas fa-home"></i><span>Home</span></a>
+            <a href="swap.html" class="nav-item active"><i class="fas fa-exchange-alt"></i><span>Swap</span></a>
+            <a href="https://web-muzz-snap.vercel.app/login.html" class="nav-item"><i class="fas fa-rocket"></i><span>MuzzSnap</span></a>
+            <a href="#whitepaper" class="nav-item"><i class="fas fa-file-alt"></i><span>Whitepaper</span></a>
+            <a href="#roadmap" class="nav-item"><i class="fas fa-route"></i><span>Roadmap</span></a>
+        </nav>
+
+        <button class="mt-auto p-3 border border-red-900/30 rounded-lg text-red-600 font-bold text-xs hover:bg-red-600/10 transition">
+            DISCONNECT
+        </button>
+    </div>
+
+    <div class="main-content">
+        <div class="text-center pt-10">
+            <h1 class="font-orbitron text-3xl font-black tracking-widest">MUZZLE<span class="text-red-600">TOKEN</span></h1>
+            <p class="text-[10px] text-gray-500 uppercase tracking-[0.5em]">Secure Swap Interface</p>
+        </div>
+
+        <div class="swap-container">
+            <div class="uniswap-card">
+                <iframe 
+                    src="https://app.uniswap.org/#/swap?outputCurrency=0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0&chain=mainnet&theme=dark"
+                    title="Uniswap">
+                </iframe>
+            </div>
+            
+            <div class="mt-6 p-4 bg-white/5 border border-red-600/20 rounded-xl text-center">
+                <p class="text-[9px] text-red-600 font-bold mb-1 uppercase tracking-widest">Contract Address</p>
+                <p class="text-[11px] font-mono text-gray-300 break-all">0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0</p>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="social-links">
+                <a href="https://x.com/MuzzleToken" target="_blank" class="social-btn"><i class="fab fa-x-twitter"></i></a>
+                <a href="https://t.me/MuzzSnap" target="_blank" class="social-btn"><i class="fab fa-telegram"></i></a>
+                <a href="https://www.mexc.com" target="_blank" class="social-btn font-bold text-xs">MEXC</a>
+                <a href="https://coinmarketcap.com" target="_blank" class="social-btn"><i class="fas fa-chart-line"></i></a>
+            </div>
+            <p class="text-[10px] text-gray-600 font-orbitron">MUZZLE PROTOCOL © 2025 | ALL RIGHTS RESERVED</p>
+        </footer>
+    </div>
+
+    <script>
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+
+        function toggle() {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+            const icon = menuToggle.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        }
+
+        menuToggle.addEventListener('click', toggle);
+        overlay.addEventListener('click', toggle);
+    </script>
+</body>
+</html>
