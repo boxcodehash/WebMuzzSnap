@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MuzzSnap | Social</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Orbitron:wght@400;900&display=swap');
+    :root { --muzz-red: #ff0000; --muzz-bg: #050505; }
+    html,body{height:100%;overflow:hidden;margin:0;padding:0}
+    body { background: var(--muzz-bg); color: white; font-family: 'Inter', sans-serif; }
+    .panel-3d { background: #0c0c0c; border: 1px solid rgba(255,0,0,0.1); border-radius: 24px; }
+    .custom-scroll::-webkit-scrollbar { width: 3px; height: 3px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--muzz-red); border-radius: 999px; }
+    .hacker-input { font-family: 'Fira Code', monospace; }
+    .stealth-mode { filter: contrast(1.1) brightness(0.9); }
+
+    /* X-like feed elements, but MUZZ themed */
+    .post-card{
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px;
+      padding: 14px 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+    }
+    .avatar{
+      width: 44px; height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255,0,0,0.9), rgba(120,0,0,0.9));
+      display:flex; align-items:center; justify-content:center;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 0 20px rgba(255,0,0,0.2);
+      flex: 0 0 auto;
+    }
+    .handle{ color: rgba(255,255,255,0.55); font-size: 12px; }
+    .meta{ color: rgba(255,255,255,0.45); font-size: 11px; }
+    .post-text{ font-size: 14px; line-height: 1.45; }
+    .action-btn{
+      display:flex; align-items:center; gap:8px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      cursor: not-allowed;
+      user-select:none;
+    }
+    .action-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <div id="root" class="h-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const ADDR_CONTRACT = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
+    const TEAM_FINANCE_STAKING = "0xd6A07b8065f9e8386A9a5bBA6A754a10A9CD1074";
+    const MIN_MUZZ = 10000000;
+
+    const ABI_BALANCE = [
+      {"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"}
+    ];
+
+    // Admin bypass (4 wallets)
+    const ADMIN_WALLETS = [
+      "0x208157b5ec396759e8754058108ecf53e32392ff", // Ryachu
+      "0xfab5835ca14fb3f9f478c5e4d733734e6394e03f", // Itsuki
+      "0xf0809b8d23485f82245b777a28469e735e8430ce", // Esteban
+      "0xbeec8f1fee64627f83f0188eae621f367a6bcb8a"  // Additional bypass
+    ];
+
+    // Firebase config (kept consistent)
+    const _fb = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ==')
+    };
+    if (!firebase.apps.length) firebase.initializeApp(_fb);
+    firebase.auth().signInAnonymously().catch(()=>{});
+
+    const _isGuest = (addr) => (addr || "").startsWith("guest_");
+    const _isAdmin = (addr) => ADMIN_WALLETS.includes((addr || "").toLowerCase());
+    const _isAddr = (a) => /^0x[a-fA-F0-9]{40}$/.test(a || "");
+
+    async function _getProvider() {
+      if (!window.ethereum) throw new Error("NO_WALLET");
+      return new ethers.BrowserProvider(window.ethereum);
+    }
+
+    async function _hasWalletBalance(provider, userAddr, minHuman) {
+      const token = new ethers.Contract(ADDR_CONTRACT, ABI_BALANCE, provider);
+      const dec = await token.decimals().catch(()=>18);
+      const bal = await token.balanceOf(userAddr);
+      const minRaw = BigInt(minHuman) * (10n ** BigInt(dec));
+      return bal >= minRaw;
+    }
+
+    const FROM_BLOCK = 0; // set to token deploy block later for speed
+    async function _sumStaked(provider, userAddr) {
+      const iface = new ethers.Interface([
+        "event Transfer(address indexed from, address indexed to, uint256 value)"
+      ]);
+      const topic0 = iface.getEvent("Transfer").topicHash;
+      const fromTopic = ethers.zeroPadValue(userAddr.toLowerCase(), 32);
+      const toTopic = ethers.zeroPadValue(TEAM_FINANCE_STAKING.toLowerCase(), 32);
+
+      const logs = await provider.getLogs({
+        address: ADDR_CONTRACT,
+        fromBlock: FROM_BLOCK,
+        toBlock: "latest",
+        topics: [topic0, fromTopic, toTopic]
+      });
+
+      let total = 0n;
+      for (const l of logs) {
+        const parsed = iface.parseLog(l);
+        total += BigInt(parsed.args.value.toString());
+      }
+      return total;
+    }
+
+    async function _hasStaked(provider, userAddr, minHuman) {
+      const token = new ethers.Contract(ADDR_CONTRACT, ABI_BALANCE, provider);
+      const dec = await token.decimals().catch(()=>18);
+      const minRaw = BigInt(minHuman) * (10n ** BigInt(dec));
+      const total = await _sumStaked(provider, userAddr);
+      return total >= minRaw;
+    }
+
+    function App(){
+      const [menuOpen, setMenuOpen] = useState(false);
+      const [addr, setAddr] = useState("");
+      const [allowed, setAllowed] = useState(false);
+
+      useEffect(()=>{
+        const a = sessionStorage.getItem('muzz_wallet_address');
+        if(!a){ window.location.href='login.html'; return; }
+        setAddr(a);
+
+        // Guest can see menu button in chat, but cannot enter Social page
+        if(_isGuest(a)){
+          alert("Guest mode is chat-only. Connect your wallet (10,000,000 MUZZ balance or staked in Team Finance) to access Social.");
+          window.location.href='chat.html';
+          return;
+        }
+
+        // Gate: wallet must have >= 10M OR staked >= 10M, admins bypass
+        (async ()=>{
+          try{
+            const low = a.toLowerCase();
+            if(_isAdmin(low)){ setAllowed(true); return; }
+            if(!_isAddr(a)){ throw new Error("BAD_ADDR"); }
+            const provider = await _getProvider();
+            const okBal = await _hasWalletBalance(provider, a, MIN_MUZZ);
+            if(okBal){ setAllowed(true); return; }
+            const okStake = await _hasStaked(provider, a, MIN_MUZZ);
+            if(okStake){ setAllowed(true); return; }
+            alert("Balance insufficient: 10,000,000 MUZZ required (wallet balance OR staked in Team Finance).");
+            window.location.href='chat.html';
+          }catch(e){
+            console.error(e);
+            alert("Wallet/RPC error. Open inside MetaMask or a Web3 browser.");
+            window.location.href='chat.html';
+          }
+        })();
+      },[]);
+
+      const shortAddr = addr && addr.startsWith("0x") ? `${addr.slice(0,6)}…${addr.slice(-4)}` : addr;
+
+      return (
+        <div className="flex h-screen p-2 md:p-6 gap-4 stealth-mode">
+          {menuOpen && (
+            <div onClick={()=>setMenuOpen(false)} className="fixed inset-0 bg-black/90 z-40 md:hidden backdrop-blur-md" />
+          )}
+
+          <aside className={
+            `fixed md:static z-50 inset-y-0 left-0 w-72 md:w-64 transition-transform duration-300 panel-3d p-6 flex flex-col
+             ${menuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`
+          }>
+            <h1 className="font-orbitron font-black text-xl italic mb-8">MUZZ<span className="text-red-600">SNAP</span></h1>
+
+            <div className="flex-1 space-y-2">
+              <button onClick={()=>window.location.href='chat.html'} className="w-full text-left px-4 py-3 rounded-lg text-xs font-black border border-red-600/30 text-red-500 hover:bg-red-600/10">
+                <i className="fas fa-comments mr-2"></i> CHAT
+              </button>
+
+              <button onClick={()=>window.location.href='private.html'} className="w-full text-left px-4 py-3 rounded-lg text-xs font-black border border-red-600/30 text-red-500 hover:bg-red-600/10">
+                <i className="fas fa-user-secret mr-2"></i> PRIVATE
+              </button>
+
+              <button disabled className="w-full text-left px-4 py-3 rounded-lg text-xs font-black border border-blue-600/30 text-blue-400 bg-blue-600/10">
+                <i className="fas fa-globe mr-2"></i> SOCIAL
+              </button>
+
+              <div className="text-[9px] text-gray-600 font-mono leading-snug mt-2">
+                Access: 10,000,000 MUZZ (wallet balance OR staked to Team Finance).
+              </div>
+            </div>
+
+            <button onClick={()=>{sessionStorage.clear();window.location.href='login.html'}} className="mt-6 w-full py-3 text-[10px] border border-red-900/30 text-red-600 rounded-xl uppercase font-black tracking-widest hover:bg-red-600/5 transition-all">
+              <i className="fas fa-power-off mr-2"></i>Disconnect
+            </button>
+          </aside>
+
+          <main className="flex-1 panel-3d flex flex-col overflow-hidden">
+            <header className="h-14 flex items-center px-6 border-b border-white/5 bg-white/5 uppercase text-[10px] font-black tracking-widest text-red-500">
+              <button onClick={()=>setMenuOpen(true)} className="md:hidden mr-4 text-red-600">
+                <i className="fas fa-bars"></i>
+              </button>
+              <i className="fas fa-globe mr-2"></i> Social
+              <button onClick={() => window.location.href='chat.html'}
+                className="ml-auto text-[9px] border border-red-600/40 px-3 py-1 rounded-lg hover:bg-red-600/20 transition-all">
+                <i className="fas fa-arrow-left mr-1"></i> Back
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scroll">
+              <div className="flex items-center justify-between mb-4 px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-600/30 flex items-center justify-center">
+                    <i className="fas fa-bolt text-red-500 text-sm"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-black tracking-widest uppercase text-red-500">Timeline</div>
+                    <div className="meta">{shortAddr ? `viewer: ${shortAddr}` : "viewer"}</div>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">
+                  Read-only
+                </div>
+              </div>
+
+              <div className="post-card">
+                <div className="flex items-start" style={{gap:"12px"}}>
+                  <div className="avatar">
+                    <i className="fas fa-ghost text-white text-sm"></i>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-black text-sm tracking-tight">MuzzSnap</div>
+                      <div className="handle">@muzzsnap</div>
+                      <div className="meta">· comingsoon</div>
+                      <div className="ml-auto meta">🔒</div>
+                    </div>
+
+                    <div className="post-text mt-2">
+                      comingsoon
+                    </div>
+
+                    <div className="action-row mt-4">
+                      <div className="action-btn" title="Read-only">
+                        <i className="far fa-comment"></i><span>Reply</span>
+                      </div>
+                      <div className="action-btn" title="Read-only">
+                        <i className="fas fa-retweet"></i><span>Repost</span>
+                      </div>
+                      <div className="action-btn" title="Read-only">
+                        <i className="far fa-heart"></i><span>Like</span>
+                      </div>
+                      <div className="action-btn" title="Read-only">
+                        <i className="fas fa-share"></i><span>Share</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-[10px] text-gray-600 font-mono leading-relaxed">
+                Social is currently in read-only mode. Posting will be enabled in a future update.
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
