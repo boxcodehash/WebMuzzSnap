@@ -1,430 +1,135 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>muzzSnap Update</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@600&display=swap');
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MuzzSnap | Protocol</title>
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+    <script>
+        if (window.top !== window.self) {
+            window.top.location.replace(window.self.location.href);
+        }
+    </script>
 
-  body {
-    background: #1a1a1f;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: 'Rajdhani', sans-serif;
-    overflow: hidden;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 50%, #2a1a10 0%, #0d0d10 70%);
-  }
-
-  .card {
-    position: relative;
-    width: 340px;
-    background: linear-gradient(160deg, #d8d8d8 0%, #b0b0b0 40%, #c8c8c8 70%, #a8a8a8 100%);
-    border-radius: 28px;
-    padding: 36px 30px 34px;
-    box-shadow:
-      0 0 0 3px #555,
-      0 0 0 5px #333,
-      0 30px 80px rgba(0,0,0,0.8),
-      0 0 60px rgba(255,80,0,0.15);
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 18px;
-  }
-
-  /* Brushed metal texture */
-  .card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 28px;
-    background: repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 2px,
-      rgba(255,255,255,0.04) 2px,
-      rgba(255,255,255,0.04) 4px
-    );
-    pointer-events: none;
-  }
-
-  /* --- LOGO EMBLEM --- */
-  .emblem-wrap {
-    position: relative;
-    width: 170px;
-    height: 170px;
-  }
-
-  .emblem-bg {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 50% 60%, #1a0800, #3a1200 50%, #0d0500);
-    border: 4px solid #222;
-    overflow: hidden;
-  }
-
-  /* Lava cracks */
-  .emblem-bg::before {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    background:
-      radial-gradient(ellipse at 30% 70%, rgba(255,80,0,0.5) 0%, transparent 50%),
-      radial-gradient(ellipse at 70% 30%, rgba(255,50,0,0.4) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 50%, rgba(200,40,0,0.2) 0%, transparent 70%);
-    animation: lavaPulse 2s ease-in-out infinite alternate;
-  }
-
-  @keyframes lavaPulse {
-    from { opacity: 0.7; }
-    to   { opacity: 1; }
-  }
-
-  /* Ghost shape at top */
-  .ghost {
-    position: absolute;
-    top: -16px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 52px;
-    height: 52px;
-    z-index: 5;
-    filter: drop-shadow(0 0 10px #ff6600) drop-shadow(0 0 20px #ff3300);
-  }
-
-  /* Outer lava ring */
-  .lava-ring {
-    position: absolute;
-    inset: 8px;
-    border-radius: 50%;
-    border: 6px solid transparent;
-    background: conic-gradient(
-      #ff6600, #ff3300, #ff8800, #cc2200, #ff6600
-    ) border-box;
-    -webkit-mask:
-      linear-gradient(#fff 0 0) padding-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: destination-out;
-    mask-composite: exclude;
-    animation: ringRotate 3s linear infinite;
-    box-shadow: 0 0 20px #ff4400, inset 0 0 20px #ff4400;
-  }
-
-  @keyframes ringRotate {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
-
-  /* Wave SVG inside */
-  .waves-svg {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 3;
-  }
-
-  .waves-svg svg {
-    width: 80px;
-    filter: drop-shadow(0 0 8px #ff5500) drop-shadow(0 0 16px #ff3300);
-    animation: waveFloat 2.5s ease-in-out infinite alternate;
-  }
-
-  @keyframes waveFloat {
-    from { transform: translateY(-3px); }
-    to   { transform: translateY(3px); }
-  }
-
-  /* --- BRAND TEXT --- */
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: 'Orbitron', monospace;
-    font-size: 1.45rem;
-    font-weight: 700;
-    color: #1a1a1a;
-    letter-spacing: 1px;
-  }
-
-  .brand .m-circle {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 2.5px solid #cc3300;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    color: #cc3300;
-    font-weight: 900;
-    flex-shrink: 0;
-  }
-
-  /* --- UPDATE CODE LABEL --- */
-  .update-label {
-    font-family: 'Orbitron', monospace;
-    font-size: 1.35rem;
-    font-weight: 900;
-    color: #cc2200;
-    letter-spacing: 3px;
-    text-shadow: 0 0 12px rgba(255,50,0,0.4);
-    text-transform: uppercase;
-  }
-
-  /* --- PROGRESS BAR --- */
-  .progress-wrap {
-    width: 100%;
-    position: relative;
-  }
-
-  .progress-track {
-    width: 100%;
-    height: 20px;
-    background: #2a2a2a;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid #444;
-    box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 0 10px rgba(255,80,0,0.1);
-    position: relative;
-  }
-
-  .progress-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #cc2200, #ff6600, #ffaa00, #ff6600, #cc2200);
-    background-size: 200% 100%;
-    border-radius: 10px;
-    animation:
-      fillBar 3.5s cubic-bezier(0.1, 0.8, 0.4, 1) forwards,
-      flameShift 0.8s linear infinite;
-    position: relative;
-    box-shadow: 0 0 15px #ff4400, 0 0 30px rgba(255,100,0,0.5);
-  }
-
-  .progress-fill::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 30px;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,220,100,0.9));
-    filter: blur(4px);
-    animation: tipGlow 0.3s ease-in-out infinite alternate;
-  }
-
-  @keyframes fillBar {
-    0%   { width: 0%; }
-    10%  { width: 8%; }
-    20%  { width: 22%; }
-    35%  { width: 35%; }
-    50%  { width: 54%; }
-    65%  { width: 68%; }
-    80%  { width: 82%; }
-    90%  { width: 89%; }
-    100% { width: 100%; }
-  }
-
-  @keyframes flameShift {
-    from { background-position: 0% 50%; }
-    to   { background-position: 100% 50%; }
-  }
-
-  @keyframes tipGlow {
-    from { opacity: 0.6; }
-    to   { opacity: 1; }
-  }
-
-  /* Scan line overlay */
-  .progress-track::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      90deg,
-      transparent,
-      transparent 8px,
-      rgba(0,0,0,0.15) 8px,
-      rgba(0,0,0,0.15) 9px
-    );
-    pointer-events: none;
-  }
-
-  .progress-pct {
-    text-align: center;
-    margin-top: 6px;
-    font-family: 'Orbitron', monospace;
-    font-size: 0.7rem;
-    color: #884422;
-    letter-spacing: 2px;
-    transition: opacity 0.3s;
-  }
-
-  /* --- TOKEN LABEL --- */
-  .token-label {
-    width: 100%;
-    background: linear-gradient(135deg, #1a0800, #2a0f00);
-    border-radius: 8px;
-    padding: 8px 16px;
-    text-align: center;
-    font-family: 'Orbitron', monospace;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 4px;
-    color: #ff4400;
-    text-shadow: 0 0 10px rgba(255,70,0,0.6);
-    border: 1px solid #441100;
-    box-shadow: inset 0 0 12px rgba(255,50,0,0.1);
-  }
-
-  /* Particle sparks */
-  .spark {
-    position: absolute;
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: #ffaa00;
-    pointer-events: none;
-    z-index: 10;
-    animation: sparkFly var(--dur) ease-out forwards;
-  }
-
-  @keyframes sparkFly {
-    0%   { transform: translate(0,0) scale(1); opacity: 1; }
-    100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
-  }
-</style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Fira+Code&display=swap');
+        body { background-color: #050505; color: white; font-family: sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+        .logo-glow { box-shadow: 0 0 40px rgba(255, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); transition: 0.3s; cursor: pointer; }
+        .logo-glow:active { transform: scale(0.95); }
+        .loading-spinner { animation: spin 1s linear infinite; border: 3px solid transparent; border-top-color: #ff0000; border-radius: 50%; }
+        .hacker-input { font-family: 'Fira Code', monospace; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,0,0,0.2); color: #39ff14; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
 
-<div class="card" id="card">
+    <div class="text-center px-6 w-full max-w-sm">
+        <div id="btnConnect" class="relative inline-block mb-6" onclick="accessWithWallet()">
+            <div id="loadingUI" class="hidden absolute inset-0 z-20 flex items-center justify-center bg-black/50 rounded-3xl">
+                <div class="loading-spinner w-12 h-12"></div>
+            </div>
+            <img src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440" 
+                 class="logo-glow w-32 h-32 md:w-40 md:h-40 rounded-3xl">
+        </div>
 
-  <!-- Logo Emblem -->
-  <div class="emblem-wrap">
-    <!-- Ghost at top -->
-    <svg class="ghost" viewBox="0 0 52 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M26 2C13.85 2 4 11.85 4 24V58L13 51L18 58L26 51L34 58L39 51L48 58V24C48 11.85 38.15 2 26 2Z"
-        fill="#ff4400" fill-opacity="0.85"/>
-      <circle cx="18" cy="26" r="5" fill="#ffcc00"/>
-      <circle cx="34" cy="26" r="5" fill="#ffcc00"/>
-      <circle cx="18" cy="26" r="2.5" fill="#1a0000"/>
-      <circle cx="34" cy="26" r="2.5" fill="#1a0000"/>
-    </svg>
+        <h1 style="font-family: 'Orbitron';" class="text-2xl font-black tracking-tighter italic mb-1">
+            MUZZ<span class="text-red-600">SNAP</span>
+        </h1>
+        <p id="statusText" class="text-[10px] text-gray-500 uppercase tracking-[0.3em] mb-8">Tap logo for Wallet or use Guest below</p>
 
-    <div class="emblem-bg"></div>
-    <div class="lava-ring"></div>
+        <div class="space-y-4 mb-8">
+            <input type="text" id="usernameInput" placeholder="ENTER_NICKNAME..." 
+                   class="w-full p-3 rounded-xl hacker-input text-center text-xs border-dashed">
+            <button onclick="accessWithGuest()" class="w-full py-2 text-[9px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors">
+                [ Initialize Guest Protocol ]
+            </button>
+        </div>
 
-    <!-- Waves SVG -->
-    <div class="waves-svg">
-      <svg viewBox="0 0 80 55" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M5 14 Q20 4 35 14 Q50 24 65 14 Q72 9 77 14" stroke="#ff5500" stroke-width="5" stroke-linecap="round" fill="none"/>
-        <path d="M5 28 Q20 18 35 28 Q50 38 65 28 Q72 23 77 28" stroke="#ff4400" stroke-width="5" stroke-linecap="round" fill="none"/>
-        <path d="M5 42 Q20 32 35 42 Q50 52 65 42 Q72 37 77 42" stroke="#cc2200" stroke-width="5" stroke-linecap="round" fill="none"/>
-      </svg>
+        <div id="errorBox" class="hidden p-3 rounded-lg bg-red-900/20 border border-red-500/50 mb-6">
+            <p id="errorTitle" class="text-red-500 text-[10px] font-bold uppercase mb-1"></p>
+            <p id="errorDesc" class="text-gray-400 text-[10px] leading-tight"></p>
+        </div>
+
+        <div class="text-[9px] text-gray-700 font-mono uppercase tracking-widest">
+            &copy; 2025 Protocol Ryachu Edition
+        </div>
     </div>
-  </div>
 
-  <!-- Brand -->
-  <div class="brand">
-    <div class="m-circle">M</div>
-    muzzSnap
-  </div>
+    <script>
+        const loadingUI = document.getElementById('loadingUI');
+        const errorBox = document.getElementById('errorBox');
 
-  <!-- Label -->
-  <div class="update-label">Update Code</div>
+        const ADMIN_WALLETS = [
+            '0x208157b5ec396759e8754058108ecf53e32392ff',
+            '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
+            '0x875c5a7794b601f273da58e3c1d10671d16130ec'
+        ];
 
-  <!-- Progress bar -->
-  <div class="progress-wrap">
-    <div class="progress-track">
-      <div class="progress-fill" id="bar"></div>
-    </div>
-    <div class="progress-pct" id="pct">INITIALIZING...</div>
-  </div>
+        function showError(title, desc) {
+            errorBox.classList.remove('hidden');
+            document.getElementById('errorTitle').innerText = title;
+            document.getElementById('errorDesc').innerText = desc;
+            loadingUI.classList.add('hidden');
+        }
 
-  <!-- Token -->
-  <div class="token-label">System disabled</div>
+        function normalizeAddress(address) {
+            return String(address || '').trim().toLowerCase();
+        }
 
-</div>
+        function saveUserSession(address) {
+            const normalizedAddress = normalizeAddress(address);
+            const isAdmin = ADMIN_WALLETS.includes(normalizedAddress);
 
-<script>
-  // Animate percentage counter
-  const bar = document.getElementById('bar');
-  const pct = document.getElementById('pct');
-  const total = 3500;
-  let start = null;
+            sessionStorage.setItem('muzz_wallet_address', normalizedAddress);
+            sessionStorage.setItem('muzz_user_role', isAdmin ? 'admin' : 'user');
+            sessionStorage.setItem('muzz_is_admin', isAdmin ? 'true' : 'false');
+        }
 
-  const steps = [
-    {t:0,    v:0},
-    {t:350,  v:8},
-    {t:700,  v:22},
-    {t:1225, v:35},
-    {t:1750, v:54},
-    {t:2275, v:68},
-    {t:2800, v:82},
-    {t:3150, v:89},
-    {t:3500, v:100},
-  ];
+        async function accessWithWallet() {
+            errorBox.classList.add('hidden');
+            
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    loadingUI.classList.remove('hidden');
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 
-  function lerp(a, b, t){ return a + (b-a)*t; }
+                    if (!accounts || !accounts.length) {
+                        showError('AUTH_FAILED', 'No wallet account detected.');
+                        return;
+                    }
 
-  function getVal(elapsed){
-    for(let i=1;i<steps.length;i++){
-      if(elapsed <= steps[i].t){
-        const seg = (elapsed - steps[i-1].t) / (steps[i].t - steps[i-1].t);
-        return Math.round(lerp(steps[i-1].v, steps[i].v, seg));
-      }
-    }
-    return 100;
-  }
+                    saveUserSession(accounts[0]);
+                    window.location.href = 'chat.html';
+                } catch (err) {
+                    showError('AUTH_FAILED', 'Connection rejected.');
+                }
+            } else {
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                    const dappUrl = window.location.href.split('//')[1];
+                    window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+                } else {
+                    showError('NO_WALLET', 'Install MetaMask or use a Web3 browser.');
+                }
+            }
+        }
 
-  const messages = ['INITIALIZING...','FETCHING DATA...','LOADING MODULES...','COMPILING...','INSTALLING...','VALIDATING...','ALMOST DONE...','COMPLETE ✓'];
+        function accessWithGuest() {
+            const user = document.getElementById('usernameInput').value.trim();
+            if (!user) {
+                showError('REQUIRED', 'Enter a nickname.');
+                return;
+            }
 
-  function tick(ts){
-    if(!start) start = ts;
-    const elapsed = Math.min(ts - start, total);
-    const v = getVal(elapsed);
-    pct.textContent = v + '% — ' + messages[Math.floor(v/13)] || messages[7];
-    if(v === 100) pct.textContent = '100% — COMPLETE ✓';
-    if(elapsed < total) requestAnimationFrame(tick);
-    else {
-      pct.textContent = '100% — COMPLETE ✓';
-      // Restart after 2s
-      setTimeout(()=>{ start = null; bar.style.animation='none'; bar.offsetHeight; bar.style.animation=''; requestAnimationFrame(tick2); }, 2000);
-    }
-  }
-
-  function tick2(ts){ start=ts; requestAnimationFrame(tick); }
-  requestAnimationFrame(tick);
-
-  // Spark particles
-  const card = document.getElementById('card');
-  setInterval(()=>{
-    const s = document.createElement('div');
-    s.className = 'spark';
-    const rect = card.getBoundingClientRect();
-    s.style.left = (50 + Math.random()*240) + 'px';
-    s.style.top  = (card.offsetHeight - 60 + Math.random()*20) + 'px';
-    s.style.setProperty('--dur', (0.4 + Math.random()*0.6) + 's');
-    s.style.setProperty('--tx', (Math.random()*60-30) + 'px');
-    s.style.setProperty('--ty', -(20 + Math.random()*40) + 'px');
-    card.appendChild(s);
-    setTimeout(()=> s.remove(), 1000);
-  }, 120);
-</script>
+            sessionStorage.setItem('muzz_wallet_address', `guest_${user}`);
+            sessionStorage.setItem('muzz_user_role', 'guest');
+            sessionStorage.setItem('muzz_is_admin', 'false');
+            window.location.href = 'chat.html';
+        }
+    </script>
 </body>
 </html>
