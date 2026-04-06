@@ -1,202 +1,344 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap</title>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>MuzzSnap Private</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Orbitron:wght@400;900&display=swap');
-    :root { --muzz-red: #ff0000; --muzz-bg: #050505; }
-    body { background: var(--muzz-bg); color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
-    .panel-3d { background: #0c0c0c; border: 1px solid rgba(255,0,0,0.1); border-radius: 24px; }
-    .bubble-3d { padding: 12px 16px; border-radius: 18px; font-size: 14px; position: relative; max-width: 85%; word-break: break-word; }
-    .bubble-3d.me { background: linear-gradient(135deg, #ff0000, #800000); align-self: flex-end; border-bottom-right-radius: 4px; }
-    .bubble-3d.other { background: #1a1a1a; border: 1px solid rgba(255,255,255,0.05); align-self: flex-start; border-bottom-left-radius: 4px; }
-    .hacker-input { font-family: 'Fira Code', monospace; color: #ff0000 !important; background: transparent; border: none; outline: none; }
-    .custom-scroll::-webkit-scrollbar { width: 3px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: var(--muzz-red); }
-    /* Clase para ocultar elementos de inspeccion simple */
-    .stealth-mode { filter: contrast(1.1) brightness(0.9); }
+    :root{
+      --bg:#181d23;
+      --panel:#11161c;
+      --panel-2:#0c1015;
+      --soft:#232a33;
+      --line:rgba(255,255,255,.08);
+      --red:#ff2a2a;
+      --red-2:#b40000;
+      --text:#f4f7fb;
+      --muted:#95a0af;
+      --green:#39ff14;
+      --blue:#8ec5ff;
+      --safe-top:env(safe-area-inset-top, 0px);
+      --safe-right:env(safe-area-inset-right, 0px);
+      --safe-bottom:env(safe-area-inset-bottom, 0px);
+      --safe-left:env(safe-area-inset-left, 0px);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#252b33 0%, #1b2027 100%);color:var(--text)}
+    body{overflow:hidden;font-size:14px}
+    .app{height:100dvh;display:grid;grid-template-columns:320px 1fr}
+    .sidebar,.chat{min-height:0}
+    .sidebar{background:rgba(10,13,17,.82);backdrop-filter:blur(10px);border-right:1px solid rgba(255,42,42,.14);padding:18px;display:flex;flex-direction:column;gap:16px}
+    .brand{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,42,42,.18);border-radius:22px;background:linear-gradient(180deg,rgba(255,42,42,.06),rgba(255,42,42,.02))}
+    .logo{width:46px;height:46px;border-radius:16px;background:linear-gradient(145deg,var(--red),var(--red-2));display:grid;place-items:center;box-shadow:0 0 20px rgba(255,42,42,.22);font-size:20px}
+    .brand h1{margin:0;font-size:25px;letter-spacing:-1px;font-weight:900;font-style:italic}
+    .brand h1 span{color:var(--red)}
+    .card{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:22px;padding:14px}
+    .section-title{font-size:11px;letter-spacing:.28em;color:#8c95a3;text-transform:uppercase;font-weight:800;margin:0 0 12px}
+    .user-badge{display:flex;align-items:center;gap:10px;padding:12px;border-radius:18px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.16)}
+    .avatar{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#2a313b,#12171d);display:grid;place-items:center;color:#fff;font-weight:900;flex:0 0 auto}
+    .avatar.red{background:linear-gradient(145deg,var(--red),var(--red-2))}
+    .muted{color:var(--muted)}
+    .small{font-size:11px}
+    .contact-list{display:flex;flex-direction:column;gap:8px;overflow:auto;padding-right:4px}
+    .contact{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;border:1px solid transparent;background:rgba(255,255,255,.02);cursor:pointer;transition:.2s}
+    .contact:hover{background:rgba(255,255,255,.04)}
+    .contact.active{background:rgba(255,42,42,.08);border-color:rgba(255,42,42,.18)}
+    .status{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:8px;flex:0 0 auto}
+    .side-actions{display:grid;gap:10px}
+    .btn{border:none;border-radius:18px;padding:14px 16px;font-weight:800;cursor:pointer;transition:.2s}
+    .btn.red{background:linear-gradient(145deg,var(--red),var(--red-2));color:white;box-shadow:0 0 18px rgba(255,42,42,.18)}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text)}
+    .btn:hover{transform:translateY(-1px)}
+    .chat{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;background:linear-gradient(180deg,rgba(16,20,25,.8),rgba(8,10,14,.9))}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .topbar-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .topbar h2{margin:0;font-size:14px;letter-spacing:.16em;color:#ff6565;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pill{padding:7px 11px;border-radius:999px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.18);font-size:11px;color:#ff9a9a;font-weight:700}
+    .messages{flex:1;min-height:0;overflow:auto;padding:22px 22px calc(22px + var(--safe-bottom));display:flex;flex-direction:column;gap:14px}
+    .day{align-self:center;padding:7px 12px;border-radius:999px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.15);font-size:10px;letter-spacing:.22em;color:#ff8080;font-weight:800}
+    .msg-wrap{display:flex;gap:10px;align-items:flex-end;max-width:82%}
+    .msg-wrap.me{align-self:flex-end;flex-direction:row-reverse}
+    .bubble{padding:11px 13px;border-radius:18px;background:var(--soft);border:1px solid rgba(255,255,255,.05);line-height:1.4;box-shadow:0 8px 20px rgba(0,0,0,.18);word-break:break-word;font-size:13.5px}
+    .msg-wrap.me .bubble{background:linear-gradient(145deg,var(--red),var(--red-2));border-color:transparent}
+    .meta{font-size:10px;color:var(--muted);margin:2px 6px}
+    .msg-user{font-weight:800;color:var(--blue);font-size:11px;margin:0 0 6px}
+    .composer{padding:16px 18px calc(16px + var(--safe-bottom));border-top:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .composer-box{display:flex;gap:12px;align-items:flex-end;background:#0b1015;border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:10px 10px 10px 16px}
+    textarea{flex:1;resize:none;background:transparent;border:none;outline:none;color:var(--text);font:inherit;font-size:14px;line-height:1.4;min-height:24px;max-height:140px;padding:6px 0;-webkit-appearance:none;appearance:none}
+    textarea::placeholder{color:#6f7c8e}
+    .send{width:50px;height:50px;border-radius:16px;border:none;background:linear-gradient(145deg,var(--red),var(--red-2));color:#fff;font-size:18px;cursor:pointer;flex:0 0 auto}
+    .empty{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
+    .mobile-top{display:none;flex:0 0 auto}
+    @media (max-width: 920px){
+      .app{
+        grid-template-columns:1fr;
+        height:100dvh;
+        min-height:100dvh;
+        padding:0;
+      }
+      .sidebar{display:none}
+      .chat{height:100dvh;min-height:0;border:none}
+      .mobile-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));border-bottom:1px solid var(--line);background:rgba(0,0,0,.25)}
+      .topbar{padding:14px 14px 12px}
+      .messages{padding:14px;flex:1;min-height:0;overflow:auto}
+      .composer{position:sticky;bottom:0;left:0;right:0;z-index:4;padding:12px calc(12px + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(12px + var(--safe-left));background:linear-gradient(180deg,rgba(17,22,28,.92),rgba(11,16,21,.98));backdrop-filter:blur(8px)}
+      .composer-box{border-radius:20px}
+      .msg-wrap{max-width:92%}
+    }
   </style>
 </head>
 <body>
-  <div id="root" class="h-full"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">👻</div>
+        <h1>MUZZ<span>SNAP</span></h1>
+      </div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+      <div class="card">
+        <p class="section-title">Private Access</p>
+        <div class="user-badge">
+          <div class="avatar red" id="meAvatar">M</div>
+          <div>
+            <div style="font-weight:800" id="meName">Node_User</div>
+            <div class="muted small">Encrypted demo inbox</div>
+          </div>
+        </div>
+      </div>
 
-    const ADDR_CONTRACT = "0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0";
-    const ADDR_VIP = "0xBEec8F1fee64627F83F0188eAe621F367A6bCb8a".toLowerCase();
-    const ABI_BALANCE = [{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}];
+      <div class="card" style="min-height:0;display:flex;flex-direction:column;flex:1">
+        <p class="section-title">Conversations</p>
+        <div class="contact-list" id="contactList"></div>
+      </div>
 
-    // Configuración Base de Datos (Mantenida igual)
-    const _fb = {
-      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
-      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
-      projectId: atob('cHVsc2FyaQ==')
+      <div class="side-actions">
+        <button class="btn ghost" onclick="window.location.href='chat.html'">← Back to Chat</button>
+        <button class="btn red" onclick="clearPrivateDemo()">Clear demo inbox</button>
+      </div>
+    </aside>
+
+    <section class="chat">
+      <div class="mobile-top">
+        <button class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="window.location.href='chat.html'">← Back</button>
+        <div style="font-weight:900;letter-spacing:.08em">MUZZ<span style="color:var(--red)">SNAP</span></div>
+      </div>
+
+      <div class="topbar" id="chatHeader"></div>
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <div class="composer-box">
+          <textarea id="messageInput" placeholder="Write a private message..."></textarea>
+          <button class="send" id="sendBtn">➤</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const DEMO_KEY = 'muzz_private_demo_v1';
+    const meRaw = sessionStorage.getItem('muzz_wallet_address') || 'guest_demo';
+    const meName = meRaw.startsWith('guest_') ? meRaw.replace('guest_','') : `Node_${meRaw.slice(-4) || 'User'}`;
+
+    const defaultChats = {
+      ryachu: {
+        id: 'ryachu',
+        name: 'Ryachu',
+        status: 'online',
+        subtitle: 'Core admin channel',
+        avatar: '👑',
+        messages: [
+          { from: 'them', text: 'Welcome to the private demo inbox.', time: '9:08 AM' },
+          { from: 'them', text: 'This page is only a base mockup so your private section stops returning 404.', time: '9:09 AM' },
+          { from: 'me', text: 'Perfect. I only needed a functional basic version for now.', time: '9:10 AM' }
+        ]
+      },
+      support: {
+        id: 'support',
+        name: 'Muzz Support',
+        status: 'online',
+        subtitle: 'Encrypted help desk',
+        avatar: '🛡️',
+        messages: [
+          { from: 'them', text: 'Demo note: messages here are stored only in your browser.', time: '8:55 AM' },
+          { from: 'them', text: 'Later this can be connected to Firebase or wallet-based private messaging.', time: '8:56 AM' }
+        ]
+      },
+      node7ccb: {
+        id: 'node7ccb',
+        name: 'Node_7ccb',
+        status: 'offline',
+        subtitle: 'Community member',
+        avatar: '💎',
+        messages: [
+          { from: 'them', text: 'Morning. The new dark theme looks better.', time: 'Yesterday' }
+        ]
+      }
     };
-    if (!firebase.apps.length) firebase.initializeApp(_fb);
-    const db = firebase.database();
 
-    // --- MOTOR DE CIFRADO E3EE (P2P) ---
-    const _S = "Muzzle_Quantum_Shield_2026"; 
-    const _enc = async (t) => {
-      const e = new TextEncoder();
-      const k = await crypto.subtle.importKey("raw", e.encode(_S), {name: "AES-GCM"}, false, ["encrypt"]);
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const res = await crypto.subtle.encrypt({name: "AES-GCM", iv}, k, e.encode(t));
-      return btoa(JSON.stringify({ a: Array.from(iv), b: Array.from(new Uint8Array(res)) }));
-    };
+    let store = loadStore();
+    let activeId = Object.keys(store)[0];
 
-    const _dec = async (c) => {
-      try {
-        const {a, b} = JSON.parse(atob(c));
-        const e = new TextEncoder();
-        const k = await crypto.subtle.importKey("raw", e.encode(_S), {name: "AES-GCM"}, false, ["decrypt"]);
-        const res = await crypto.subtle.decrypt({name: "AES-GCM", iv: new Uint8Array(a)}, k, new Uint8Array(b));
-        return new TextDecoder().decode(res);
-      } catch (err) { return "󰈡 [Contenido Cifrado]"; }
-    };
+    function loadStore(){
+      try{
+        const raw = localStorage.getItem(DEMO_KEY);
+        if(raw){
+          const parsed = JSON.parse(raw);
+          if(parsed && typeof parsed === 'object') return parsed;
+        }
+      }catch(e){}
+      localStorage.setItem(DEMO_KEY, JSON.stringify(defaultChats));
+      return JSON.parse(JSON.stringify(defaultChats));
+    }
 
-    function App() {
-      const [u, setU] = useState(null);
-      const [m, setM] = useState([]);
-      const [txt, setTxt] = useState("");
-      const [ch, setCh] = useState("GENERAL");
-      const [isP, setIsP] = useState(false);
-      const scroll = useRef();
+    function saveStore(){
+      localStorage.setItem(DEMO_KEY, JSON.stringify(store));
+    }
 
-      useEffect(() => {
-        const a = sessionStorage.getItem('muzz_wallet_address');
-        if(!a) { window.location.href='login.html'; return; }
-        setU({ addr: a, id: a.slice(-4) });
-        listen("GENERAL");
-      }, []);
+    function initials(text){
+      return (text || 'M').replace(/[^a-zA-Z0-9]/g,'').slice(0,1).toUpperCase() || 'M';
+    }
 
-      const listen = (target) => {
-        db.ref('messages/' + target).limitToLast(30).on('value', async (s) => {
-          const val = s.val();
-          if(!val) { setM([]); return; }
-          const raw = Object.values(val);
-          if(target === "ARCHIVO") {
-            const resolved = await Promise.all(raw.map(async x => ({...x, content: await _dec(x.content)})));
-            setM(resolved);
-          } else { setM(raw); }
-        });
-      };
+    function escapeHtml(str){
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
 
-      const switchCh = async (target) => {
-        if(target === "ARCHIVO") {
-          const userA = u.addr.toLowerCase();
-          if(userA === ADDR_VIP) { setCh("ARCHIVO"); setIsP(true); listen("ARCHIVO"); return; }
-          
-          try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const contract = new ethers.Contract(ADDR_CONTRACT, ABI_BALANCE, provider);
-            const bal = await contract.balanceOf(u.addr);
-            if(bal >= 1000000000000000000000000n) { // 1M con 18 decimales
-              setCh("ARCHIVO"); setIsP(true); listen("ARCHIVO");
-            } else { alert("Balance insuficiente: 1,000,000 $MUZZLE requerido."); }
-          } catch(e) { alert("Error de Wallet"); }
-        } else { setCh(target); setIsP(false); listen(target); }
-      };
+    function renderMe(){
+      document.getElementById('meName').textContent = meName;
+      document.getElementById('meAvatar').textContent = initials(meName);
+    }
 
-      const send = async (imgData = null) => {
-        const finalContent = imgData || txt;
-        if(!finalContent) return;
-
-        const payload = isP ? await _enc(finalContent) : finalContent;
-        db.ref('messages/' + ch).push({
-          content: payload,
-          type: imgData ? "img" : "txt",
-          user: `Node_${u.id}`,
-          sender: u.addr,
-          ts: Date.now()
-        });
-        setTxt("");
-      };
-
-      const handleImg = (e) => {
-        const f = e.target.files[0];
-        if(!f) return;
-        const r = new FileReader();
-        r.readAsDataURL(f);
-        r.onload = (ev) => {
-          const i = new Image();
-          i.src = ev.target.result;
-          i.onload = () => {
-            const canvas = document.createElement('canvas');
-            const scale = Math.min(1200 / i.width, 1200 / i.height, 1);
-            canvas.width = i.width * scale;
-            canvas.height = i.height * scale;
-            canvas.getContext('2d').drawImage(i, 0, 0, canvas.width, canvas.height);
-            send(canvas.toDataURL('image/jpeg', 0.7));
-          };
+    function renderContacts(){
+      const list = document.getElementById('contactList');
+      list.innerHTML = '';
+      Object.values(store).forEach(chat => {
+        const last = chat.messages[chat.messages.length - 1];
+        const row = document.createElement('button');
+        row.className = 'contact' + (chat.id === activeId ? ' active' : '');
+        row.innerHTML = `
+          <div class="avatar">${chat.avatar || initials(chat.name)}</div>
+          <div style="min-width:0;flex:1;text-align:left">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chat.name)}</div>
+              <div class="small muted">${last ? escapeHtml(last.time) : ''}</div>
+            </div>
+            <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${last ? escapeHtml(last.text) : escapeHtml(chat.subtitle || '')}
+            </div>
+          </div>
+        `;
+        row.onclick = () => {
+          activeId = chat.id;
+          autoResizeInput();
+          render();
         };
-      };
+        list.appendChild(row);
+      });
+    }
 
-      useEffect(() => { scroll.current?.scrollIntoView(); }, [m]);
+    function renderHeader(chat){
+      const el = document.getElementById('chatHeader');
+      el.innerHTML = `
+        <div class="topbar-left">
+          <div class="avatar">${chat.avatar || initials(chat.name)}</div>
+          <div style="min-width:0">
+            <h2>${escapeHtml(chat.name)}</h2>
+            <div class="small muted"><span class="status" style="background:${chat.status === 'online' ? 'var(--green)' : '#5f6b7a'}; box-shadow:${chat.status === 'online' ? '0 0 10px var(--green)' : 'none'}"></span>${chat.status === 'online' ? 'Online' : 'Offline'} · ${escapeHtml(chat.subtitle || 'Private chat')}</div>
+          </div>
+        </div>
+        <div class="pill">E2EE demo</div>
+      `;
+    }
 
-      return (
-        <div className="flex h-screen p-2 md:p-6 gap-4 stealth-mode">
-          {/* Sidebar */}
-          <aside className="w-64 panel-3d p-6 flex flex-col hidden md:flex">
-            <h1 className="font-orbitron font-black text-xl italic mb-8">MUZZ<span className="text-red-600">SNAP</span></h1>
-            <div className="flex-1 space-y-2">
-              {['GENERAL', 'ESPAÑOL', 'DAO'].map(c => (
-                <button key={c} onClick={()=>switchCh(c)} className={`w-full text-left px-4 py-2 rounded-lg text-xs font-bold ${ch===c?'bg-red-600/20 text-red-600':'text-gray-500'}`}># {c}</button>
-              ))}
-              <button onClick={()=>switchCh("ARCHIVO")} className={`w-full text-left px-4 py-3 rounded-lg text-xs font-black border ${ch==='ARCHIVO'?'bg-red-600 border-red-500':'border-red-600/30 text-red-600'}`}>
-                <i className="fas fa-user-secret mr-2"></i> ARCHIVO (P2P)
-              </button>
-            </div>
-          </aside>
+    function renderMessages(chat){
+      const box = document.getElementById('messages');
+      if(!chat){
+        box.innerHTML = '<div class="empty">No conversation selected.</div>';
+        return;
+      }
 
-          {/* Main Chat */}
-          <main className={`flex-1 panel-3d flex flex-col overflow-hidden ${isP ? 'border-red-600/50 shadow-[0_0_15px_rgba(255,0,0,0.1)]' : ''}`}>
-            <header className="h-14 flex items-center px-6 border-b border-white/5 bg-white/5 uppercase text-[10px] font-black tracking-widest text-red-500">
-              {isP && <i className="fas fa-lock mr-2"></i>} Canal: {ch}
-            </header>
-
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scroll">
-              {m.map((x, i) => (
-                <div key={i} className={`flex flex-col ${x.sender === u.addr ? 'items-end' : 'items-start'}`}>
-                  <div className={`bubble-3d ${x.sender === u.addr ? 'me' : 'other'}`}>
-                    {x.type === 'img' ? <img src={x.content} className="rounded-lg max-h-60" /> : x.content}
-                  </div>
-                </div>
-              ))}
-              <div ref={scroll}></div>
-            </div>
-
-            <div className="p-4 bg-black/40 border-t border-white/5">
-              <div className="flex items-center bg-black/50 rounded-2xl p-2 px-4 border border-white/10 focus-within:border-red-600/50">
-                {isP && (
-                  <label className="mr-3 text-gray-500 hover:text-red-500 cursor-pointer">
-                    <i className="fas fa-camera text-lg"></i>
-                    <input type="file" accept="image/*" onChange={handleImg} className="hidden" />
-                  </label>
-                )}
-                <input value={txt} onChange={e=>setTxt(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Escribir..." className="flex-1 hacker-input text-sm" />
-                <button onClick={()=>send()} className="w-10 h-10 bg-red-600 rounded-xl ml-2"><i className="fas fa-paper-plane text-xs"></i></button>
+      let html = '<div class="day">TODAY</div>';
+      chat.messages.forEach(msg => {
+        const me = msg.from === 'me';
+        html += `
+          <div class="msg-wrap ${me ? 'me' : ''}">
+            <div class="avatar ${me ? 'red' : ''}" style="width:36px;height:36px;border-radius:12px;font-size:14px">${me ? initials(meName) : (chat.avatar || initials(chat.name))}</div>
+            <div>
+              <div class="meta">${me ? escapeHtml(meName) : escapeHtml(chat.name)} · ${escapeHtml(msg.time)}</div>
+              <div class="bubble">
+                ${!me ? `<div class="msg-user">${escapeHtml(chat.name)}</div>` : ''}
+                ${escapeHtml(msg.text)}
               </div>
             </div>
-          </main>
-        </div>
-      );
+          </div>
+        `;
+      });
+      box.innerHTML = html;
+      box.scrollTop = box.scrollHeight;
     }
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+    function sendMessage(){
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if(!text) return;
+      const chat = store[activeId];
+      if(!chat) return;
+
+      const now = new Date();
+      const time = now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      chat.messages.push({ from:'me', text, time });
+      saveStore();
+      input.value = '';
+      autoResizeInput();
+      render();
+    }
+
+    function render(){
+      const chat = store[activeId];
+      renderMe();
+      renderContacts();
+      renderHeader(chat);
+      renderMessages(chat);
+    }
+
+    function clearPrivateDemo(){
+      if(confirm('Clear all private demo conversations?')){
+        localStorage.removeItem(DEMO_KEY);
+        store = loadStore();
+        activeId = Object.keys(store)[0];
+        autoResizeInput();
+        render();
+      }
+    }
+
+    const privateInput = document.getElementById('messageInput');
+
+    function autoResizeInput(){
+      privateInput.style.height = '26px';
+      privateInput.style.height = Math.min(privateInput.scrollHeight, 140) + 'px';
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    privateInput.addEventListener('input', autoResizeInput);
+    privateInput.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      autoResizeInput();
+      const box = document.getElementById('messages');
+      box.scrollTop = box.scrollHeight;
+    });
+
+    autoResizeInput();
+    render();
   </script>
 </body>
 </html>
