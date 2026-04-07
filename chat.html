@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MuzzSnap - Terminal Edition</title>
+  <title> Terminal Edition </title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -254,7 +254,27 @@
       };
 
       const _0xf9={
-        clearChat:()=>{if(confirm('¿Borrar todo el historial del chat?')){_0xdb.ref('messages/'+_0xc9.id).remove();}},
+        clearChat:async()=>{
+          if(!_0xf8)return;
+          if(!confirm(`Delete all the history of  # ${_0xc9.name}?`))return;
+          const _0xga=_0xdb.ref('messages/'+_0xc9.id);
+          try{
+            const _0xgb=await _0xga.once('value');
+            if(!_0xgb.exists()){
+              _0xb4([]);
+              alert(`The Channel  # ${_0xc9.name}It is already empty. .`);
+              return;
+            }
+            await _0xga.set(null);
+            _0xb4([]);
+            alert(`Canal # ${_0xc9.name} cleaned correctly. .`);
+          }catch(_0xgc){
+            console.error('CLEAR CHAT ERROR:',_0xgc);
+            alert(`It could not be cleaned.  # ${_0xc9.name}. Check the Firebase rules or write permissions. 
+
+${_0xgc&&_0xgc.message?_0xgc.message:'Unknown error'}`);
+          }
+        },
         enablePinMode:()=>{_0xd6(true);_0xc2('');},
         removePin:()=>_0xdb.ref('settings/pinned').remove(),
         openBanPanel:()=>_0xd8(true),
@@ -278,14 +298,14 @@
                 <div>
                   <p className="text-[9px] text-red-600 font-bold tracking-[0.3em] mb-4 uppercase">Admin Console</p>
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <button onClick={_0xf9.enablePinMode} className="admin-btn"><i className="fas fa-thumbtack mr-1"></i>FIJAR</button>
-                    <button onClick={_0xf9.clearChat} className="admin-btn"><i className="fas fa-trash mr-1"></i>LIMPIAR</button>
+                    <button onClick={_0xf9.enablePinMode} className="admin-btn"><i className="fas fa-thumbtack mr-1"></i>PIN 💬</button>
+                    <button onClick={_0xf9.clearChat} className="admin-btn"><i className="fas fa-trash mr-1"></i>Delete 💬</button>
                   </div>
                   <details className="bg-red-600/5 border border-red-600/20 rounded-lg">
-                    <summary className="cursor-pointer px-3 py-2 text-[9px] font-bold text-red-500 uppercase tracking-wider">Moderación ▼</summary>
+                    <summary className="cursor-pointer px-3 py-2 text-[9px] font-bold text-red-500 uppercase tracking-wider">Moderation ▼</summary>
                     <div className="p-3 space-y-2 border-t border-red-600/20">
-                      <button onClick={()=>_0xf9.openBanPanel()} className="w-full admin-btn text-left"><i className="fas fa-user-slash mr-2"></i>Banear Usuario</button>
-                      <button onClick={()=>_0xf9.openMutePanel()} className="w-full admin-btn text-left"><i className="fas fa-volume-mute mr-2"></i>Mutear 1min</button>
+                      <button onClick={()=>_0xf9.openBanPanel()} className="w-full admin-btn text-left"><i className="fas fa-user-slash mr-2"></i>Ban User</button>
+                      <button onClick={()=>_0xf9.openMutePanel()} className="w-full admin-btn text-left"><i className="fas fa-volume-mute mr-2"></i>Mute 1 min</button>
                     </div>
                   </details>
                 </div>
