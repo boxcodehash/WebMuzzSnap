@@ -354,6 +354,10 @@
         }
       };
 
+      const goToGame = () => {
+        window.location.href = 'game.html';
+      };
+
       const sendMessage = async () => {
         if (!messageText.trim() || !me) return;
         if (iAmMuted) {
@@ -519,6 +523,10 @@
                 <button onClick={goToPrivate} className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold mb-1 transition-all text-gray-500 hover:text-white hover:bg-red-600/5 border border-white/5">
                   <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'} mr-2`}></i>
                   PRIVATE
+                </button>
+                <button onClick={goToGame} className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold mb-1 transition-all text-gray-500 hover:text-white hover:bg-red-600/5 border border-white/5">
+                  <i className="fas fa-gamepad mr-2"></i>
+                  GAME
                 </button>
                 <p className="text-[9px] text-gray-600 px-1 uppercase tracking-wider">Wallet + 2M MUZZLE · Admin bypass</p>
               </div>
