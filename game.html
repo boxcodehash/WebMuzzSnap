@@ -180,20 +180,53 @@
 
     /* MOTOR THE BLOCK */
     window.launchGameEngine = function() {
-        const TILE_DATA = [ {v:'🔥', b:'#ff2255'}, {v:'❄️', b:'#00ccff'}, {v:'⚡', b:'#ffcc00'}, {v:'💎', b:'#00ff77'}, {v:'💀', b:'#cc33ff'} ];
+        const TILE_DATA = [
+            { v:'🔥', b:'#ff2255' },
+            { v:'❄️', b:'#00ccff' },
+            { v:'⚡', b:'#ffcc00' },
+            { v:'💎', b:'#00ff77' },
+            { v:'💀', b:'#cc33ff' }
+        ];
         const COLS = 9, ROWS = 10;
+        const MATCH_MIN = 3;
         let grids = { b1: [], b2: [] };
-        let score = 0, gameActive = false, timerInterval, selected = null;
+        let score = 0, gameActive = false, timerInterval, selected = null, resolving = false;
+
+        function randomTile() {
+            return { type: Math.floor(Math.random() * TILE_DATA.length), isBomb: false };
+        }
+
+        function cloneTile(tile) {
+            if (!tile) return null;
+            return { type: tile.type, isBomb: !!tile.isBomb };
+        }
+
+        function updateScore(points) {
+            score += points;
+            document.getElementById('score-val').innerText = score.toString().padStart(3,'0');
+        }
 
         function initGrid(containerId, gk) {
             const container = document.getElementById(containerId);
-            container.innerHTML = ''; grids[gk] = [];
+            container.innerHTML = '';
+            grids[gk] = [];
+
             for (let r = 0; r < ROWS; r++) {
                 grids[gk][r] = [];
                 for (let c = 0; c < COLS; c++) {
-                    grids[gk][r][c] = { type: Math.floor(Math.random() * 5), isBomb: false };
+                    let newTile = randomTile();
+
+                    while (
+                        (c >= 2 && grids[gk][r][c - 1]?.type === newTile.type && grids[gk][r][c - 2]?.type === newTile.type) ||
+                        (r >= 2 && grids[gk][r - 1][c]?.type === newTile.type && grids[gk][r - 2][c]?.type === newTile.type)
+                    ) {
+                        newTile = randomTile();
+                    }
+
+                    grids[gk][r][c] = newTile;
                     const t = document.createElement('div');
-                    t.className = 'tile'; t.id = `${gk}-${r}-${c}`;
+                    t.className = 'tile';
+                    t.id = `${gk}-${r}-${c}`;
                     t.onclick = () => handleTileClick(gk, r, c);
                     container.appendChild(t);
                 }
@@ -206,41 +239,198 @@
                 for (let c = 0; c < COLS; c++) {
                     const el = document.getElementById(`${gk}-${r}-${c}`);
                     const data = grids[gk][r][c];
-                    if (data === -1) { el.classList.add('matched'); continue; }
-                    el.classList.remove('matched', 'bomb');
-                    if (data.isBomb) el.classList.add('bomb');
-                    else {
+
+                    el.classList.remove('matched', 'bomb', 'selected');
+                    el.innerHTML = '';
+                    el.style.background = 'rgba(0,229,255, 0.05)';
+
+                    if (!data) {
+                        el.style.opacity = '0';
+                        continue;
+                    }
+
+                    el.style.opacity = '1';
+
+                    if (data.isBomb) {
+                        el.classList.add('bomb');
+                    } else {
                         const conf = TILE_DATA[data.type];
-                        el.innerHTML = conf.v; el.style.background = `rgba(0,229,255, 0.05)`;
+                        el.innerHTML = conf.v;
                     }
                 }
             }
         }
 
-        async function handleTileClick(gk, r, c) {
-            if (!gameActive) return;
-            const el = document.getElementById(`${gk}-${r}-${c}`);
-            if (!selected) {
-                selected = { gk, r, c, el }; el.classList.add('selected');
-            } else {
-                if (selected.gk === gk && Math.abs(r - selected.r) + Math.abs(c - selected.c) === 1) {
-                    let t1 = grids[gk][selected.r][selected.c], t2 = grids[gk][r][c];
-                    grids[gk][selected.r][selected.c] = t2; grids[gk][r][c] = t1;
-                    render(gk);
-                    // Lógica simplificada de match
-                    score += 10; document.getElementById('score-val').innerText = score.toString().padStart(3,'0');
+        function isAdjacent(a, b) {
+            return a.gk === b.gk && (Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1);
+        }
+
+        function swapTiles(gk, a, b) {
+            const temp = grids[gk][a.r][a.c];
+            grids[gk][a.r][a.c] = grids[gk][b.r][b.c];
+            grids[gk][b.r][b.c] = temp;
+        }
+
+        function getMatches(gk) {
+            const grid = grids[gk];
+            const matched = new Set();
+
+            for (let r = 0; r < ROWS; r++) {
+                let runStart = 0;
+                for (let c = 1; c <= COLS; c++) {
+                    const current = c < COLS ? grid[r][c] : null;
+                    const startTile = grid[r][runStart];
+                    const sameType = current && startTile && current.type === startTile.type;
+
+                    if (!sameType) {
+                        const runLength = c - runStart;
+                        if (startTile && runLength >= MATCH_MIN) {
+                            for (let k = runStart; k < c; k++) matched.add(`${r}-${k}`);
+                        }
+                        runStart = c;
+                    }
                 }
-                selected.el.classList.remove('selected'); selected = null;
+            }
+
+            for (let c = 0; c < COLS; c++) {
+                let runStart = 0;
+                for (let r = 1; r <= ROWS; r++) {
+                    const current = r < ROWS ? grid[r][c] : null;
+                    const startTile = grid[runStart]?.[c];
+                    const sameType = current && startTile && current.type === startTile.type;
+
+                    if (!sameType) {
+                        const runLength = r - runStart;
+                        if (startTile && runLength >= MATCH_MIN) {
+                            for (let k = runStart; k < r; k++) matched.add(`${k}-${c}`);
+                        }
+                        runStart = r;
+                    }
+                }
+            }
+
+            return [...matched].map(key => {
+                const [r, c] = key.split('-').map(Number);
+                return { r, c };
+            });
+        }
+
+        function markMatches(gk, matches) {
+            matches.forEach(({ r, c }) => {
+                const el = document.getElementById(`${gk}-${r}-${c}`);
+                if (el) el.classList.add('matched');
+            });
+        }
+
+        function clearMatches(gk, matches) {
+            matches.forEach(({ r, c }) => {
+                grids[gk][r][c] = null;
+            });
+        }
+
+        function collapseColumns(gk) {
+            const grid = grids[gk];
+
+            for (let c = 0; c < COLS; c++) {
+                const remaining = [];
+                for (let r = ROWS - 1; r >= 0; r--) {
+                    if (grid[r][c]) remaining.push(cloneTile(grid[r][c]));
+                }
+
+                for (let r = ROWS - 1, i = 0; r >= 0; r--, i++) {
+                    grid[r][c] = i < remaining.length ? remaining[i] : null;
+                }
+
+                for (let r = ROWS - 1 - remaining.length; r >= 0; r--) {
+                    grid[r][c] = randomTile();
+                }
             }
         }
 
-        initGrid('board-1-container', 'b1'); initGrid('board-2-container', 'b2');
+        async function resolveBoard(gk, fromSwap = false) {
+            let totalCleared = 0;
+
+            while (true) {
+                const matches = getMatches(gk);
+                if (!matches.length) break;
+
+                totalCleared += matches.length;
+                markMatches(gk, matches);
+                updateScore(matches.length * 10);
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+                clearMatches(gk, matches);
+                render(gk);
+
+                await new Promise(resolve => setTimeout(resolve, 120));
+                collapseColumns(gk);
+                render(gk);
+
+                await new Promise(resolve => setTimeout(resolve, 180));
+            }
+
+            return totalCleared > 0;
+        }
+
+        async function handleTileClick(gk, r, c) {
+            if (!gameActive || resolving) return;
+
+            const el = document.getElementById(`${gk}-${r}-${c}`);
+
+            if (!selected) {
+                selected = { gk, r, c, el };
+                el.classList.add('selected');
+                return;
+            }
+
+            if (selected.r === r && selected.c === c && selected.gk === gk) {
+                selected.el.classList.remove('selected');
+                selected = null;
+                return;
+            }
+
+            if (!isAdjacent(selected, { gk, r, c })) {
+                selected.el.classList.remove('selected');
+                selected = { gk, r, c, el };
+                el.classList.add('selected');
+                return;
+            }
+
+            resolving = true;
+            selected.el.classList.remove('selected');
+
+            const first = { r: selected.r, c: selected.c };
+            const second = { r, c };
+
+            swapTiles(gk, first, second);
+            render(gk);
+
+            await new Promise(resolve => setTimeout(resolve, 120));
+
+            const hasMatch = getMatches(gk).length > 0;
+
+            if (!hasMatch) {
+                swapTiles(gk, first, second);
+                render(gk);
+            } else {
+                await resolveBoard(gk, true);
+            }
+
+            selected = null;
+            resolving = false;
+        }
+
+        initGrid('board-1-container', 'b1');
+        initGrid('board-2-container', 'b2');
+
         gameActive = true;
         let time = 60;
         timerInterval = setInterval(() => {
-            time--; document.getElementById('time-val').innerText = time;
-            if(time <= 0) {
-                clearInterval(timerInterval); gameActive = false;
+            time--;
+            document.getElementById('time-val').innerText = time;
+            if (time <= 0) {
+                clearInterval(timerInterval);
+                gameActive = false;
                 document.getElementById('final-score').innerText = score;
                 document.getElementById('end-screen').classList.remove('hidden');
             }
