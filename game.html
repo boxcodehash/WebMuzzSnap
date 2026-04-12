@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>The Block</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Orbitron:wght@400;900&family=Rajdhani:wght@600;700&display=swap');
+    :root { --muzz-red: #ff0000; --cyan: #00e5ff; }
+    html, body { height: 100%; overflow: hidden; margin: 0; background: #000; font-family: 'Rajdhani', sans-serif; color: white; }
+    .panel-3d { border-radius: 24px; background: #0c0c0c; border: 1px solid rgba(255,0,0,0.15); display: flex; flex-direction: column; height: 100%; position: relative; z-index: 10; }
+    
+    #particle-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+    .boards-layout { display: flex; flex-direction: row; gap: 15px; justify-content: center; align-items: center; flex: 1; padding: 10px; z-index: 20; position: relative; }
+    @media (max-width: 600px) { .boards-layout { flex-direction: column; } .board { max-width: 280px !important; } }
+    
+    .board { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; width: 100%; max-width: 380px; padding: 8px; background: rgba(16, 11, 32, 0.6); backdrop-filter: blur(8px); border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.2); }
+    .tile { aspect-ratio: 1/1; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 1.2rem; position: relative; }
+    .tile.selected { transform: translateY(-4px) scale(1.15); box-shadow: 0 0 20px var(--cyan); z-index: 50; border: 1px solid var(--cyan); outline: 2px solid white; }
+    .tile.matched { transform: scale(1.8) rotate(15deg); opacity: 0; filter: blur(5px) brightness(3); transition: all 0.4s; }
+    .tile.bomb { 
+      background-image: url('https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:1440,h:1440') !important; 
+      background-size: 90%; background-position: center; background-repeat: no-repeat; 
+      background-color: #fff !important; animation: pulse 0.6s infinite alternate; 
+    }
+    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+  </style>
+</head>
+<body>
+  <div id="root" class="h-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const [mobileMenu, setMobileMenu] = useState(false);
+      const [isAuthorized, setIsAuthorized] = useState(false);
+      const [gameStarted, setGameStarted] = useState(false);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+
+      const ADMIN_WALLETS = [
+        '0x208157b5ec396759e8754058108ecf53e32392ff', // Itsuki
+        '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f', // Esteban
+        '0x875c5a7794b601f273da58e3c1d10671d16130ec'  // Ryachu
+      ];
+
+      useEffect(() => {
+        const checkSession = async () => {
+          const wallet = sessionStorage.getItem('muzz_wallet_address');
+          const isAdmin = sessionStorage.getItem('muzz_is_admin') === 'true';
+
+          if (!wallet) {
+            window.location.href = 'login.html';
+            return;
+          }
+
+          if (isAdmin || ADMIN_WALLETS.includes(wallet.toLowerCase())) {
+            setIsAuthorized(true);
+            setLoading(false);
+            return;
+          }
+
+          // Verificación de balance de Muzzle (Ejemplo de lógica)
+          try {
+            if (window.ethereum) {
+              const provider = new ethers.providers.Web3Provider(window.ethereum);
+              // Dirección del contrato de MuzzleToken y ABI mínimo
+              const contractAddr = "0x822f7B8869B26D1E2d4f58357732d847F467822D"; 
+              const abi = ["function balanceOf(address) view returns (uint256)"];
+              const contract = new ethers.Contract(contractAddr, abi, provider);
+              const balance = await contract.balanceOf(wallet);
+              const formatted = parseFloat(ethers.utils.formatUnits(balance, 18));
+
+              if (formatted >= 2000000) {
+                setIsAuthorized(true);
+              } else {
+                setError(`Se requiere 2M de $MUZZLE. Balance actual: ${formatted.toLocaleString()}`);
+              }
+            } else {
+              setError("Web3 no detectado.");
+            }
+          } catch (e) {
+            setError("Error al validar balance.");
+          }
+          setLoading(false);
+        };
+        checkSession();
+      }, []);
+
+      const initGame = () => {
+        setGameStarted(true);
+        setTimeout(() => window.launchGameEngine(), 100);
+      };
+
+      if (loading) return <div className="h-screen flex items-center justify-center bg-black font-orbitron text-red-600 animate-pulse">VALIDATING_SESSION...</div>;
+
+      return (
+        <div className="flex h-screen p-2 md:p-4 lg:p-6 gap-4 md:gap-6 max-w-[1600px] mx-auto overflow-hidden">
+          
+          {/* MENU LATERAL */}
+          <aside className={`fixed lg:relative z-[100] inset-y-0 left-0 w-72 lg:w-64 transition-all duration-300 transform panel-3d p-6 flex flex-col ${mobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+            <div className="mb-8 flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg"><i className="fas fa-ghost text-white text-xl"></i></div>
+              <h1 className="font-orbitron font-black text-xl italic tracking-tighter text-white">MUZZ<span className="text-red-600">SNAP</span></h1>
+            </div>
+
+            <nav className="flex-1 space-y-2">
+              <button onClick={() => window.location.href='chat.html'} className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold text-gray-500 hover:text-white transition-all"><i className="fas fa-comments mr-2 w-5"></i> CHAT</button>
+              <button onClick={() => window.location.href='private.html'} className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold text-gray-500 hover:text-white transition-all"><i className="fas fa-user-shield mr-2 w-5"></i> PRIVATE</button>
+              <button className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold bg-red-600/10 text-red-600 border-l-2 border-red-600"><i className="fas fa-gamepad mr-2 w-5"></i> GAME</button>
+              <button onClick={() => window.location.href='social.html'} className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold text-gray-500 hover:text-white transition-all"><i className="fas fa-share-alt mr-2 w-5"></i> SOCIAL</button>
+            </nav>
+            <div className="mt-auto pt-4 border-t border-white/5 text-[9px] text-gray-600 font-bold uppercase tracking-[0.2em]">Security: MuzzleGate Active</div>
+          </aside>
+
+          {/* AREA PRINCIPAL */}
+          <main className="flex-1 panel-3d flex flex-col overflow-hidden">
+            <header className="h-16 flex items-center justify-between px-8 bg-white/5 border-b border-white/10 z-[60]">
+                <button onClick={() => setMobileMenu(true)} className="lg:hidden text-red-600"><i className="fas fa-bars"></i></button>
+                <h2 className="text-sm font-black tracking-[0.2em] text-red-600 uppercase italic">/ THE BLOCK</h2>
+            </header>
+
+            <div className="flex-1 relative bg-[#030008]">
+              <canvas id="particle-canvas"></canvas>
+
+              {!isAuthorized ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-[100] bg-black/90 p-6 text-center">
+                  <div className="w-20 h-20 bg-red-600/20 rounded-full flex items-center justify-center mb-6 border border-red-600/50"><i className="fas fa-lock text-red-600 text-3xl"></i></div>
+                  <h3 className="font-orbitron text-2xl font-black mb-2">ACCESS RESTRICTED</h3>
+                  <p className="text-gray-500 text-xs mb-8">{error || "Requiere Wallet con Muzzle Token."}</p>
+                  <button onClick={() => window.location.href='login.html'} className="px-10 py-3 bg-red-600 text-white font-bold rounded-xl">BACK TO LOGING</button>
+                </div>
+              ) : !gameStarted ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-50 text-center">
+                  <h1 className="text-6xl font-black mb-10 font-orbitron tracking-tighter">THE <span className="text-cyan-400">BLOCK</span></h1>
+                  <button onClick={initGame} className="px-16 py-4 bg-cyan-500 text-black font-black font-orbitron text-xl rounded-full hover:scale-110 transition-transform shadow-[0_0_40px_rgba(0,229,255,0.4)]">PLAY MISSION</button>
+                </div>
+              ) : (
+                <div id="game-ui" className="flex flex-col h-full relative z-10">
+                  <div className="h-20 flex items-center justify-around bg-black/60 border-b border-cyan-500/20 backdrop-blur-lg">
+                    <div className="text-center">
+                      <p className="text-[10px] text-cyan-300 font-bold uppercase">Timer</p>
+                      <p id="time-val" className="text-3xl font-bold text-white font-orbitron">60</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-cyan-300 font-bold uppercase">Score</p>
+                      <p id="score-val" className="text-3xl font-bold text-white font-orbitron">000</p>
+                    </div>
+                  </div>
+                  <div className="boards-layout">
+                    <div id="board-1-container" className="board"></div>
+                    <div id="board-2-container" className="board"></div>
+                  </div>
+                </div>
+              )}
+
+              <div id="end-screen" className="hidden absolute inset-0 z-[200] bg-black/95 flex items-center justify-center backdrop-blur-xl">
+                  <div className="bg-[#0a0b1e] p-10 rounded-[2rem] text-center border border-cyan-500/30">
+                      <h2 className="font-orbitron text-cyan-300 text-xl mb-4">MISSION COMPLETE</h2>
+                      <p className="text-5xl text-white font-orbitron mb-8" id="final-score">0</p>
+                      <button onClick={() => location.reload()} className="px-12 py-4 bg-cyan-500 text-black font-black font-orbitron rounded-xl uppercase">Restart</button>
+                  </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+    /* MOTOR THE BLOCK */
+    window.launchGameEngine = function() {
+        const TILE_DATA = [ {v:'🔥', b:'#ff2255'}, {v:'❄️', b:'#00ccff'}, {v:'⚡', b:'#ffcc00'}, {v:'💎', b:'#00ff77'}, {v:'💀', b:'#cc33ff'} ];
+        const COLS = 9, ROWS = 10;
+        let grids = { b1: [], b2: [] };
+        let score = 0, gameActive = false, timerInterval, selected = null;
+
+        function initGrid(containerId, gk) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; grids[gk] = [];
+            for (let r = 0; r < ROWS; r++) {
+                grids[gk][r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    grids[gk][r][c] = { type: Math.floor(Math.random() * 5), isBomb: false };
+                    const t = document.createElement('div');
+                    t.className = 'tile'; t.id = `${gk}-${r}-${c}`;
+                    t.onclick = () => handleTileClick(gk, r, c);
+                    container.appendChild(t);
+                }
+            }
+            render(gk);
+        }
+
+        function render(gk) {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const el = document.getElementById(`${gk}-${r}-${c}`);
+                    const data = grids[gk][r][c];
+                    if (data === -1) { el.classList.add('matched'); continue; }
+                    el.classList.remove('matched', 'bomb');
+                    if (data.isBomb) el.classList.add('bomb');
+                    else {
+                        const conf = TILE_DATA[data.type];
+                        el.innerHTML = conf.v; el.style.background = `rgba(0,229,255, 0.05)`;
+                    }
+                }
+            }
+        }
+
+        async function handleTileClick(gk, r, c) {
+            if (!gameActive) return;
+            const el = document.getElementById(`${gk}-${r}-${c}`);
+            if (!selected) {
+                selected = { gk, r, c, el }; el.classList.add('selected');
+            } else {
+                if (selected.gk === gk && Math.abs(r - selected.r) + Math.abs(c - selected.c) === 1) {
+                    let t1 = grids[gk][selected.r][selected.c], t2 = grids[gk][r][c];
+                    grids[gk][selected.r][selected.c] = t2; grids[gk][r][c] = t1;
+                    render(gk);
+                    // Lógica simplificada de match
+                    score += 10; document.getElementById('score-val').innerText = score.toString().padStart(3,'0');
+                }
+                selected.el.classList.remove('selected'); selected = null;
+            }
+        }
+
+        initGrid('board-1-container', 'b1'); initGrid('board-2-container', 'b2');
+        gameActive = true;
+        let time = 60;
+        timerInterval = setInterval(() => {
+            time--; document.getElementById('time-val').innerText = time;
+            if(time <= 0) {
+                clearInterval(timerInterval); gameActive = false;
+                document.getElementById('final-score').innerText = score;
+                document.getElementById('end-screen').classList.remove('hidden');
+            }
+        }, 1000);
+    };
+
+    /* PARTICULAS */
+    window.onload = function() {
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+        window.onresize = resize; resize();
+        class P {
+            constructor() { this.init(); }
+            init() {
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2; this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5; this.opacity = Math.random();
+            }
+            update() { this.x += this.speedX; this.y += this.speedY; }
+            draw() { ctx.globalAlpha = this.opacity; ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+        }
+        for(let i=0; i<50; i++) particles.push(new P());
+        const anim = () => { ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(anim); };
+        anim();
+    };
+  </script>
+</body>
+</html>
