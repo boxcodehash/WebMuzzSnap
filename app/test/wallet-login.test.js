@@ -98,21 +98,21 @@ test('la wallet simulada firma, cambia a mainnet y la firma se verifica', async 
   assert.equal(ethers.verifyMessage(message, signature).toLowerCase(), session.address);
 });
 
-test('rechazar el cambio de red o la firma se explica en español', async () => {
+test('rechazar el cambio de red o la firma se explica en inglés', async () => {
   const wallet = ethers.Wallet.createRandom();
   await assert.rejects(
     openSession(mockProvider(wallet, { chainId: '0x89', rejectSwitch: true })),
     (err) => err.code === 'chain'
   );
-  assert.match(walletMessage('chain'), /Ethereum mainnet/);
+  assert.match(walletMessage('chain'), /Wrong network/);
   const onMainnet = mockProvider(wallet, { rejectSign: true });
   await assert.rejects(
-    signLogin(onMainnet, wallet.address, 'hola'),
+    signLogin(onMainnet, wallet.address, 'hello'),
     (err) => err.code === 'rejected'
   );
-  assert.match(walletMessage('rejected'), /firma/);
-  assert.match(walletMessage('NO_WALLET'), /No hay una wallet/);
-  assert.match(walletMessage('disconnected'), /desconectó/);
+  assert.match(walletMessage('rejected'), /Signature rejected/);
+  assert.match(walletMessage('NO_WALLET'), /Wallet not installed/);
+  assert.match(walletMessage('disconnected'), /disconnected/);
   assert.match(walletMessage('NO_PROJECT_ID'), /cloud\.reown\.com/);
   const pending = mapWalletError(Object.assign(new Error('request already pending'), { code: -32002 }));
   assert.equal(pending.code, 'pending');

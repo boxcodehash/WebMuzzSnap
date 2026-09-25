@@ -2,7 +2,7 @@
 
 Chat grupal y mensajes privados para holders de MUZZ. Vive solo en esta carpeta. No modifica `login.html`, `chat.html`, `private.html` ni la config del sitio.
 
-- Entras con MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom (en Ethereum) o cualquier wallet de WalletConnect v2. Firmas un nonce y el servidor comprueba que tengas al menos 10.000.000 MUZZ (`0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` en Ethereum). El mínimo se cambia con `MIN_MUZZ`. El project id de WalletConnect va en `WALLETCONNECT_PROJECT_ID`, no en el repo.
+- La interfaz está en inglés. Entras con MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom (en Ethereum) o cualquier wallet de WalletConnect v2. Firmas un nonce y el servidor comprueba que tengas al menos 10.000.000 MUZZ (`0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` en Ethereum). El mínimo se cambia con `MIN_MUZZ`. El project id de WalletConnect va en `WALLETCONNECT_PROJECT_ID`, no en el repo.
 - Cada mensaje va cifrado con una llave efímera, una prekey de un solo uso y un factor del servidor. Firebase no puede abrirlo solo.
 - Al leerse, se borra 24 h después. Detalle y límites en [SECURITY.md](SECURITY.md).
 - PWA (`www/`) y proyecto Android con Capacitor.

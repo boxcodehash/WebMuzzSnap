@@ -5,14 +5,14 @@ export function walletError(code) {
 }
 
 const MESSAGES = {
-  NO_WALLET: 'No hay una wallet instalada en este navegador. Instala MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX o Phantom, o conecta otra con WalletConnect.',
-  NO_PROJECT_ID: 'Falta el project id de WalletConnect. Créalo gratis en cloud.reown.com y ponlo en WALLETCONNECT_PROJECT_ID. No lo subas al repo.',
-  rejected: 'Rechazaste la conexión o la firma en la wallet.',
-  chain: 'La wallet está en otra red. Acepta el cambio a Ethereum mainnet e inténtalo otra vez.',
-  disconnected: 'La wallet se desconectó. Vuelve a conectarla para continuar.',
-  account_changed: 'Cambiaste de cuenta en la wallet. Entra otra vez y firma con la cuenta nueva.',
-  pending: 'Ya hay una solicitud abierta en la wallet. Ábrela y termínala.',
-  wc_load: 'No se pudo abrir el selector de wallets. Revisa la conexión e inténtalo otra vez.'
+  NO_WALLET: 'Wallet not installed. Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, or Phantom, or connect another wallet with WalletConnect.',
+  NO_PROJECT_ID: 'WalletConnect project id is missing. Create one for free at cloud.reown.com and set WALLETCONNECT_PROJECT_ID. Do not commit it.',
+  rejected: 'Signature rejected. The wallet cancelled the connection or the signature.',
+  chain: 'Wrong network. Accept the switch to Ethereum mainnet and try again.',
+  disconnected: 'The wallet disconnected. Connect it again to continue.',
+  account_changed: 'You switched accounts in the wallet. Sign in again with the new account.',
+  pending: 'A request is already open in the wallet. Finish it there.',
+  wc_load: 'The wallet picker could not be opened. Check your connection and try again.'
 };
 
 export function walletMessage(code) {

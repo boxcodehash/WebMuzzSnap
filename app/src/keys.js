@@ -37,7 +37,7 @@ export async function ensureLocalKeys() {
 export async function createPrekeys(count) {
   const store = await db();
   const signing = await kvGet(store, 'key:signing');
-  if (!signing) throw new Error('sin_llave');
+  if (!signing) throw new Error('no_signing_key');
   const made = [];
   for (let i = 0; i < count; i++) {
     const pair = await generateEcdhKeyPair();

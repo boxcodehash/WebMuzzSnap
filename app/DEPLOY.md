@@ -176,7 +176,7 @@ Con `npm run build`, `www/` es instalable: `manifest.webmanifest` y `sw.js`. El 
 
 Sirve `www/` por HTTPS. Si el sitio actual se publica entero por GitHub Pages, al **fusionar** este PR la app quedará en una ruta del tipo `/app/www/`. Este trabajo no fusiona ni cambia el workflow de Pages. Si no quieres publicarla todavía, no fusiones.
 
-En el móvil: Safari o Chrome → Añadir a la pantalla de inicio. Si el navegador no tiene extensión, “Abrir dentro de la wallet” carga la página en MetaMask, Trust, Coinbase, Rainbow, OKX o Phantom. Con el project id, “Conectar wallet” abre el modal de Reown AppKit: QR en escritorio y deep link en el móvil, y al aprobar la wallet vuelve a esta página.
+La interfaz de la app está en inglés. En el móvil: Safari o Chrome → Añadir a la pantalla de inicio. Si el navegador no tiene extensión, “Open in wallet” carga la página en MetaMask, Trust, Coinbase, Rainbow, OKX o Phantom. Con el project id, “Connect wallet” abre el modal de Reown AppKit: QR en escritorio y deep link en el móvil, y al aprobar la wallet vuelve a esta página.
 
 ## 6. APK de depuración
 
@@ -198,7 +198,7 @@ Hace falta `ANDROID_HOME` con platform android-35 y build-tools. Si Gradle no en
 
 El id de aplicación es `app.muzzsnap.chat`. El WebView usa `https://localhost`, así que ese origen tiene que estar en `APP_ORIGINS` (ya está en la lista por defecto) y en los dominios permitidos del project id de Reown.
 
-Dentro del APK no hay MetaMask inyectado. “Conectar wallet” usa WalletConnect. Al volver de la wallet, Android abre el esquema `muzzsnap://wc` (está en el manifest, `singleTask`). Hay que haber generado `www/config.local.json` **antes** de `npm run android:debug`, porque el APK copia `www/`. Sin ese json el APK no puede mostrar el QR.
+Dentro del APK no hay MetaMask inyectado. “Connect wallet” usa WalletConnect. Al volver de la wallet, Android abre el esquema `muzzsnap://wc` (está en el manifest, `singleTask`). Hay que haber generado `www/config.local.json` **antes** de `npm run android:debug`, porque el APK copia `www/`. Sin ese json el APK no puede mostrar el QR.
 
 También puedes abrir la PWA dentro del navegador de la propia wallet: ahí la wallet sí está inyectada y no hace falta el project id.
 

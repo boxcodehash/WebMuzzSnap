@@ -12,8 +12,8 @@ export function buildLoginMessage({ address, nonce, issuedAt, uri, chainId, toke
   return [
     'MuzzSnap Login',
     '',
-    `${addr} quiere entrar a MuzzSnap.`,
-    'Firma este mensaje para demostrar que controlas esta wallet. No gasta gas.',
+    `${addr} wants to sign in to MuzzSnap.`,
+    'Sign this message to prove you control this wallet. It does not spend gas.',
     '',
     `URI: ${uri}`,
     'Version: 1',
@@ -30,11 +30,11 @@ export function parseLoginMessage(message, now = Date.now()) {
   if (lines.length !== 12) throw new Error('format');
   if (lines[0] !== 'MuzzSnap Login') throw new Error('format');
   if (lines[1] !== '' || lines[4] !== '') throw new Error('format');
-  if (lines[3] !== 'Firma este mensaje para demostrar que controlas esta wallet. No gasta gas.') {
+  if (lines[3] !== 'Sign this message to prove you control this wallet. It does not spend gas.') {
     throw new Error('format');
   }
 
-  const who = lines[2].match(/^(0x[0-9a-fA-F]{40}) quiere entrar a MuzzSnap\.$/);
+  const who = lines[2].match(/^(0x[0-9a-fA-F]{40}) wants to sign in to MuzzSnap\.$/);
   if (!who) throw new Error('format');
 
   const fields = {};

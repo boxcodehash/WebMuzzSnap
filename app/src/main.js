@@ -99,36 +99,37 @@ function human(err) {
   if (code === 'below_minimum') {
     const payload = err.payload || {};
     if (payload.balance) {
-      return `Saldo insuficiente. Tienes ${formatBalance(payload)} MUZZ y el mínimo es ${formatMuzz(payload.minMuzz)} MUZZ.`;
+      return `Insufficient MUZZ balance. You have ${formatBalance(payload)} MUZZ and the minimum is ${formatMuzz(payload.minMuzz)} MUZZ.`;
     }
-    return `Hacen falta al menos ${formatMuzz(state.minMuzz)} MUZZ.`;
+    return `Insufficient MUZZ balance. You need at least ${formatMuzz(state.minMuzz)} MUZZ.`;
   }
   const fromWallet = walletMessage(code);
   if (fromWallet) return fromWallet;
   const map = {
-    functions_unconfigured: 'Falta functionsBase en config.runtime.js. Sin las Cloud Functions el servidor no puede comprobar el saldo.',
-    network: 'Sin conexión con el servidor de acceso.',
-    format: 'El mensaje de acceso no es válido.',
-    issued_skew: 'La hora del dispositivo está desfasada. Ajústala e inténtalo de nuevo.',
-    nonce: 'Ese intento ya no vale. Vuelve a firmar.',
-    origin: 'Este origen no está autorizado en el servidor.',
-    token: 'El contrato firmado no coincide con el del servidor.',
-    minimum: 'El mínimo firmado no coincide con el del servidor.',
-    address: 'La firma no corresponde a esa wallet.',
-    signature: 'No se pudo verificar la firma.',
-    rpc_failed: 'No se pudo leer el saldo en Ethereum. No se ha cerrado el acceso por eso.',
-    access_expired: 'La sesión caducó. Entra otra vez para comprobar el saldo.',
-    claim: 'La sesión no tiene permiso de holder.',
-    auth: 'La sesión no es válida. Entra otra vez.',
-    NO_PREKEY: 'Esa persona no tiene llaves de un solo uso disponibles.',
-    NO_KEYS: 'Esa wallet todavía no ha publicado sus llaves.',
-    no_members: 'Aún no hay otros holders en el grupo.',
-    too_many: 'Hay demasiados miembros para un solo envío.',
-    too_long: 'El mensaje pasa de 2.000 caracteres.',
-    file_size: 'El adjunto supera 8 MB.',
-    TRUST: 'La llave de identidad cambió.'
+    functions_unconfigured: 'functionsBase is missing in config.runtime.js. Without the Cloud Functions the server cannot check the balance.',
+    network: 'No connection to the access server.',
+    format: 'The sign-in message is not valid.',
+    issued_skew: 'This device clock is off. Set the time and try again.',
+    nonce: 'That attempt is no longer valid. Sign again.',
+    origin: 'This origin is not allowed on the server.',
+    token: 'The signed contract does not match the server.',
+    minimum: 'The signed minimum does not match the server.',
+    address: 'The signature does not match that wallet.',
+    signature: 'The signature could not be verified.',
+    rpc_failed: 'The Ethereum balance could not be read. Access was not closed because of that.',
+    access_expired: 'The session expired. Sign in again so the balance can be checked.',
+    claim: 'This session does not have holder access.',
+    auth: 'This session is not valid. Sign in again.',
+    NO_PREKEY: 'That person has no one-time keys available.',
+    NO_KEYS: 'That wallet has not published keys yet.',
+    no_members: 'There are no other holders in the group yet.',
+    too_many: 'Too many members for a single send.',
+    too_long: 'The message is over 2,000 characters.',
+    file_size: 'The attachment is over 8 MB.',
+    TRUST: 'The identity key changed.',
+    no_signing_key: 'This device has no signing key yet. Sign in again.'
   };
-  return map[code] || 'No se pudo completar la operación.';
+  return map[code] || 'The operation could not be completed.';
 }
 
 function readRoute() {
@@ -172,7 +173,7 @@ function seedDemo() {
       id: 'g1',
       sender: DEMO_A,
       mine: false,
-      text: '¿Dejamos el acceso en diez millones de MUZZ?',
+      text: 'Should we keep the gate at ten million MUZZ?',
       locked: '',
       sentAt: now - 50 * 60 * 1000,
       readAt: now - 48 * 60 * 1000,
@@ -185,7 +186,7 @@ function seedDemo() {
       id: 'g2',
       sender: DEMO_B,
       mine: false,
-      text: 'Sí. Si el saldo baja de ahí, la sesión se cierra sola.',
+      text: 'Yes. If the balance drops below that, the session closes on its own.',
       locked: '',
       sentAt: now - 36 * 60 * 1000,
       readAt: now - 30 * 60 * 1000,
@@ -198,7 +199,7 @@ function seedDemo() {
       id: 'g3',
       sender: DEMO_ME,
       mine: true,
-      text: 'Recibido. Mi copia de este mensaje se borra a las 24 h.',
+      text: 'Got it. My copy of this message deletes in 24 h.',
       locked: '',
       sentAt: now - 12 * 60 * 1000,
       readAt: null,
@@ -214,7 +215,7 @@ function seedDemo() {
         id: 'p1',
         sender: DEMO_A,
         mine: false,
-        text: 'Te escribo por el canal privado. Esto no lo ve el grupo.',
+        text: 'Writing on the private channel. The group cannot see this.',
         locked: '',
         sentAt: now - 20 * 60 * 1000,
         readAt: now - 18 * 60 * 1000,
@@ -227,7 +228,7 @@ function seedDemo() {
         id: 'p2',
         sender: DEMO_ME,
         mine: true,
-        text: 'Enterado. Se borra 24 horas después de que lo leas.',
+        text: 'Noted. It deletes 24 hours after you read it.',
         locked: '',
         sentAt: now - 8 * 60 * 1000,
         readAt: null,
@@ -240,8 +241,8 @@ function seedDemo() {
     [DEMO_B]: []
   };
   state.threads = [
-    { wallet: DEMO_A, preview: 'Enterado. Se borra 24 horas después de que lo leas.', updatedAt: now - 8 * 60 * 1000 },
-    { wallet: DEMO_B, preview: 'Mensaje cifrado', updatedAt: now - 2 * 60 * 60 * 1000 }
+    { wallet: DEMO_A, preview: 'Noted. It deletes 24 hours after you read it.', updatedAt: now - 8 * 60 * 1000 },
+    { wallet: DEMO_B, preview: 'Encrypted message', updatedAt: now - 2 * 60 * 60 * 1000 }
   ];
 }
 
@@ -339,7 +340,7 @@ async function enterSession(user) {
     api.startPresence();
     api.watchAccess((data) => {
       if (!data || data.active !== true) {
-        dropSession('El acceso se cerró: el saldo ya no llega al mínimo o la sesión fue revocada.');
+        dropSession('Access closed: the balance is below the minimum, or the session was revoked.');
       }
     });
     api.watchPresence((online) => {
@@ -485,7 +486,7 @@ async function send() {
     if (state.route === 'chat') {
       const result = await api.sendGroup(text, file);
       if (result?.skipped?.length) {
-        state.notice = `Enviado. ${result.skipped.length} ${result.skipped.length === 1 ? 'persona no tenía' : 'personas no tenían'} llave de un solo uso.`;
+        state.notice = `Sent. ${result.skipped.length} ${result.skipped.length === 1 ? 'person had' : 'people had'} no one-time key.`;
       }
     } else if (state.route === 'hilo') {
       await api.sendPrivate(state.peer, text, file);
@@ -547,14 +548,14 @@ async function onClick(event) {
     state.panel = '';
     await dropSession('');
     state.error = '';
-    state.notice = 'Sesión cerrada en este dispositivo.';
+    state.notice = 'Logged out on this device.';
     paint();
     return;
   }
   if (action === 'wipe') {
-    if (!window.confirm('Se borrarán las llaves y los mensajes guardados en este dispositivo. No se pueden recuperar.')) return;
+    if (!window.confirm('Keys and messages stored on this device will be deleted. They cannot be recovered.')) return;
     if (!state.demo) await api.eraseDeviceKeys();
-    await dropSession('Llaves borradas en este dispositivo.');
+    await dropSession('Keys deleted on this device.');
     return;
   }
   if (action === 'trust-accept' && state.trust) {
@@ -673,14 +674,14 @@ function boot() {
     state.wallets = found.wallets;
     state.wcReady = Boolean(getConfig().walletConnectProjectId);
     if (found.restored && !state.me) {
-      state.notice = `Wallet reconectada (${shortAddr(found.restored)}). Pulsa Conectar wallet y firma otra vez para entrar.`;
+      state.notice = `Wallet reconnected (${shortAddr(found.restored)}). Tap Connect wallet and sign again to enter.`;
     }
     painted = '';
     paint();
   }).catch(() => {});
   wallet.peekWalletConnect().then((address) => {
     if (!address || state.me) return;
-    state.notice = `Wallet reconectada (${shortAddr(address)}). Pulsa Conectar wallet y firma otra vez para entrar.`;
+    state.notice = `Wallet reconnected (${shortAddr(address)}). Tap Connect wallet and sign again to enter.`;
     painted = '';
     paint();
   }).catch(() => {});

@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">MuzzSnap</string>
     <string name="title_activity_main">MuzzSnap</string>
+    <string name="app_description">Encrypted group chat and private messages for MUZZ holders.</string>
     <string name="package_name">app.muzzsnap.chat</string>
     <string name="custom_url_scheme">app.muzzsnap.chat</string>
 </resources>

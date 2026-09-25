@@ -52,7 +52,7 @@ async function buildModal() {
   const icon = new URL('icons/icon-512.png', location.href).href;
   const metadata = {
     name: 'MuzzSnap',
-    description: 'Chat cifrado para holders de MUZZ',
+    description: 'Encrypted chat for MUZZ holders',
     url,
     icons: [icon],
     redirect: {

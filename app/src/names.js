@@ -6,10 +6,10 @@ const KNOWN = {
 
 export function displayName(wallet, me) {
   const id = String(wallet || '').toLowerCase();
-  if (me && id === String(me).toLowerCase()) return 'Tú';
+  if (me && id === String(me).toLowerCase()) return 'You';
   if (KNOWN[id]) return KNOWN[id];
-  if (id.length < 6) return 'Nodo';
-  return `Nodo ${id.slice(-4)}`;
+  if (id.length < 6) return 'Node';
+  return `Node ${id.slice(-4)}`;
 }
 
 export function shortAddr(wallet) {

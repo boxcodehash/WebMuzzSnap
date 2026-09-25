@@ -248,7 +248,7 @@ export function watchThreads(onChange) {
       threads.push({
         wallet: peer,
         updatedAt: row.data().updatedAt?.toMillis?.() || related[0]?.sentAt || 0,
-        preview: related[0]?.text ? trimPreview(related[0].text) : 'Mensaje cifrado'
+        preview: related[0]?.text ? trimPreview(related[0].text) : 'Encrypted message'
       });
     });
     threads.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -307,7 +307,7 @@ async function mergeGroup(inbox, outbox) {
       sender: me,
       mine: true,
       text: cached?.text || null,
-      locked: cached ? '' : 'Esta copia solo estaba en el dispositivo que la envió.',
+      locked: cached ? '' : 'This copy only existed on the device that sent it.',
       sentAt: row.sentAt?.toMillis?.() || cached?.sentAt || 0,
       readAt: null,
       expireAt,
@@ -351,7 +351,7 @@ async function materialize(row, { mine, kind }) {
       sender: row.sender,
       mine: true,
       text: null,
-      locked: 'El texto está en el dispositivo desde el que lo enviaste.',
+      locked: 'The text is on the device you sent it from.',
       sentAt,
       readAt,
       expireAt,
@@ -429,7 +429,7 @@ async function decryptIncoming(row) {
   }
   const trust = await getTrust(row.sender);
   if (trust && trust.identityPub !== identity.identityPub) {
-    return { ok: false, reason: 'La llave de esta persona cambió. Confírmala antes de abrir el mensaje.' };
+    return { ok: false, reason: 'This person’s key changed. Confirm it before opening the message.' };
   }
   if (!trust) {
     await setTrust(row.sender, {
@@ -438,7 +438,7 @@ async function decryptIncoming(row) {
     });
   }
   const prekey = await takePrekey(row.recipientPrekeyId);
-  if (!prekey) return { ok: false, reason: 'La llave de un solo uso ya no está en este dispositivo.' };
+  if (!prekey) return { ok: false, reason: 'The one-time key is no longer on this device.' };
   const factorSnap = await getDoc(doc(db, 'serverFactors', row.serverFactorId));
   if (!factorSnap.exists()) return { ok: false, reason: 'Falta el factor del servidor para abrir este mensaje.' };
   try {
@@ -463,7 +463,7 @@ async function decryptIncoming(row) {
     }
     return { ok: true, payload, prekeyId: row.recipientPrekeyId };
   } catch {
-    return { ok: false, reason: 'No se pudo descifrar. El sobre está alterado o incompleto.' };
+    return { ok: false, reason: 'Could not decrypt. The envelope is altered or incomplete.' };
   }
 }
 

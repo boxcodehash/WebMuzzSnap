@@ -91,7 +91,7 @@ test('las reglas exigen el claim y la ventana de 24 h', () => {
 
 test('la pantalla de acceso muestra el mínimo y las wallets', () => {
   const html = shellHtml({ route: 'login', minMuzz: 10000000, phase: '', error: '', mobile: true, pageUrl: 'http://127.0.0.1:4173/' });
-  assert.match(html, /Conectar wallet/);
+  assert.match(html, /Connect wallet/);
   assert.match(html, /MetaMask/);
   assert.match(html, /Trust Wallet/);
   assert.match(html, /Coinbase Wallet/);
@@ -100,7 +100,7 @@ test('la pantalla de acceso muestra el mínimo y las wallets', () => {
   assert.match(html, /Phantom/);
   assert.match(html, /WalletConnect/);
   assert.match(html, /metamask\.app\.link/);
-  assert.equal(formatMuzz(10000000), '10.000.000');
-  assert.match(html, /10\.000\.000 MUZZ/);
+  assert.equal(formatMuzz(10000000), '10,000,000');
+  assert.match(html, /10,000,000 MUZZ/);
   assert.doesNotMatch(html, /<script/i);
 });

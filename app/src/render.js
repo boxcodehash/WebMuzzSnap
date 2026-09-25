@@ -5,12 +5,12 @@ import { SUPPORTED_WALLETS } from './walletCatalog.js';
 import { walletDeepLinks } from './walletLinks.js';
 
 const PHASES = {
-  connect: ['Conectando la wallet', 'Aprueba la conexión. No autoriza ningún gasto.'],
-  chain: ['Red Ethereum', 'Si la wallet está en otra red, cámbiala a mainnet.'],
-  nonce: ['Preparando el acceso', 'El servidor emite un nonce de un solo uso.'],
-  sign: ['Firma el mensaje', 'Así se prueba que la wallet es tuya. No gasta gas.'],
-  verify: ['Comprobando MUZZ', 'La firma y el saldo se verifican en el servidor.'],
-  keys: ['Preparando el cifrado', 'Las llaves se quedan en este dispositivo.']
+  connect: ['Connecting the wallet', 'Approve the connection. It does not authorize any spend.'],
+  chain: ['Ethereum network', 'If the wallet is on another network, switch it to mainnet.'],
+  nonce: ['Preparing access', 'The server issues a one-time nonce.'],
+  sign: ['Sign the message', 'This proves the wallet is yours. It does not spend gas.'],
+  verify: ['Checking MUZZ', 'The signature and the balance are verified on the server.'],
+  keys: ['Preparing encryption', 'The keys stay on this device.']
 };
 
 export function esc(value) {
@@ -47,21 +47,21 @@ function tabs(state) {
   const privateOn = state.route === 'privado' || state.route === 'hilo';
   return `<nav class="tabbar">
     <button type="button" data-action="go" data-route="chat" class="${chatOn ? 'on' : ''}">Chat</button>
-    <button type="button" data-action="go" data-route="privado" class="${privateOn ? 'on' : ''}">Privado</button>
+    <button type="button" data-action="go" data-route="privado" class="${privateOn ? 'on' : ''}">Private</button>
   </nav>`;
 }
 
 function composer(state, placeholder) {
   const file = state.file
-    ? `<div class="file-chip"><span>${esc(state.file.name)}</span><button type="button" data-action="clear-file" aria-label="Quitar adjunto">×</button></div>`
+    ? `<div class="file-chip"><span>${esc(state.file.name)}</span><button type="button" data-action="clear-file" aria-label="Remove attachment">×</button></div>`
     : '';
   return `<form class="composer" id="composer">
     ${file}
     <div class="composer-row">
-      <button type="button" class="icon-btn" data-action="pick-file" aria-label="Adjuntar archivo">${ICONS.clip}</button>
+      <button type="button" class="icon-btn" data-action="pick-file" aria-label="Attach file">${ICONS.clip}</button>
       <input id="file" type="file" hidden>
       <textarea id="draft" rows="1" maxlength="2000" placeholder="${esc(placeholder)}" enterkeyhint="send"></textarea>
-      <button id="sendBtn" class="send" type="submit" aria-label="Enviar">${ICONS.send}</button>
+      <button id="sendBtn" class="send" type="submit" aria-label="Send">${ICONS.send}</button>
     </div>
   </form>`;
 }
@@ -76,34 +76,34 @@ function sheet(state) {
           <span><strong>${esc(displayName(person.wallet, state.me && state.me.wallet))}</strong><small>${esc(shortAddr(person.wallet))}</small></span>
         </button>`;
       }).join('')
-      : '<p class="empty">Nadie más en línea ahora mismo.</p>';
-    return wrapSheet('En línea', '<p class="sheet-note">Toca a alguien para escribirle en privado.</p>' + people);
+      : '<p class="empty">Nobody else is online right now.</p>';
+    return wrapSheet('Online', '<p class="sheet-note">Tap someone to message them privately.</p>' + people);
   }
   if (state.panel === 'info') {
-    const balance = state.balance ? `<p class="sheet-note">Saldo verificado: <strong>${esc(state.balance)} MUZZ</strong>. Mínimo ${esc(formatMuzz(state.minMuzz))}.</p>` : '';
-    return wrapSheet('Cómo está protegido', `
+    const balance = state.balance ? `<p class="sheet-note">Verified balance: <strong>${esc(state.balance)} MUZZ</strong>. Minimum ${esc(formatMuzz(state.minMuzz))}.</p>` : '';
+    return wrapSheet('How this is protected', `
       ${balance}
       <ul class="sheet-list">
-        <li>Cada mensaje usa una llave efímera nueva, una prekey de un solo uso del receptor y un factor del servidor.</li>
-        <li>Firebase guarda el factor y el texto cifrado. Con eso solo no puede leer el mensaje.</li>
-        <li>En privado, al leerlo empieza a contar 24 h y luego se borra. En el grupo, tu copia caduca a las 24 h del envío; la de cada persona, 24 h después de que ella lo abre.</li>
-        <li>Las llaves privadas no salen de este dispositivo.</li>
+        <li>Each message uses a new ephemeral key, a one-time prekey from the recipient, and a server factor.</li>
+        <li>Firebase stores the factor and the ciphertext. That alone cannot read the message.</li>
+        <li>In private chat, the 24 h timer starts when the message is read. In the group, your copy expires 24 h after you send it; each person’s copy expires 24 h after they open it.</li>
+        <li>Private keys never leave this device.</li>
       </ul>
-      <button type="button" class="btn btn-ghost" data-action="logout">Cerrar sesión</button>
-      <button type="button" class="btn btn-danger" data-action="wipe">Borrar llaves de este dispositivo</button>
+      <button type="button" class="btn btn-ghost" data-action="logout">Log out</button>
+      <button type="button" class="btn btn-danger" data-action="wipe">Delete keys on this device</button>
     `);
   }
   if (state.panel === 'wallets') {
-    const buttons = (state.wallets || []).map((item) => `<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Entrar con ${esc(item.name)}</button>`).join('');
-    const empty = buttons || '<p class="sheet-note">No hay una wallet inyectada en este navegador.</p>';
-    return wrapSheet('Elige la wallet', `${empty}<p class="sheet-note">Para el código QR y el resto de wallets de WalletConnect hace falta el project id.</p>`);
+    const buttons = (state.wallets || []).map((item) => `<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Continue with ${esc(item.name)}</button>`).join('');
+    const empty = buttons || '<p class="sheet-note">No injected wallet was found in this browser.</p>';
+    return wrapSheet('Choose a wallet', `${empty}<p class="sheet-note">The QR code and other WalletConnect wallets need the project id.</p>`);
   }
   if (state.panel === 'trust' && state.trust) {
-    return wrapSheet('Cambió la llave', `
-      <p class="sheet-note">La identidad de ${esc(displayName(state.trust.wallet))} no coincide con la que guardó este dispositivo. Si no lo confirmas por otro canal, alguien podría ponerse en medio.</p>
+    return wrapSheet('Key changed', `
+      <p class="sheet-note">The identity of ${esc(displayName(state.trust.wallet))} does not match the one stored on this device. If you do not confirm it out of band, someone could be in the middle.</p>
       <p class="mono">${esc(shortAddr(state.trust.wallet))}</p>
-      <button type="button" class="btn btn-primary" data-action="trust-accept">Confío en la llave nueva</button>
-      <button type="button" class="btn btn-ghost" data-action="panel" data-panel="">Cancelar</button>
+      <button type="button" class="btn btn-primary" data-action="trust-accept">I trust the new key</button>
+      <button type="button" class="btn btn-ghost" data-action="panel" data-panel="">Cancel</button>
     `);
   }
   return '';
@@ -113,7 +113,7 @@ function wrapSheet(title, body) {
   return `<div class="backdrop" data-action="panel" data-panel=""></div>
     <section class="sheet" role="dialog" aria-label="${esc(title)}">
       <div class="sheet-handle"></div>
-      <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" data-action="panel" data-panel="" aria-label="Cerrar">×</button></div>
+      <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" data-action="panel" data-panel="" aria-label="Close">×</button></div>
       ${body}
     </section>`;
 }
@@ -123,17 +123,17 @@ function loginButtons(state) {
   const inApp = injected.find((item) => item.id === state.inApp);
   const parts = [];
   if (inApp) {
-    parts.push(`<button type="button" class="btn btn-primary" data-action="login" data-kind="injected" data-wallet="${esc(inApp.id)}">Continuar con ${esc(inApp.name)}</button>`);
+    parts.push(`<button type="button" class="btn btn-primary" data-action="login" data-kind="injected" data-wallet="${esc(inApp.id)}">Continue with ${esc(inApp.name)}</button>`);
   }
-  parts.push(`<button type="button" class="btn ${inApp ? 'btn-ghost' : 'btn-primary'}" data-action="login" data-kind="modal">Conectar wallet</button>`);
+  parts.push(`<button type="button" class="btn ${inApp ? 'btn-ghost' : 'btn-primary'}" data-action="login" data-kind="modal">Connect wallet</button>`);
   if (!state.wcReady && injected.length && !inApp) {
     for (const item of injected) {
-      parts.push(`<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Entrar con ${esc(item.name)}</button>`);
+      parts.push(`<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Continue with ${esc(item.name)}</button>`);
     }
   }
   if (state.mobile) {
     const links = walletDeepLinks(state.pageUrl || '').map((item) => `<a href="${esc(item.href)}">${esc(item.name)}</a>`).join('');
-    parts.push(`<details class="deeplinks"><summary>Abrir dentro de la wallet</summary><p class="fine">Si este navegador no tiene la wallet, ábrela aquí. La página se carga dentro de ella y puede firmar.</p><div class="link-row">${links}</div></details>`);
+    parts.push(`<details class="deeplinks"><summary>Open in wallet</summary><p class="fine">If this browser has no wallet, open it here. The page loads inside the wallet so you can sign.</p><div class="link-row">${links}</div></details>`);
   }
   return parts.join('');
 }
@@ -150,18 +150,18 @@ function loginHtml(state) {
       <img src="muzzsnap.jpg" alt="MuzzSnap" class="login-logo">
       <p class="eyebrow">Muzzle Token</p>
       <h1>MuzzSnap</h1>
-      <p class="lede">Chat y mensajes privados para holders. Cifrado de extremo a extremo.</p>
+      <p class="lede">Group chat and private messages for holders. End-to-end encrypted.</p>
       <dl class="gate">
-        <div><dt>Mínimo</dt><dd>${esc(formatMuzz(state.minMuzz || cfg.minMuzz))} MUZZ</dd></div>
-        <div><dt>Contrato</dt><dd>${esc(shortAddr(cfg.tokenAddress))}</dd></div>
-        <div><dt>Prueba</dt><dd>Firma con nonce</dd></div>
+        <div><dt>Minimum</dt><dd>${esc(formatMuzz(state.minMuzz || cfg.minMuzz))} MUZZ</dd></div>
+        <div><dt>Contract</dt><dd>${esc(shortAddr(cfg.tokenAddress))}</dd></div>
+        <div><dt>Proof</dt><dd>Nonce signature</dd></div>
       </dl>
     </div>
     <div class="login-actions">
       <div id="banner"></div>
       ${loginButtons(state)}
-      <p class="fine">${esc(SUPPORTED_WALLETS.map((item) => item.name).join(', '))} y cualquier wallet con WalletConnect. En el ordenador, código QR. En el móvil, la app vuelve a esta página. Phantom tiene que estar en Ethereum, no en Solana.</p>
-      <p class="fine">La firma no envía una transacción. El servidor lee <span class="mono">balanceOf</span> y, si llegas al mínimo, abre la sesión. Si el saldo baja, se cierra.</p>
+      <p class="fine">${esc(SUPPORTED_WALLETS.map((item) => item.name).join(', '))} and any WalletConnect wallet. On desktop, a QR code. On mobile, the wallet returns to this page. Phantom must be on Ethereum, not Solana.</p>
+      <p class="fine">The signature is not a transaction. The server reads <span class="mono">balanceOf</span> and opens a session only if you meet the minimum. If the balance drops, the session ends.</p>
     </div>
     ${overlay}
   </section>`;
@@ -171,40 +171,40 @@ function topbar(title, subtitle, extra) {
   return `<header class="top">
     ${extra || `<img src="muzzsnap.jpg" alt="" class="brand-mark">`}
     <div class="top-text"><h1>${title}</h1><p>${subtitle}</p></div>
-    <button type="button" class="count" data-action="panel" data-panel="online" aria-label="Conectados"><span id="onlineCount">${''}</span></button>
-    <button type="button" class="icon-btn" data-action="panel" data-panel="info" aria-label="Seguridad">${ICONS.lock}</button>
+    <button type="button" class="count" data-action="panel" data-panel="online" aria-label="Online"><span id="onlineCount">${''}</span></button>
+    <button type="button" class="icon-btn" data-action="panel" data-panel="info" aria-label="Security">${ICONS.lock}</button>
   </header>`;
 }
 
 export function shellHtml(state) {
   if (state.booting) {
-    return `<section class="splash"><img src="muzzsnap.jpg" alt=""><p>Conectando</p></section>`;
+    return `<section class="splash"><img src="muzzsnap.jpg" alt=""><p>Connecting</p></section>`;
   }
   if (!state.me || state.route === 'login') return loginHtml(state);
   const panel = sheet(state);
   if (state.route === 'chat') {
     return `<section class="shell">
-      ${topbar('General', 'Cifrado de extremo a extremo')}
+      ${topbar('General', 'End-to-end encrypted')}
       <div id="banner" class="banner-slot"></div>
       <div id="msgs" class="msgs"></div>
-      ${composer(state, 'Mensaje cifrado')}
+      ${composer(state, 'Encrypted message')}
       ${tabs(state)}
       ${panel}
     </section>`;
   }
   if (state.route === 'hilo') {
-    const back = `<button type="button" class="icon-btn" data-action="go" data-route="privado" aria-label="Volver">${ICONS.back}</button>`;
+    const back = `<button type="button" class="icon-btn" data-action="go" data-route="privado" aria-label="Back">${ICONS.back}</button>`;
     return `<section class="shell">
       ${topbar(esc(displayName(state.peer)), esc(shortAddr(state.peer)), back)}
       <div id="banner" class="banner-slot"></div>
       <div id="msgs" class="msgs"></div>
-      ${composer(state, 'Mensaje privado')}
+      ${composer(state, 'Private message')}
       ${tabs(state)}
       ${panel}
     </section>`;
   }
   return `<section class="shell">
-    ${topbar('Privado', 'Solo tú y la otra wallet')}
+    ${topbar('Private', 'Only you and the other wallet')}
     <div id="banner" class="banner-slot"></div>
     <div id="msgs" class="msgs threads"></div>
     ${tabs(state)}
@@ -218,8 +218,8 @@ export function messagesHtml(state) {
   const list = state.messages || [];
   if (!list.length) {
     const text = state.route === 'chat'
-      ? 'Todavía no hay mensajes. Lo que escribas se cifra para cada holder conectado.'
-      : 'No hay mensajes en este hilo. El primero también queda cifrado.';
+      ? 'No messages yet. What you write is encrypted for each holder who is online.'
+      : 'No messages in this thread. The first one is encrypted too.';
     return `<div class="empty-block"><span class="lock-badge">${ICONS.lock}</span><p>${text}</p></div>`;
   }
   let lastDay = '';
@@ -229,7 +229,7 @@ export function messagesHtml(state) {
     lastDay = day || lastDay;
     const body = message.text != null
       ? `<p>${esc(message.text)}</p>`
-      : `<p class="locked">${esc(message.locked || 'No se puede abrir en este dispositivo.')}</p>`;
+      : `<p class="locked">${esc(message.locked || 'Cannot be opened on this device.')}</p>`;
     const file = message.fileName
       ? `<button type="button" class="file-link" data-action="download" data-id="${esc(message.id)}" data-path="${esc(message.attachmentPath || '')}" ${message.canDownload ? '' : 'disabled'}>${esc(message.fileName)}</button>`
       : '';
@@ -241,11 +241,11 @@ export function messagesHtml(state) {
 function threadsHtml(state) {
   const list = state.threads || [];
   if (!list.length) {
-    return `<div class="empty-block"><span class="lock-badge">${ICONS.lock}</span><p>No hay conversaciones. Abre “en línea” y elige una wallet.</p></div>`;
+    return `<div class="empty-block"><span class="lock-badge">${ICONS.lock}</span><p>No conversations yet. Open Online and pick a wallet.</p></div>`;
   }
   return list.map((thread) => `<button type="button" class="thread" data-action="open-peer" data-peer="${esc(thread.wallet)}">
     <span class="avatar" style="background:${avatarColor(thread.wallet)}">${esc(avatarText(thread.wallet))}</span>
-    <span class="thread-body"><strong>${esc(displayName(thread.wallet))}</strong><small>${esc(thread.preview || 'Mensaje cifrado')}</small></span>
+    <span class="thread-body"><strong>${esc(displayName(thread.wallet))}</strong><small>${esc(thread.preview || 'Encrypted message')}</small></span>
     <time>${esc(thread.updatedAt ? metaTime(thread.updatedAt) : '')}</time>
   </button>`).join('');
 }
@@ -253,5 +253,5 @@ function threadsHtml(state) {
 function metaTime(ms) {
   const date = new Date(ms);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' }).format(date);
+  return new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date);
 }
