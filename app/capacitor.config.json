@@ -1,0 +1,11 @@
+{
+  "appId": "app.muzzsnap.chat",
+  "appName": "MuzzSnap",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

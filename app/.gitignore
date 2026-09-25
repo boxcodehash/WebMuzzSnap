@@ -1,0 +1,15 @@
+node_modules/
+functions/node_modules/
+functions/.env
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+*.apk
+*.log
+www/js/app.js.map
