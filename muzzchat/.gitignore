@@ -1,0 +1,12 @@
+node_modules
+dist
+dev-dist
+.firebase
+functions/lib
+.env
+.env.local
+.env.*.local
+functions/.env
+functions/.env.local
+*.log
+.DS_Store
