@@ -1,6 +1,8 @@
 node_modules/
 functions/node_modules/
+.env
 functions/.env
+www/config.local.json
 .firebase/
 firebase-debug.log
 firestore-debug.log

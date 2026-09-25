@@ -4,19 +4,15 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { ethers } from 'ethers';
 import { randomBytes } from 'node:crypto';
 import { CHAIN_ID, DEFAULT_MIN_MUZZ, TOKEN_ADDRESS } from './src/policy.js';
-import { originOf, parseLoginMessage } from './src/loginMessage.js';
-import { assertSignedPolicy, hasEnoughBalance } from './src/accessLogic.js';
+import { originOf } from './src/loginMessage.js';
+import { hasEnoughBalance, recoverAccess } from './src/accessLogic.js';
+import { readHolding as fetchHolding } from './src/holding.js';
 
 initializeApp();
 
 const REGION = 'us-central1';
-const ERC20_ABI = [
-  'function balanceOf(address) view returns (uint256)',
-  'function decimals() view returns (uint8)'
-];
 const FALLBACK_ORIGINS = [
   'http://127.0.0.1:4173',
   'http://localhost:4173',
@@ -84,13 +80,12 @@ function withHttp(handler) {
 
 async function readHolding(cfg, address) {
   try {
-    const provider = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId, { staticNetwork: true });
-    const contract = new ethers.Contract(cfg.tokenAddress, ERC20_ABI, provider);
-    const [balance, decimals] = await Promise.all([
-      contract.balanceOf(address),
-      contract.decimals()
-    ]);
-    return { balance, decimals: Number(decimals) };
+    return await fetchHolding({
+      rpcUrl: cfg.rpcUrl,
+      chainId: cfg.chainId,
+      tokenAddress: cfg.tokenAddress,
+      address
+    });
   } catch (err) {
     console.error('rpc', err);
     fail(503, 'rpc_failed');
@@ -142,32 +137,18 @@ export const verifyAccess = onRequest({ region: REGION, invoker: 'public', timeo
   if (typeof message !== 'string' || typeof signature !== 'string') fail(400, 'format');
   if (message.length > 4000 || signature.length > 400) fail(400, 'format');
 
-  let parsed;
+  let access;
   try {
-    parsed = parseLoginMessage(message);
+    access = recoverAccess(message, signature, cfg);
   } catch (err) {
-    fail(400, err.message === 'issued_skew' ? 'issued_skew' : 'format');
+    const code = err && err.message;
+    if (code === 'issued_skew' || code === 'format') fail(400, code === 'issued_skew' ? 'issued_skew' : 'format');
+    fail(401, code || 'signature');
   }
-  if (!cfg.origins.includes(originOf(parsed.uri))) fail(403, 'origin');
+  if (!cfg.origins.includes(originOf(access.parsed.uri))) fail(403, 'origin');
 
-  let recovered;
-  try {
-    recovered = ethers.verifyMessage(message, signature);
-  } catch {
-    fail(401, 'signature');
-  }
-
-  try {
-    assertSignedPolicy(parsed, {
-      tokenAddress: cfg.tokenAddress,
-      minMuzz: cfg.minMuzz,
-      recovered
-    });
-  } catch (err) {
-    fail(401, err.message || 'signature');
-  }
-
-  const address = recovered.toLowerCase();
+  const address = access.recovered;
+  const parsed = access.parsed;
   const db = getFirestore();
   const nonceRef = db.collection('nonces').doc(parsed.nonce);
   const nonceSnap = await nonceRef.get();

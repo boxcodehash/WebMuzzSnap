@@ -6,6 +6,10 @@ import { purgeCache } from './keys.js';
 import * as api from './api.js';
 import { bannerHtml, messagesHtml, shellHtml } from './render.js';
 import * as wallet from './wallet.js';
+import { walletMessage } from './walletErrors.js';
+import { inAppWalletId } from './walletLinks.js';
+import { normalizeChainId } from './walletSession.js';
+import { shortAddr } from './names.js';
 
 const DEMO_ME = '0x875c5a7794b601f273da0000000000000000d3e0';
 const DEMO_A = '0x4c1e90aa77b3d81264c00000000000000000a91f';
@@ -16,7 +20,11 @@ const state = {
   phase: '',
   error: '',
   notice: '',
-  deepLink: '',
+  wallets: [],
+  inApp: '',
+  mobile: false,
+  wcReady: false,
+  pageUrl: '',
   me: null,
   draft: '',
   file: null,
@@ -51,6 +59,10 @@ function paint() {
     state.me ? state.me.wallet : '',
     state.file ? state.file.name : '',
     state.trust ? state.trust.wallet : '',
+    (state.wallets || []).map((item) => item.id).join(','),
+    state.inApp,
+    state.mobile ? 'm' : '',
+    state.wcReady ? 'w' : '',
     state.panel === 'online' ? state.online.map((item) => item.wallet).join(',') : '',
     state.route === 'privado' ? state.threads.map((item) => `${item.wallet}:${item.preview}`).join('|') : ''
   ].join('~');
@@ -91,13 +103,10 @@ function human(err) {
     }
     return `Hacen falta al menos ${formatMuzz(state.minMuzz)} MUZZ.`;
   }
+  const fromWallet = walletMessage(code);
+  if (fromWallet) return fromWallet;
   const map = {
     functions_unconfigured: 'Falta functionsBase en config.runtime.js. Sin las Cloud Functions el servidor no puede comprobar el saldo.',
-    NO_WALLET: 'No hay una wallet en este navegador. Instala MetaMask o entra con WalletConnect.',
-    NO_PROJECT_ID: 'WalletConnect necesita walletConnectProjectId en config.runtime.js.',
-    wc_load: 'No se pudo cargar WalletConnect. Revisa la conexión e inténtalo otra vez.',
-    rejected: 'La wallet canceló la conexión o la firma.',
-    chain: 'Hay que usar Ethereum mainnet.',
     network: 'Sin conexión con el servidor de acceso.',
     format: 'El mensaje de acceso no es válido.',
     issued_skew: 'La hora del dispositivo está desfasada. Ajústala e inténtalo de nuevo.',
@@ -266,19 +275,49 @@ function syncRoute() {
   paint();
 }
 
+let walletWatch = () => {};
+let dropping = false;
+
+function armWalletWatch(provider) {
+  walletWatch();
+  walletWatch = wallet.watchProvider(provider, {
+    onDisconnect() {
+      dropSession(walletMessage('disconnected'));
+    },
+    onAccounts(accounts) {
+      const next = String((accounts && accounts[0]) || '').toLowerCase();
+      if (!next) dropSession(walletMessage('disconnected'));
+      else if (state.me && next !== state.me.wallet) dropSession(walletMessage('account_changed'));
+    },
+    onChain(chainId) {
+      const hex = normalizeChainId(chainId);
+      if (hex && hex !== '0x1') dropSession(walletMessage('chain'));
+    }
+  });
+}
+
 async function dropSession(message) {
-  bootedFor = '';
-  state.me = null;
-  state.phase = '';
-  state.booting = false;
-  state.panel = '';
-  state.messages = [];
-  state.threads = [];
-  state.online = [];
-  state.error = message || '';
-  if (!state.demo) await api.logout();
-  painted = '';
-  go('login');
+  if (dropping) return;
+  dropping = true;
+  try {
+    walletWatch();
+    walletWatch = () => {};
+    if (!state.demo) await wallet.disconnectWallet();
+    bootedFor = '';
+    state.me = null;
+    state.phase = '';
+    state.booting = false;
+    state.panel = '';
+    state.messages = [];
+    state.threads = [];
+    state.online = [];
+    state.error = message || '';
+    if (!state.demo) await api.logout();
+    painted = '';
+    go('login');
+  } finally {
+    dropping = false;
+  }
 }
 
 async function enterSession(user) {
@@ -331,21 +370,43 @@ async function enterSession(user) {
   }
 }
 
-async function login(kind) {
+async function login(kind, walletId) {
   state.error = '';
   state.notice = '';
-  state.deepLink = '';
+  state.panel = '';
   if (!getConfig().functionsBase) {
     state.error = human({ code: 'functions_unconfigured' });
     paint();
     return;
   }
+  const hooks = {
+    onPhase(phase) {
+      state.phase = phase;
+      paint();
+    }
+  };
   try {
     state.phase = 'connect';
     paint();
-    const session = kind === 'walletconnect'
-      ? await wallet.connectWalletConnect()
-      : await wallet.connectMetaMask();
+    let session;
+    if (kind === 'injected') {
+      session = await wallet.connectInjected(walletId, hooks);
+    } else if (getConfig().walletConnectProjectId) {
+      session = await wallet.connectModal(hooks);
+    } else {
+      const found = await wallet.discoverInjected();
+      if (found.length === 1) session = await wallet.connectInjected(found[0].id, hooks);
+      else if (found.length > 1) {
+        state.phase = '';
+        state.panel = 'wallets';
+        state.wallets = found.map(({ id, name, rdns }) => ({ id, name, rdns }));
+        painted = '';
+        paint();
+        return;
+      } else {
+        throw Object.assign(new Error('NO_WALLET'), { code: 'NO_WALLET' });
+      }
+    }
     state.phase = 'nonce';
     paint();
     const nonce = await api.createNonce();
@@ -361,7 +422,7 @@ async function login(kind) {
     });
     state.phase = 'sign';
     paint();
-    const signature = await wallet.signLogin(session.signer, message);
+    const signature = await wallet.signLogin(session.provider, session.address, message);
     state.phase = 'verify';
     paint();
     const result = await api.verifyAccess(message, signature);
@@ -369,11 +430,11 @@ async function login(kind) {
     state.minMuzz = Number(result.minMuzz || state.minMuzz);
     api.noteFreshLogin();
     await api.signInToken(result.token);
+    armWalletWatch(session.provider);
     state.phase = '';
   } catch (err) {
     state.phase = '';
     state.error = human(err);
-    if (err.code === 'NO_WALLET' && wallet.isMobile()) state.deepLink = wallet.metamaskDeepLink();
     paint();
   }
 }
@@ -453,7 +514,7 @@ async function onClick(event) {
   if (!button || button.disabled) return;
   const action = button.dataset.action;
   if (action === 'login') {
-    await login(button.dataset.kind);
+    await login(button.dataset.kind, button.dataset.wallet);
     return;
   }
   if (action === 'go') {
@@ -486,6 +547,7 @@ async function onClick(event) {
     state.panel = '';
     await dropSession('');
     state.error = '';
+    state.notice = 'Sesión cerrada en este dispositivo.';
     paint();
     return;
   }
@@ -598,11 +660,30 @@ function boot() {
     paint();
   }, 30000);
 
+  state.mobile = wallet.isMobile();
+  state.pageUrl = location.href.split('#')[0];
+  state.inApp = inAppWalletId(navigator.userAgent);
+  state.wcReady = Boolean(getConfig().walletConnectProjectId);
   if (state.demo) {
     seedDemo();
     syncRoute();
     return;
   }
+  wallet.inspectInjected().then((found) => {
+    state.wallets = found.wallets;
+    state.wcReady = Boolean(getConfig().walletConnectProjectId);
+    if (found.restored && !state.me) {
+      state.notice = `Wallet reconectada (${shortAddr(found.restored)}). Pulsa Conectar wallet y firma otra vez para entrar.`;
+    }
+    painted = '';
+    paint();
+  }).catch(() => {});
+  wallet.peekWalletConnect().then((address) => {
+    if (!address || state.me) return;
+    state.notice = `Wallet reconectada (${shortAddr(address)}). Pulsa Conectar wallet y firma otra vez para entrar.`;
+    painted = '';
+    paint();
+  }).catch(() => {});
   api.initBackend();
   api.watchAuth((user) => {
     if (!user) {
@@ -619,4 +700,18 @@ function boot() {
   syncRoute();
 }
 
-boot();
+async function loadLocalConfig() {
+  try {
+    const res = await fetch('./config.local.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const id = String(data.walletConnectProjectId || '').trim();
+    if (!id) return;
+    globalThis.MUZZ_RUNTIME = globalThis.MUZZ_RUNTIME || {};
+    globalThis.MUZZ_RUNTIME.walletConnectProjectId = id;
+  } catch {
+    /* sin project id el QR de WalletConnect no se abre; las wallets inyectadas siguen */
+  }
+}
+
+loadLocalConfig().finally(() => boot());

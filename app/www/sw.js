@@ -1,4 +1,4 @@
-const CACHE = 'muzzsnap-app-v1';
+const CACHE = 'muzzsnap-app-v2';
 const SHELL = [
   './',
   './index.html',
@@ -26,6 +26,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith('config.local.json')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   event.respondWith((async () => {
     try {
       const fresh = await fetch(event.request);

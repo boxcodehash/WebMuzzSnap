@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { parseLoginMessage } from './loginMessage.js';
 
 /** Compara enteros. No usa parseFloat: un saldo justo en el mínimo entra; uno por debajo, no. */
 export function hasEnoughBalance(balanceWei, decimals, minTokens) {
@@ -7,6 +8,23 @@ export function hasEnoughBalance(balanceWei, decimals, minTokens) {
   const min = ethers.parseUnits(String(minTokens), dec);
   const bal = typeof balanceWei === 'bigint' ? balanceWei : BigInt(balanceWei);
   return bal >= min;
+}
+
+/** La misma comprobación de firma que verifyAccess, sin Firestore ni RPC. */
+export function recoverAccess(message, signature, policy, now) {
+  const parsed = parseLoginMessage(message, now);
+  let recovered;
+  try {
+    recovered = ethers.verifyMessage(message, signature);
+  } catch {
+    throw new Error('signature');
+  }
+  assertSignedPolicy(parsed, {
+    tokenAddress: policy.tokenAddress,
+    minMuzz: policy.minMuzz,
+    recovered
+  });
+  return { parsed, recovered: recovered.toLowerCase() };
 }
 
 export function assertSignedPolicy(parsed, policy) {

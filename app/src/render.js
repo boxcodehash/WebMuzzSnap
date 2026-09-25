@@ -1,6 +1,8 @@
 import { getConfig } from './config.js';
 import { dayLabel, formatMuzz, metaLine } from './format.js';
 import { avatarColor, avatarText, displayName, shortAddr } from './names.js';
+import { SUPPORTED_WALLETS } from './walletCatalog.js';
+import { walletDeepLinks } from './walletLinks.js';
 
 const PHASES = {
   connect: ['Conectando la wallet', 'Aprueba la conexión. No autoriza ningún gasto.'],
@@ -37,9 +39,6 @@ export function bannerHtml(state) {
   const parts = [];
   if (state.error) parts.push(`<p class="banner bad">${esc(state.error)}</p>`);
   if (state.notice) parts.push(`<p class="banner ok">${esc(state.notice)}</p>`);
-  if (state.deepLink) {
-    parts.push(`<a class="banner link" href="${esc(state.deepLink)}">Abrir esta página en MetaMask</a>`);
-  }
   return parts.join('');
 }
 
@@ -94,6 +93,11 @@ function sheet(state) {
       <button type="button" class="btn btn-danger" data-action="wipe">Borrar llaves de este dispositivo</button>
     `);
   }
+  if (state.panel === 'wallets') {
+    const buttons = (state.wallets || []).map((item) => `<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Entrar con ${esc(item.name)}</button>`).join('');
+    const empty = buttons || '<p class="sheet-note">No hay una wallet inyectada en este navegador.</p>';
+    return wrapSheet('Elige la wallet', `${empty}<p class="sheet-note">Para el código QR y el resto de wallets de WalletConnect hace falta el project id.</p>`);
+  }
   if (state.panel === 'trust' && state.trust) {
     return wrapSheet('Cambió la llave', `
       <p class="sheet-note">La identidad de ${esc(displayName(state.trust.wallet))} no coincide con la que guardó este dispositivo. Si no lo confirmas por otro canal, alguien podría ponerse en medio.</p>
@@ -112,6 +116,26 @@ function wrapSheet(title, body) {
       <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" data-action="panel" data-panel="" aria-label="Cerrar">×</button></div>
       ${body}
     </section>`;
+}
+
+function loginButtons(state) {
+  const injected = state.wallets || [];
+  const inApp = injected.find((item) => item.id === state.inApp);
+  const parts = [];
+  if (inApp) {
+    parts.push(`<button type="button" class="btn btn-primary" data-action="login" data-kind="injected" data-wallet="${esc(inApp.id)}">Continuar con ${esc(inApp.name)}</button>`);
+  }
+  parts.push(`<button type="button" class="btn ${inApp ? 'btn-ghost' : 'btn-primary'}" data-action="login" data-kind="modal">Conectar wallet</button>`);
+  if (!state.wcReady && injected.length && !inApp) {
+    for (const item of injected) {
+      parts.push(`<button type="button" class="btn btn-ghost" data-action="login" data-kind="injected" data-wallet="${esc(item.id)}">Entrar con ${esc(item.name)}</button>`);
+    }
+  }
+  if (state.mobile) {
+    const links = walletDeepLinks(state.pageUrl || '').map((item) => `<a href="${esc(item.href)}">${esc(item.name)}</a>`).join('');
+    parts.push(`<details class="deeplinks"><summary>Abrir dentro de la wallet</summary><p class="fine">Si este navegador no tiene la wallet, ábrela aquí. La página se carga dentro de ella y puede firmar.</p><div class="link-row">${links}</div></details>`);
+  }
+  return parts.join('');
 }
 
 function loginHtml(state) {
@@ -135,8 +159,8 @@ function loginHtml(state) {
     </div>
     <div class="login-actions">
       <div id="banner"></div>
-      <button type="button" class="btn btn-primary" data-action="login" data-kind="metamask">Entrar con MetaMask</button>
-      <button type="button" class="btn btn-ghost" data-action="login" data-kind="walletconnect">WalletConnect</button>
+      ${loginButtons(state)}
+      <p class="fine">${esc(SUPPORTED_WALLETS.map((item) => item.name).join(', '))} y cualquier wallet con WalletConnect. En el ordenador, código QR. En el móvil, la app vuelve a esta página. Phantom tiene que estar en Ethereum, no en Solana.</p>
       <p class="fine">La firma no envía una transacción. El servidor lee <span class="mono">balanceOf</span> y, si llegas al mínimo, abre la sesión. Si el saldo baja, se cierra.</p>
     </div>
     ${overlay}

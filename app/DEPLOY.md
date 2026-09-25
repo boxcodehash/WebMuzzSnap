@@ -47,6 +47,34 @@ Edita `functions/.env`:
 
 La chain id no es configurable: es mainnet (1).
 
+### Project id de WalletConnect (Reown)
+
+Hace falta para el código QR en el ordenador y para que el móvil abra MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom u otra wallet por WalletConnect v2 y vuelva a la app. Sin ese id, solo funcionan las wallets ya inyectadas en el navegador (extensión o navegador interno de la wallet).
+
+El id es público cuando la app está publicada (el navegador lo ve), pero **no se sube al repo**.
+
+1. Entra en https://cloud.reown.com (también vale https://cloud.walletconnect.com: es el mismo panel) y crea una cuenta gratis.
+2. New project. El nombre puede ser MuzzSnap.
+3. Copia el **Project ID** (32 hexadecimales).
+4. En el proyecto, en Allowed domains / origins, añade los orígenes reales: `http://127.0.0.1:4173`, `https://localhost` (el APK) y, si publicas la PWA, `https://boxcodehash.github.io`.
+5. En `app/.env` (cópialo de `.env.example`, no lo commitees):
+
+```bash
+WALLETCONNECT_PROJECT_ID=tu_id_de_32_hex
+```
+
+6. Desde `app/`:
+
+```bash
+npm run config
+```
+
+Eso escribe `www/config.local.json`. Está en `.gitignore`. El script no imprime el id. Si el valor no son 32 hex, no lo escribe.
+
+No lo pongas en `www/config.runtime.js`: ese archivo sí se commitea. `npm run build` y `npm run serve` generan el json solos si el `.env` existe.
+
+Phantom tiene que estar en modo Ethereum. Solana no sirve: el contrato de MUZZ está en mainnet.
+
 Si publicas la PWA en GitHub Pages, añade el origen real, por ejemplo `https://boxcodehash.github.io`. El APK con Capacitor usa `https://localhost`. Ejemplo:
 
 ```bash
@@ -89,6 +117,8 @@ window.MUZZ_RUNTIME = {
   firebase: null
 };
 ```
+
+Deja `walletConnectProjectId` vacío. El id va por `WALLETCONNECT_PROJECT_ID`, no aquí.
 
 `minMuzz` aquí solo es el número que se enseña antes de hablar con el servidor. El que manda es `MIN_MUZZ` de la function. Conviene que coincidan.
 
@@ -146,7 +176,7 @@ Con `npm run build`, `www/` es instalable: `manifest.webmanifest` y `sw.js`. El 
 
 Sirve `www/` por HTTPS. Si el sitio actual se publica entero por GitHub Pages, al **fusionar** este PR la app quedará en una ruta del tipo `/app/www/`. Este trabajo no fusiona ni cambia el workflow de Pages. Si no quieres publicarla todavía, no fusiones.
 
-En el móvil: Safari o Chrome → Añadir a la pantalla de inicio. MetaMask en el móvil puede abrir la PWA con el enlace `metamask.app.link` que enseña la propia pantalla si no detecta wallet.
+En el móvil: Safari o Chrome → Añadir a la pantalla de inicio. Si el navegador no tiene extensión, “Abrir dentro de la wallet” carga la página en MetaMask, Trust, Coinbase, Rainbow, OKX o Phantom. Con el project id, “Conectar wallet” abre el modal de Reown AppKit: QR en escritorio y deep link en el móvil, y al aprobar la wallet vuelve a esta página.
 
 ## 6. APK de depuración
 
@@ -166,7 +196,11 @@ app/android/app/build/outputs/apk/debug/app-debug.apk
 
 Hace falta `ANDROID_HOME` con platform android-35 y build-tools. Si Gradle no encuentra el SDK, Android Studio lo instala la primera vez que abres `app/android/`.
 
-El id de aplicación es `app.muzzsnap.chat`. El WebView usa `https://localhost`, así que ese origen tiene que estar en `APP_ORIGINS` (ya está en la lista por defecto). Dentro del APK no hay MetaMask inyectado: hace falta WalletConnect con `walletConnectProjectId`, o instalar la PWA dentro del navegador de MetaMask.
+El id de aplicación es `app.muzzsnap.chat`. El WebView usa `https://localhost`, así que ese origen tiene que estar en `APP_ORIGINS` (ya está en la lista por defecto) y en los dominios permitidos del project id de Reown.
+
+Dentro del APK no hay MetaMask inyectado. “Conectar wallet” usa WalletConnect. Al volver de la wallet, Android abre el esquema `muzzsnap://wc` (está en el manifest, `singleTask`). Hay que haber generado `www/config.local.json` **antes** de `npm run android:debug`, porque el APK copia `www/`. Sin ese json el APK no puede mostrar el QR.
+
+También puedes abrir la PWA dentro del navegador de la propia wallet: ahí la wallet sí está inyectada y no hace falta el project id.
 
 No firmes este APK de debug para Play Store. Para una release hace falta una keystore tuya, que no debe subirse al repo.
 

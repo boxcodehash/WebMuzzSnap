@@ -1,121 +1,205 @@
-import { ethers } from 'ethers';
+import { mainnet } from 'viem/chains';
 import { getConfig } from './config.js';
+import { NATIVE_RETURN, SUPPORTED_WALLETS } from './walletCatalog.js';
+import { walletError } from './walletErrors.js';
+import {
+  discoverInjected,
+  inspectInjected,
+  isMobile,
+  openSession,
+  signLogin,
+  watchProvider
+} from './walletSession.js';
 
-const ERC20_ABI = [
-  'function balanceOf(address) view returns (uint256)',
-  'function decimals() view returns (uint8)'
-];
+export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
 
-function walletError(code, message) {
-  const err = new Error(message || code);
-  err.code = code;
-  return err;
-}
+let modalPromise = null;
 
-export function isMobile() {
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-}
-
-export function metamaskDeepLink() {
-  const hostPath = `${location.host}${location.pathname}${location.search}`;
-  return `https://metamask.app.link/dapp/${hostPath}`;
-}
-
-function discoverInjected() {
-  return new Promise((resolve) => {
-    const found = [];
-    const onAnnounce = (event) => {
-      if (event.detail) found.push(event.detail);
-    };
-    window.addEventListener('eip6963:announceProvider', onAnnounce);
-    window.dispatchEvent(new Event('eip6963:requestProvider'));
-    setTimeout(() => {
-      window.removeEventListener('eip6963:announceProvider', onAnnounce);
-      const metamask = found.find((item) => {
-        const id = `${item.info?.rdns || ''} ${item.info?.name || ''}`.toLowerCase();
-        return id.includes('metamask');
-      });
-      resolve((metamask || found[0])?.provider || window.ethereum || null);
-    }, 200);
-  });
-}
-
-async function ensureMainnet(provider) {
-  const chainId = await provider.request({ method: 'eth_chainId' });
-  if (chainId === '0x1') return;
-  await provider.request({
-    method: 'wallet_switchEthereumChain',
-    params: [{ chainId: '0x1' }]
-  });
-}
-
-async function sessionFromProvider(raw) {
-  await raw.request({ method: 'eth_requestAccounts' });
-  await ensureMainnet(raw);
-  const web3 = new ethers.BrowserProvider(raw);
-  const signer = await web3.getSigner();
-  const address = (await signer.getAddress()).toLowerCase();
-  return { raw, web3, signer, address };
-}
-
-export async function connectMetaMask() {
-  const raw = await discoverInjected();
-  if (!raw) throw walletError('NO_WALLET');
+export function dappUrl() {
   try {
-    return await sessionFromProvider(raw);
-  } catch (err) {
-    if (err && (err.code === 4001 || /reject|denied|cancel/i.test(String(err.message || '')))) {
-      throw walletError('rejected');
-    }
-    if (err && /chain|network|4902/i.test(String(err.message || ''))) throw walletError('chain');
-    throw err;
-  }
-}
-
-export async function connectWalletConnect() {
-  const cfg = getConfig();
-  if (!cfg.walletConnectProjectId) throw walletError('NO_PROJECT_ID');
-  let EthereumProvider;
-  try {
-    const mod = await import('https://esm.sh/@walletconnect/ethereum-provider@2.19.1');
-    EthereumProvider = mod.EthereumProvider || mod.default;
+    const origin = location.origin;
+    if (origin && origin !== 'null' && /^https?:/i.test(origin)) return origin;
   } catch {
+    /* sin location */
+  }
+  return 'https://localhost';
+}
+
+function validProjectId(value) {
+  return /^[a-f0-9]{32}$/i.test(String(value || '').trim());
+}
+
+async function buildModal() {
+  const projectId = getConfig().walletConnectProjectId.trim();
+  if (!validProjectId(projectId)) throw walletError('NO_PROJECT_ID');
+  let createAppKit;
+  let EthersAdapter;
+  let UniversalProvider;
+  try {
+    const [appkit, adapter, wc] = await Promise.all([
+      import('@reown/appkit'),
+      import('@reown/appkit-adapter-ethers'),
+      import('@walletconnect/universal-provider')
+    ]);
+    createAppKit = appkit.createAppKit;
+    EthersAdapter = adapter.EthersAdapter;
+    UniversalProvider = wc.default || wc.UniversalProvider;
+  } catch (err) {
+    console.error(err);
     throw walletError('wc_load');
   }
-  const provider = await EthereumProvider.init({
-    projectId: cfg.walletConnectProjectId,
-    chains: [1],
-    showQrModal: true,
-    methods: ['personal_sign'],
-    events: ['chainChanged', 'accountsChanged'],
-    metadata: {
-      name: 'MuzzSnap',
-      description: 'Chat cifrado para holders de MUZZ',
-      url: location.origin,
-      icons: [new URL('muzzsnap.jpg', location.href).href]
+  const url = dappUrl();
+  const icon = new URL('icons/icon-512.png', location.href).href;
+  const metadata = {
+    name: 'MuzzSnap',
+    description: 'Chat cifrado para holders de MUZZ',
+    url,
+    icons: [icon],
+    redirect: {
+      native: NATIVE_RETURN,
+      universal: url
+    }
+  };
+  let universalProvider;
+  try {
+    universalProvider = await UniversalProvider.init({ projectId, metadata });
+  } catch (err) {
+    console.error(err);
+    throw walletError('wc_load');
+  }
+  return createAppKit({
+    adapters: [new EthersAdapter()],
+    networks: [mainnet],
+    defaultNetwork: mainnet,
+    projectId,
+    metadata,
+    universalProvider,
+    featuredWalletIds: SUPPORTED_WALLETS.map((wallet) => wallet.wcId),
+    enableEIP6963: true,
+    enableInjected: true,
+    enableCoinbase: true,
+    enableWalletConnect: true,
+    enableBaseAccount: false,
+    coinbasePreference: 'eoaOnly',
+    allWallets: 'SHOW',
+    enableReconnect: true,
+    enableAuthLogger: false,
+    debug: false,
+    themeMode: 'dark',
+    themeVariables: {
+      '--w3m-accent': '#ff2d2d',
+      '--w3m-z-index': '10000'
+    },
+    defaultAccountTypes: { eip155: 'eoa' },
+    features: {
+      analytics: false,
+      email: false,
+      socials: false,
+      swaps: false,
+      onramp: false,
+      history: false,
+      send: false,
+      receive: false,
+      pay: false,
+      reownAuthentication: false,
+      connectMethodsOrder: ['wallet']
     }
   });
-  await provider.connect();
+}
+
+function getModal() {
+  if (!modalPromise) {
+    modalPromise = buildModal().catch((err) => {
+      modalPromise = null;
+      throw err;
+    });
+  }
+  return modalPromise;
+}
+
+async function providerOf(modal) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const provider = modal.getWalletProvider?.();
+    if (provider && typeof provider.request === 'function') return provider;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw walletError('NO_WALLET');
+}
+
+export async function connectModal(hooks = {}) {
+  const modal = await getModal();
+  if (modal.getIsConnectedState?.() && modal.getAddress?.()) {
+    const provider = await providerOf(modal);
+    return openSession(provider, hooks);
+  }
+  const session = await new Promise((resolve, reject) => {
+    let opened = false;
+    let settled = false;
+    let unsubAccount = () => {};
+    let unsubState = () => {};
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      unsubAccount();
+      unsubState();
+      fn();
+    };
+    unsubAccount = modal.subscribeAccount((account) => {
+      if (!account?.isConnected || !account.address) return;
+      finish(() => resolve(account.address));
+    });
+    unsubState = modal.subscribeState((state) => {
+      if (state?.open) opened = true;
+      else if (opened) finish(() => reject(walletError('rejected')));
+    });
+    modal.open().catch((err) => finish(() => reject(err)));
+  });
+  const provider = await providerOf(modal);
+  return openSession(provider, hooks);
+}
+
+export async function connectInjected(id, hooks = {}) {
+  const list = await discoverInjected();
+  const item = list.find((wallet) => wallet.id === id) || (id ? null : list[0]);
+  if (!item) throw walletError('NO_WALLET');
+  return openSession(item.provider, hooks);
+}
+
+export async function disconnectWallet() {
+  if (!modalPromise) return;
   try {
-    return await sessionFromProvider(provider);
-  } catch (err) {
-    if (err && (err.code === 4001 || /reject|denied|cancel/i.test(String(err.message || '')))) {
-      throw walletError('rejected');
-    }
-    throw err;
+    const modal = await modalPromise;
+    await modal.disconnect?.();
+    await modal.close?.();
+  } catch {
+    /* cerrar sesión no debe bloquear el logout */
   }
 }
 
-export async function previewBalance(web3, address) {
-  const cfg = getConfig();
-  const contract = new ethers.Contract(cfg.tokenAddress, ERC20_ABI, web3);
-  const [balance, decimals] = await Promise.all([
-    contract.balanceOf(address),
-    contract.decimals()
-  ]);
-  return { balance: balance.toString(), decimals: Number(decimals) };
-}
-
-export async function signLogin(signer, message) {
-  return signer.signMessage(message);
+export async function peekWalletConnect() {
+  if (!validProjectId(getConfig().walletConnectProjectId)) return '';
+  try {
+    const modal = await getModal();
+    const current = modal.getAddress?.();
+    if (current) return String(current).toLowerCase();
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        unsub();
+        resolve('');
+      }, 2500);
+      const unsub = modal.subscribeAccount((account) => {
+        if (account?.status === 'connected' && account.address) {
+          clearTimeout(timer);
+          unsub();
+          resolve(String(account.address).toLowerCase());
+        } else if (account?.status === 'disconnected') {
+          clearTimeout(timer);
+          unsub();
+          resolve('');
+        }
+      });
+    });
+  } catch {
+    return '';
+  }
 }

@@ -8,16 +8,20 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node scripts/sync-shared.mjs && node scripts/build.mjs",
-    "serve": "node scripts/serve.mjs",
+    "config": "node scripts/write-local-config.mjs",
+    "build": "node scripts/sync-shared.mjs && node scripts/write-local-config.mjs && node scripts/build.mjs",
+    "serve": "node scripts/write-local-config.mjs && node scripts/serve.mjs",
     "test": "node scripts/sync-shared.mjs && node --test test/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project demo-muzz \"node --test test/rules.test.js\"",
     "cap:sync": "npm run build && cap sync android",
     "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@reown/appkit": "^1.8.24",
+    "@reown/appkit-adapter-ethers": "^1.8.24",
     "ethers": "^6.15.0",
-    "firebase": "^11.10.0"
+    "firebase": "^11.10.0",
+    "viem": "^2.56.9"
   },
   "devDependencies": {
     "@capacitor/android": "^7.4.3",

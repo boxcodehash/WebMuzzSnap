@@ -11,7 +11,7 @@ Este documento describe el acceso por saldo, el cifrado y el borrado de la app q
 ## Acceso: solo con wallet y saldo
 
 1. El cliente pide un nonce de un solo uso (`createNonce`).
-2. La wallet firma un mensaje fijo (estilo SIWE, formato propio). No es una transacción y no gasta gas.
+2. La wallet firma un mensaje fijo (estilo SIWE, formato propio). No es una transacción y no gasta gas. El selector es Reown AppKit (EIP-6963 y WalletConnect v2). Solo demuestra que controlas la clave: el saldo lo lee el servidor. El project id de Reown acaba en el cliente cuando se publica, pero no se commitea.
 3. `verifyAccess` recupera la dirección con `ethers.verifyMessage`, comprueba nonce, origen, chain id 1, contrato y que el mínimo firmado sea el del servidor.
 4. Lee `balanceOf` y `decimals` en mainnet. Compara enteros (`parseUnits`), no números con decimales flotantes.
 5. Si llega al mínimo, escribe `access/{wallet}` con `active: true` y una caducidad, y devuelve un **custom token** de Firebase con los claims `muzzAccess: true` y `wallet` igual al uid.
