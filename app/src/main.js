@@ -602,6 +602,10 @@ function registerWorker() {
 }
 
 function boot() {
+  state.demo = demoAllowed();
+  state.preview = getConfig().preview;
+  state.booting = !state.demo;
+  state.minMuzz = getConfig().minMuzz;
   const root = document.getElementById('app');
   root.addEventListener('click', (event) => { onClick(event); });
   root.addEventListener('submit', (event) => {
@@ -706,12 +710,22 @@ async function loadLocalConfig() {
     const res = await fetch('./config.local.json', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
-    const id = String(data.walletConnectProjectId || '').trim();
-    if (!id) return;
+    if (!data || typeof data !== 'object') return;
     globalThis.MUZZ_RUNTIME = globalThis.MUZZ_RUNTIME || {};
-    globalThis.MUZZ_RUNTIME.walletConnectProjectId = id;
+    const runtime = globalThis.MUZZ_RUNTIME;
+    const id = String(data.walletConnectProjectId || '').trim();
+    if (/^[a-f0-9]{32}$/i.test(id)) runtime.walletConnectProjectId = id;
+    if (data.preview === true) runtime.preview = true;
+    if (typeof data.functionsBase === 'string' && data.functionsBase.trim()) {
+      runtime.functionsBase = data.functionsBase.trim().replace(/\/$/, '');
+    }
+    const min = Number(data.minMuzz);
+    if (Number.isFinite(min) && min > 0) runtime.minMuzz = min;
+    if (data.firebase && typeof data.firebase === 'object') {
+      runtime.firebase = { ...(runtime.firebase && typeof runtime.firebase === 'object' ? runtime.firebase : {}), ...data.firebase };
+    }
   } catch {
-    /* sin project id el QR de WalletConnect no se abre; las wallets inyectadas siguen */
+    /* sin config.local.json siguen el runtime público y las wallets inyectadas */
   }
 }
 

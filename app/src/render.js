@@ -42,6 +42,13 @@ export function bannerHtml(state) {
   return parts.join('');
 }
 
+function previewBar(state) {
+  if (!state.preview) return '';
+  const href = state.demo ? '?login=1' : '?demo=1';
+  const label = state.demo ? 'Real sign-in' : 'Sample chat';
+  return `<p class="preview-bar">Preview build. Sample messages stay on this device and are not sent to Firebase. <a href="${href}">${label}</a></p>`;
+}
+
 function tabs(state) {
   const chatOn = state.route === 'chat';
   const privateOn = state.route === 'privado' || state.route === 'hilo';
@@ -145,6 +152,7 @@ function loginHtml(state) {
     ? `<div class="overlay" role="status"><div class="spinner"></div><h2>${esc(phase[0])}</h2><p>${esc(phase[1])}</p></div>`
     : '';
   return `<section class="login">
+    ${previewBar(state)}
     <header class="login-top"><span class="pulse" aria-hidden="true"></span><span>Ethereum mainnet · ERC-20</span></header>
     <div class="login-hero">
       <img src="muzzsnap.jpg" alt="MuzzSnap" class="login-logo">
@@ -182,8 +190,10 @@ export function shellHtml(state) {
   }
   if (!state.me || state.route === 'login') return loginHtml(state);
   const panel = sheet(state);
+  const bar = previewBar(state);
   if (state.route === 'chat') {
     return `<section class="shell">
+      ${bar}
       ${topbar('General', 'End-to-end encrypted')}
       <div id="banner" class="banner-slot"></div>
       <div id="msgs" class="msgs"></div>
@@ -195,6 +205,7 @@ export function shellHtml(state) {
   if (state.route === 'hilo') {
     const back = `<button type="button" class="icon-btn" data-action="go" data-route="privado" aria-label="Back">${ICONS.back}</button>`;
     return `<section class="shell">
+      ${bar}
       ${topbar(esc(displayName(state.peer)), esc(shortAddr(state.peer)), back)}
       <div id="banner" class="banner-slot"></div>
       <div id="msgs" class="msgs"></div>
@@ -204,6 +215,7 @@ export function shellHtml(state) {
     </section>`;
   }
   return `<section class="shell">
+    ${bar}
     ${topbar('Private', 'Only you and the other wallet')}
     <div id="banner" class="banner-slot"></div>
     <div id="msgs" class="msgs threads"></div>

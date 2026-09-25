@@ -28,13 +28,21 @@ export function getConfig() {
     chainId: CHAIN_ID,
     functionsBase: String(runtime.functionsBase || '').replace(/\/$/, ''),
     walletConnectProjectId: String(runtime.walletConnectProjectId || '').trim(),
+    preview: runtime.preview === true,
     firebase
   };
 }
 
-export function demoAllowed() {
-  if (typeof location === 'undefined') return false;
-  const host = location.hostname;
-  if (host !== '127.0.0.1') return false;
-  return new URLSearchParams(location.search).get('demo') === '1';
+/**
+ * Sample UI only. It never talks to Firebase.
+ * - 127.0.0.1 + ?demo=1 always (local screenshots).
+ * - MUZZ_PREVIEW=1, written into config.local.json, on any host (Vercel / APK test).
+ * ?login=1 or ?demo=0 shows the real sign-in screen instead.
+ */
+export function demoAllowed(loc = globalThis.location, runtime = globalThis.MUZZ_RUNTIME) {
+  if (!loc || typeof loc.hostname !== 'string') return false;
+  const params = new URLSearchParams(loc.search || '');
+  if (params.get('demo') === '0' || params.get('login') === '1') return false;
+  if (runtime && runtime.preview === true) return true;
+  return loc.hostname === '127.0.0.1' && params.get('demo') === '1';
 }

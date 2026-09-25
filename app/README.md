@@ -1,15 +1,16 @@
 # MuzzSnap app
 
-Chat grupal y mensajes privados para holders de MUZZ. Vive solo en esta carpeta. No modifica `login.html`, `chat.html`, `private.html` ni la config del sitio.
+Español: [README.es.md](README.es.md).
 
-- La interfaz está en inglés. Entras con MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom (en Ethereum) o cualquier wallet de WalletConnect v2. Firmas un nonce y el servidor comprueba que tengas al menos 10.000.000 MUZZ (`0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` en Ethereum). El mínimo se cambia con `MIN_MUZZ`. El project id de WalletConnect va en `WALLETCONNECT_PROJECT_ID`, no en el repo.
-- Cada mensaje va cifrado con una llave efímera, una prekey de un solo uso y un factor del servidor. Firebase no puede abrirlo solo.
-- Al leerse, se borra 24 h después. Detalle y límites en [SECURITY.md](SECURITY.md).
-- PWA (`www/`) y proyecto Android con Capacitor.
+Group chat and private messages for MUZZ holders. This folder is the whole app. It does not change `login.html`, `chat.html`, `private.html`, or the current site config.
 
-Cómo desplegar, sin tocar producción desde aquí: [DEPLOY.md](DEPLOY.md).
+The interface is English. Sign in with MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom (Ethereum mode), or any WalletConnect v2 wallet. You sign a nonce and the server checks that you hold at least 10,000,000 MUZZ (`0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` on Ethereum). Change the minimum with `MIN_MUZZ`. The WalletConnect project id belongs in `WALLETCONNECT_PROJECT_ID`, not in the repo.
 
-## Probar en local
+Each message is encrypted with an ephemeral key, a one-time prekey, and a server factor. Firebase cannot open it alone. After it is read, it is deleted 24 hours later. Limits: [SECURITY.md](SECURITY.md).
+
+PWA (`www/`) and a Capacitor Android project. Deploy without touching production from here: [DEPLOY.md](DEPLOY.md).
+
+## Try it locally
 
 ```bash
 cd app
@@ -20,18 +21,26 @@ npm run serve
 ```
 
 - App: http://127.0.0.1:4173/
-- Interfaz de ejemplo, sin wallet ni Firebase: http://127.0.0.1:4173/?demo=1&view=login (también `view=chat` y `view=hilo&peer=0x4c1e90aa77b3d81264c00000000000000000a91f`). Solo responde en `127.0.0.1`.
+- Sample UI, no wallet and no Firebase: http://127.0.0.1:4173/?demo=1&view=login (also `view=chat` and `view=hilo&peer=0x4c1e90aa77b3d81264c00000000000000000a91f`). That shortcut only answers on `127.0.0.1`.
 
-El acceso real necesita las Cloud Functions. Hasta entonces la pantalla de login lo explica.
+Real sign-in needs the Cloud Functions. Until then the login screen says so.
 
-Reglas contra el emulador (Java, no usa el proyecto real):
+Rules against the emulator (Java, does not use the real project):
 
 ```bash
 npm run test:rules
 ```
 
-APK de debug, con el SDK de Android instalado:
+## Test build without Firebase
+
+`dist/` is gitignored. The sample chat does not call Firebase.
 
 ```bash
-npm run android:debug
+npm run build:preview
+npm run android:preview
 ```
+
+- Static site: `app/dist`
+- Debug APK: `app/android/app/build/outputs/apk/debug/app-debug.apk`
+
+To publish only this app on Vercel, create a new project and set Root Directory to `app`. Do not add a `vercel.json` at the repo root. Variables: [DEPLOY.md](DEPLOY.md).

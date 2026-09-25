@@ -1,147 +1,192 @@
-# Despliegue de la app MuzzSnap
+# Deploying the MuzzSnap app
 
-No se ha desplegado nada ni se ha tocado el Firebase de producción. El sitio actual sigue igual. Estos pasos los tiene que hacer Freddie, en el proyecto que él elija.
+Español: [DEPLOY.es.md](DEPLOY.es.md).
 
-## Antes de nada
+Nothing here has been deployed, and production Firebase has not been touched. The current site is unchanged. Freddie has to run these steps, in the project he chooses.
 
-La app, tal como está en el repo, **no puede iniciar sesión de verdad**: `www/config.runtime.js` tiene `functionsBase` vacío a propósito. Hasta que no existan las Cloud Functions, la pantalla de acceso lo dice y no pide la firma.
+## Before anything else
 
-Hace falta:
+The app, as it sits in the repo, **cannot really sign in**: `www/config.runtime.js` leaves `functionsBase` empty on purpose. Until the Cloud Functions exist, the sign-in screen says so and does not ask for a signature.
 
-- Plan **Blaze** (las functions programadas y el TTL no entran en el plan gratis).
-- `firebase-tools`, `gcloud` y una cuenta con permiso para desplegar.
-- Node 20 o superior.
-- Para el APK: Android Studio o el SDK de Android (API 35) y un JDK 17 o 21.
-- Opcional: un project id de WalletConnect (es público, pero es de tu cuenta de https://cloud.walletconnect.com). Sin él, MetaMask sigue funcionando; WalletConnect muestra un aviso.
+You need:
 
-### Qué proyecto usar
+- The **Blaze** plan (scheduled functions and TTL are not on the free plan).
+- `firebase-tools`, `gcloud`, and an account that can deploy.
+- Node 20 or newer.
+- For the APK: Android Studio or the Android SDK (API 35) and a JDK 17 or 21.
+- Optional: a WalletConnect project id (it is public, but it belongs to your account at https://cloud.reown.com). Without it, injected wallets still work. WalletConnect shows a notice.
 
-La config por defecto apunta al proyecto **`pulsari`**, el mismo del sitio actual, porque esa apiKey ya es pública en `chat.html`. Desplegar ahí **no reescribe** el Realtime Database ni el HTML del sitio, pero sí crea Firestore, Storage, Auth custom tokens y functions en ese proyecto. Eso es producción.
+### Which project
 
-Si no quieres tocarlo:
+The default config points at **`pulsari`**, the same project as the current site, because that apiKey is already public in `chat.html`. Deploying there does **not** rewrite the Realtime Database or the site HTML, but it does create Firestore, Storage, Auth custom tokens, and functions in that project. That is production.
 
-1. Crea un proyecto Firebase nuevo.
-2. En `www/config.runtime.js` rellena `firebase` con la config web de ese proyecto (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`). Puedes dejar `databaseURL` vacío.
-3. No hace falta recompilar: ese archivo se lee al arrancar.
-4. Despliega las functions **en ese mismo proyecto**. El custom token y el cliente tienen que ser del mismo sitio.
+If you do not want to touch it:
 
-No subas `functions/.env`, cuentas de servicio ni el project id de WalletConnect si prefieres tratarlo como dato de tu cuenta. `.env` está en `.gitignore`. El ejemplo está en `functions/.env.example`.
+1. Create a new Firebase project.
+2. In `www/config.runtime.js`, fill `firebase` with that project’s web config (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`). `databaseURL` can stay empty. Or set the `MUZZ_FIREBASE_*` variables and run `npm run config`.
+3. You do not have to recompile for `config.runtime.js`: it is read at startup. Env vars are written into `config.local.json` at build time.
+4. Deploy the functions **to that same project**. The custom token and the client have to be the same project.
+
+Do not commit `functions/.env`, service accounts, or the WalletConnect project id. `.env` is in `.gitignore`. The example is `functions/.env.example` and `app/.env.example`.
 
 ## 1. Variables
 
-Desde `app/`:
+From `app/`:
 
 ```bash
 cp functions/.env.example functions/.env
+cp .env.example .env
 ```
 
-Edita `functions/.env`:
+Edit `functions/.env`:
 
-| Variable | Para qué | Por defecto |
+| Variable | What it is for | Default |
 | --- | --- | --- |
-| `MIN_MUZZ` | Mínimo de tokens enteros | `10000000` |
-| `TOKEN_ADDRESS` | ERC-20. No lo cambies salvo que el contrato sea otro | `0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` |
-| `ETH_RPC_URL` | RPC de Ethereum mainnet, sin clave si puede ser | `https://ethereum.publicnode.com` |
-| `ACCESS_TTL_MINUTES` | Cada cuánto hay que volver a demostrar el saldo | `60` |
-| `APP_ORIGINS` | Orígenes permitidos. Si la pones, **sustituye** la lista, no se suma | local, `https://localhost`, `capacitor://localhost` |
+| `MIN_MUZZ` | Minimum whole tokens | `10000000` |
+| `TOKEN_ADDRESS` | ERC-20. Do not change it unless the contract is different | `0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` |
+| `ETH_RPC_URL` | Ethereum mainnet RPC, without a key if you can | `https://ethereum.publicnode.com` |
+| `ACCESS_TTL_MINUTES` | How often the balance must be proven again | `60` |
+| `APP_ORIGINS` | Allowed origins. If you set it, it **replaces** the list. It does not append | local, `https://localhost`, `capacitor://localhost` |
 
-La chain id no es configurable: es mainnet (1).
+Chain id is not configurable. It is mainnet (1).
 
-### Project id de WalletConnect (Reown)
+### Client variables (`app/.env`)
 
-Hace falta para el código QR en el ordenador y para que el móvil abra MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom u otra wallet por WalletConnect v2 y vuelva a la app. Sin ese id, solo funcionan las wallets ya inyectadas en el navegador (extensión o navegador interno de la wallet).
+`npm run config`, `npm run build`, and `npm run serve` write `www/config.local.json`. That file is gitignored. The script does not print the values.
 
-El id es público cuando la app está publicada (el navegador lo ve), pero **no se sube al repo**.
+| Variable | Required for a visual preview | What it does |
+| --- | --- | --- |
+| `MUZZ_PREVIEW` | No. `npm run build:preview` forces it on in `dist` | `1` opens the sample chat with no Firebase. Leave it empty for a real build |
+| `WALLETCONNECT_PROJECT_ID` | No | 32 hex. QR and WalletConnect. Do not commit it |
+| `MUZZ_FUNCTIONS_BASE` | No | Functions URL, no trailing slash. Required for a real `?login=1` |
+| `MUZZ_MIN_MUZZ` | No | Integer shown before the server answers. The functions `MIN_MUZZ` is the one that counts |
+| `MUZZ_FIREBASE_API_KEY` | No | Set all six, or none. They replace the public `pulsari` web config |
+| `MUZZ_FIREBASE_AUTH_DOMAIN` | No | |
+| `MUZZ_FIREBASE_PROJECT_ID` | No | |
+| `MUZZ_FIREBASE_STORAGE_BUCKET` | No | |
+| `MUZZ_FIREBASE_MESSAGING_SENDER_ID` | No | |
+| `MUZZ_FIREBASE_APP_ID` | No | |
+| `MUZZ_FIREBASE_DATABASE_URL` | No | Optional |
 
-1. Entra en https://cloud.reown.com (también vale https://cloud.walletconnect.com: es el mismo panel) y crea una cuenta gratis.
-2. New project. El nombre puede ser MuzzSnap.
-3. Copia el **Project ID** (32 hexadecimales).
-4. En el proyecto, en Allowed domains / origins, añade los orígenes reales: `http://127.0.0.1:4173`, `https://localhost` (el APK) y, si publicas la PWA, `https://boxcodehash.github.io`.
-5. En `app/.env` (cópialo de `.env.example`, no lo commitees):
+Do not put the project id or `preview: true` in `www/config.runtime.js`. That file is committed.
+
+### WalletConnect project id (Reown)
+
+Needed for the QR code on a computer, and for the phone to open MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom, or another wallet over WalletConnect v2 and return to the app. Without the id, only wallets already injected in the browser work (an extension, or the wallet’s in-app browser).
+
+The id is public once the app is published (the browser can see it), but **it is not committed**.
+
+1. Go to https://cloud.reown.com (https://cloud.walletconnect.com is the same dashboard) and create a free account.
+2. New project. The name can be MuzzSnap.
+3. Copy the **Project ID** (32 hex characters).
+4. Under allowed domains / origins, add the real origins: `http://127.0.0.1:4173`, `https://localhost` (the APK), and, if you publish the PWA, the Vercel domain or `https://boxcodehash.github.io`.
+5. In `app/.env`:
 
 ```bash
-WALLETCONNECT_PROJECT_ID=tu_id_de_32_hex
+WALLETCONNECT_PROJECT_ID=your_32_hex_id
 ```
 
-6. Desde `app/`:
+6. From `app/`:
 
 ```bash
 npm run config
 ```
 
-Eso escribe `www/config.local.json`. Está en `.gitignore`. El script no imprime el id. Si el valor no son 32 hex, no lo escribe.
+Phantom must be in Ethereum mode. Solana does not work. The MUZZ contract is on mainnet.
 
-No lo pongas en `www/config.runtime.js`: ese archivo sí se commitea. `npm run build` y `npm run serve` generan el json solos si el `.env` existe.
-
-Phantom tiene que estar en modo Ethereum. Solana no sirve: el contrato de MUZZ está en mainnet.
-
-Si publicas la PWA en GitHub Pages, añade el origen real, por ejemplo `https://boxcodehash.github.io`. El APK con Capacitor usa `https://localhost`. Ejemplo:
+If you publish the PWA, add the real origin to `APP_ORIGINS` on the functions as well. The Capacitor APK uses `https://localhost`. Example:
 
 ```bash
-APP_ORIGINS=http://127.0.0.1:4173,http://localhost:4173,https://localhost,capacitor://localhost,https://boxcodehash.github.io
+APP_ORIGINS=http://127.0.0.1:4173,http://localhost:4173,https://localhost,capacitor://localhost,https://your-project.vercel.app
 ```
 
-## 2. Functions, reglas e índices
+## 2. Test version without Firebase
 
-Desde `app/`, con el proyecto ya elegido (`firebase use TU_PROYECTO` o `--project`):
+You do not need functions to look at the interface.
+
+```bash
+cd app
+npm install
+npm run build:preview
+```
+
+The static site is `app/dist`. `dist/config.local.json` has `"preview": true`. `dist/` is gitignored. Opening it shows the sample chat. `?login=1` shows real sign-in (and, without functions, the notice that `functionsBase` is missing).
+
+Preview APK, same mode:
+
+```bash
+npm run android:preview
+```
+
+The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. It is not committed. Opening it shows the sample chat, not real sign-in.
+
+### Publish only this app on Vercel
+
+This does not touch GitHub Pages or the site at the repo root. Create a **new** Vercel project. Set Root Directory to `app`. `app/vercel.json` already sets the build to `npm run build:preview` and the output to `dist`. Do not add a `vercel.json` at the repo root.
+
+No env var is required for the sample chat, because `build:preview` turns preview on. Set the client variables above only if that same preview should also reach a real backend through `?login=1`. If you deploy functions for that test, `APP_ORIGINS` must include the Vercel origin. Preview URLs change; add the project domain.
+
+## 3. Functions, rules, and indexes
+
+From `app/`, with the project already chosen (`firebase use YOUR_PROJECT` or `--project`):
 
 ```bash
 cd app
 npm install
 npm install --prefix functions
-firebase deploy --only functions,firestore:rules,firestore:indexes,storage --project TU_PROYECTO
+firebase deploy --only functions,firestore:rules,firestore:indexes,storage --project YOUR_PROJECT
 ```
 
-Eso publica:
+That publishes:
 
 - `createNonce`, `verifyAccess`, `recheckBalance`, `issueServerFactor`
-- `purgeExpired` (cada 60 minutos)
-- `firestore.rules` y `storage.rules`
-- el índice de grupo de colecciones sobre `messages.expireAt`
+- `purgeExpired` (every 60 minutes)
+- `firestore.rules` and `storage.rules`
+- the collection-group index on `messages.expireAt`
 
-Las functions HTTPS tienen que poder invocarse sin IAM de Google (`invoker: public` ya va en el código). La autorización es el custom token, no ese IAM. `createNonce` es público a propósito: solo entrega un nonce.
+HTTPS functions must be invokable without Google IAM (`invoker: public` is already in the code). Authorization is the custom token, not that IAM. `createNonce` is public on purpose: it only hands out a nonce.
 
-Cuando termine, copia la URL base **sin** el nombre de la function y **sin** barra final. Suele ser:
+When it finishes, copy the base URL **without** the function name and **without** a trailing slash. It is usually:
 
 ```text
-https://us-central1-TU_PROYECTO.cloudfunctions.net
+https://us-central1-YOUR_PROJECT.cloudfunctions.net
 ```
 
-Pégala en `www/config.runtime.js`:
+Put it in `www/config.runtime.js`, or in `MUZZ_FUNCTIONS_BASE` and run `npm run config`:
 
 ```js
 window.MUZZ_RUNTIME = {
-  functionsBase: 'https://us-central1-TU_PROYECTO.cloudfunctions.net',
+  functionsBase: 'https://us-central1-YOUR_PROJECT.cloudfunctions.net',
   walletConnectProjectId: '',
   minMuzz: 10000000,
   firebase: null
 };
 ```
 
-Deja `walletConnectProjectId` vacío. El id va por `WALLETCONNECT_PROJECT_ID`, no aquí.
+Leave `walletConnectProjectId` empty. The id comes from `WALLETCONNECT_PROJECT_ID`, not from here.
 
-`minMuzz` aquí solo es el número que se enseña antes de hablar con el servidor. El que manda es `MIN_MUZZ` de la function. Conviene que coincidan.
+`minMuzz` here is only the number shown before the server answers. The one that counts is the function’s `MIN_MUZZ`. They should match.
 
-Si cambias el mínimo más adelante: edita `functions/.env`, vuelve a desplegar **solo** functions y actualiza el número de la pantalla. No hace falta tocar las reglas.
+If you change the minimum later: edit `functions/.env`, redeploy **only** functions, and update the number on the screen. The rules do not need a change.
 
-## 3. Política TTL
+## 4. TTL policy
 
-La function ya borra cada hora. La TTL de Firestore es la red de seguridad si la function está parada. En consola: Firestore → Time-to-live → campo `expireAt`, ámbito **grupo de colecciones** `messages`.
+The function already deletes every hour. Firestore TTL is the backup if the function is down. In the console: Firestore → Time-to-live → field `expireAt`, scope **collection group** `messages`.
 
-O con gcloud:
+Or with gcloud:
 
 ```bash
 gcloud firestore fields ttls update expireAt \
   --collection-group=messages \
   --enable-ttl \
-  --project=TU_PROYECTO
+  --project=YOUR_PROJECT
 ```
 
-Eso cubre los mensajes privados, la bandeja de cada miembro del grupo y la copia del emisor, porque las tres colecciones se llaman `messages`. Puede tardar en activarse. El borrado nativo puede ir con hasta 72 h de retraso; no sustituye a `purgeExpired`.
+That covers private messages, each group member’s inbox, and the sender copy, because all three collections are named `messages`. It can take a while to turn on. Native deletion can lag by up to 72 h. It does not replace `purgeExpired`.
 
-La primera ejecución de `purgeExpired` puede pedir un índice si el de `firestore.indexes.json` no se desplegó. El enlace sale en el log de la function. No lo ignores.
+The first `purgeExpired` run may ask for an index if `firestore.indexes.json` was not deployed. The link is in the function log. Do not ignore it.
 
-## 4. Probar en el navegador
+## 5. Try it in the browser
 
 ```bash
 cd app
@@ -150,37 +195,39 @@ npm run build
 npm run serve
 ```
 
-Abre `http://127.0.0.1:4173/`. Sin `functionsBase` verás el aviso y no entrarás. Con las functions desplegadas y la URL puesta:
+Open `http://127.0.0.1:4173/`. Without `functionsBase` you will see the notice and you will not get in. With the functions deployed and the URL set:
 
-1. MetaMask en Ethereum mainnet.
-2. Firma del mensaje.
-3. Si la wallet tiene al menos el mínimo, entras al chat. Si no, la app dice el saldo y no hay sesión.
-4. Desde otro navegador o dispositivo, con otra wallet que también pase el mínimo, abre un privado.
-5. Al leer, en Firestore deben aparecer `readAt` y `expireAt` unas 24 h después.
-6. Para probar el cierre por saldo hace falta una wallet que baje del mínimo, o bajar `MIN_MUZZ` por encima de su saldo y volver a entrar. `recheckBalance` también corre al reabrir la app.
+1. MetaMask on Ethereum mainnet.
+2. Sign the message.
+3. If the wallet holds at least the minimum, you enter the chat. If not, the app shows the balance and there is no session.
+4. From another browser or device, with another wallet that also passes the minimum, open a private thread.
+5. After it is read, Firestore should show `readAt` and `expireAt` about 24 h later.
+6. To test the balance cutoff you need a wallet that falls below the minimum, or set `MIN_MUZZ` above its balance and sign in again. `recheckBalance` also runs when the app is reopened.
 
-La vista `?demo=1` solo existe en `127.0.0.1` y no comprueba nada. No la uses como prueba de seguridad.
+`?demo=1` exists only on `127.0.0.1` and checks nothing. Do not use it as a security test.
 
-El emulador de reglas (hace falta Java):
+Rules emulator (Java required):
 
 ```bash
 cd app
 npm run test:rules
 ```
 
-No contacta con `pulsari`. Usa el proyecto ficticio `demo-muzz`.
+It does not contact `pulsari`. It uses the fake project `demo-muzz`.
 
-## 5. PWA
+## 6. PWA
 
-Con `npm run build`, `www/` es instalable: `manifest.webmanifest` y `sw.js`. El service worker guarda el cascarón (HTML, CSS, JS, iconos). No guarda mensajes. En el APK no se registra, para no pelearse con el WebView.
+After `npm run build`, `www/` is installable: `manifest.webmanifest` and `sw.js`. The service worker caches the shell (HTML, CSS, JS, icons). It does not cache messages. It is not registered inside the APK, so it does not fight the WebView.
 
-Sirve `www/` por HTTPS. Si el sitio actual se publica entero por GitHub Pages, al **fusionar** este PR la app quedará en una ruta del tipo `/app/www/`. Este trabajo no fusiona ni cambia el workflow de Pages. Si no quieres publicarla todavía, no fusiones.
+Serve `www/` over HTTPS for a real install. `app/dist` is the preview build (`npm run build:preview`). If the current site is published as a whole by GitHub Pages, **merging** this PR would put the app at a path like `/app/www/`. This work does not merge and does not change the Pages workflow. If you do not want it public yet, do not merge.
 
-La interfaz de la app está en inglés. En el móvil: Safari o Chrome → Añadir a la pantalla de inicio. Si el navegador no tiene extensión, “Open in wallet” carga la página en MetaMask, Trust, Coinbase, Rainbow, OKX o Phantom. Con el project id, “Connect wallet” abre el modal de Reown AppKit: QR en escritorio y deep link en el móvil, y al aprobar la wallet vuelve a esta página.
+The app UI is English. On a phone: Safari or Chrome → Add to Home Screen. If the browser has no extension, “Open in wallet” loads the page in MetaMask, Trust, Coinbase, Rainbow, OKX, or Phantom. With the project id, “Connect wallet” opens the Reown AppKit modal: a QR code on desktop and a deep link on mobile, and after approval the wallet returns to this page.
 
-## 6. APK de depuración
+## 7. Debug APK
 
-El proyecto Android se genera con Capacitor (`android/`). No lleva una keystore de publicación.
+The Android project is generated with Capacitor (`android/`). It does not include a release keystore.
+
+Real sign-in APK (preview off, needs `config.local.json` with the project id if you want the QR code):
 
 ```bash
 cd app
@@ -188,27 +235,33 @@ npm install
 npm run android:debug
 ```
 
-Eso hace el build web, `cap sync` y `./gradlew assembleDebug`. El APK queda en:
+Sample-chat APK, no Firebase:
+
+```bash
+npm run android:preview
+```
+
+Both write:
 
 ```text
 app/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Hace falta `ANDROID_HOME` con platform android-35 y build-tools. Si Gradle no encuentra el SDK, Android Studio lo instala la primera vez que abres `app/android/`.
+`ANDROID_HOME` needs platform android-35 and build-tools. If Gradle cannot find the SDK, Android Studio installs it the first time you open `app/android/`.
 
-El id de aplicación es `app.muzzsnap.chat`. El WebView usa `https://localhost`, así que ese origen tiene que estar en `APP_ORIGINS` (ya está en la lista por defecto) y en los dominios permitidos del project id de Reown.
+The application id is `app.muzzsnap.chat`. The WebView uses `https://localhost`, so that origin has to be in `APP_ORIGINS` (it is already in the default list) and in the Reown project’s allowed domains.
 
-Dentro del APK no hay MetaMask inyectado. “Connect wallet” usa WalletConnect. Al volver de la wallet, Android abre el esquema `muzzsnap://wc` (está en el manifest, `singleTask`). Hay que haber generado `www/config.local.json` **antes** de `npm run android:debug`, porque el APK copia `www/`. Sin ese json el APK no puede mostrar el QR.
+There is no injected MetaMask inside the APK. “Connect wallet” uses WalletConnect. When the wallet returns, Android opens the `muzzsnap://wc` scheme (it is in the manifest, `singleTask`). Generate `www/config.local.json` **before** `npm run android:debug`, because the APK copies `www/`. Without that json the APK cannot show the QR code. `android:preview` writes the preview flag into that json, syncs, then turns the flag back off in `www/` so the folder you serve locally is not left in preview mode. The APK already has its own copy.
 
-También puedes abrir la PWA dentro del navegador de la propia wallet: ahí la wallet sí está inyectada y no hace falta el project id.
+You can also open the PWA inside the wallet’s own browser. The wallet is injected there, and the project id is not required.
 
-No firmes este APK de debug para Play Store. Para una release hace falta una keystore tuya, que no debe subirse al repo.
+Do not ship this debug APK to the Play Store. A release needs your own keystore, and that keystore must not be committed.
 
-## 7. Qué revisar después del primer despliegue
+## 8. What to check after the first deploy
 
-- Auth → Sign-in method: el custom token no pide un proveedor extra, pero el proyecto tiene que tener Authentication activado.
-- Firestore y Storage creados (modo producción; las reglas de este repo ya cierran el acceso).
-- Que una wallet por debajo del mínimo recibe `below_minimum` y no un token.
-- Que un usuario sin claim no puede leer `users` ni `messages` (las reglas lo niegan).
-- Logs de `purgeExpired` al día siguiente.
-- Que `functions/.env` no aparece en git (`git status`).
+- Auth → Sign-in method: a custom token does not need an extra provider, but Authentication has to be enabled.
+- Firestore and Storage created (production mode; the rules in this repo already close access).
+- A wallet under the minimum gets `below_minimum` and no token.
+- A user without the claim cannot read `users` or `messages` (the rules deny it).
+- `purgeExpired` logs the next day.
+- `functions/.env` does not show up in git (`git status`).
