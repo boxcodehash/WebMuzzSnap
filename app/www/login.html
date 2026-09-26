@@ -484,10 +484,10 @@
             <img src="muzzsnap.jpg" alt="MuzzSnap">
         </button>
 
-        <p id="statusText">Tap the logo to connect a wallet</p>
+        <p id="statusText">Tap the logo to connect with WalletConnect</p>
 
-        <button type="button" id="btnWc" class="btn btn-primary hidden">Connect with WalletConnect</button>
-        <p id="wcNote" class="fine hidden">WalletConnect signs inside this app. It does not open a localhost page.</p>
+        <button type="button" id="btnWc" class="btn btn-primary">Connect with WalletConnect</button>
+        <p id="wcNote" class="fine">WalletConnect opens your wallet and returns to this app. It does not load a localhost page.</p>
 
         <div id="returnBox" class="return-box hidden">
             <p class="fine" id="returnText">Signed in. Return to the MuzzSnap app.</p>
@@ -515,7 +515,7 @@
         <div class="sign-card">
             <div class="spinner"></div>
             <h2 id="signStep">Connecting wallet</h2>
-            <p id="signHint">Approve the connection and the signature in your wallet, then return here. It does not spend gas.</p>
+            <p id="signHint">Approve the connection and the signature in your wallet. It does not spend gas. WalletConnect brings you back to this app.</p>
         </div>
     </div>
 
@@ -568,8 +568,8 @@
                     statusText.textContent = 'Connecting to the live database...';
                     return;
                 }
-                statusText.textContent = runningInApk()
-                    ? 'Live database connected. Choose a wallet below.'
+                statusText.textContent = muzzGate.walletConnectProjectId()
+                    ? 'Live database connected. Tap the logo to sign in with WalletConnect.'
                     : 'Live database connected. Tap the logo to sign in.';
             });
         } catch (err) {
@@ -612,8 +612,7 @@
             });
             const note = document.getElementById('walletNote');
             if (runningInApk()) {
-                note.textContent = 'The app opens ' + muzzGate.appPublicUrl() + '/login.html inside the wallet. Sign there, then return to MuzzSnap. A wallet cannot load https://localhost.';
-                document.getElementById('walletDetails').open = true;
+                note.textContent = 'WalletConnect is the main sign-in. It opens MetaMask, Trust, Coinbase, Rainbow, OKX, Phantom, or any other wallet and returns with muzzsnap://wc. If that fails, these links open ' + muzzGate.appPublicUrl() + '/login.html inside the wallet. A wallet cannot load https://localhost.';
             } else if (wantsApkReturn()) {
                 note.textContent = 'Sign the message in this wallet. It does not spend gas. Then return to the MuzzSnap app, or continue in this browser.';
             } else {
@@ -812,12 +811,24 @@
 
         async function accessWithWallet() {
             errorBox.classList.add('hidden');
-            if (runningInApk()) {
-                const injected = await discoverInjectedProvider();
-                if (!injected) {
-                    openChooser('Choose a wallet below. Signing happens on the public page, then you return here.');
-                    return;
+            const injected = await discoverInjectedProvider();
+            if (injected) {
+                showSigning(true);
+                setStep('Opening wallet...');
+                try {
+                    await signInWithProvider(injected, wantsApkReturn());
+                } catch (err) {
+                    showSignError(err);
                 }
+                return;
+            }
+            if (muzzGate.walletConnectProjectId()) {
+                await accessWithWalletConnect();
+                return;
+            }
+            if (runningInApk()) {
+                openChooser('Choose a wallet below. Signing happens on the public page, then you return here.');
+                return;
             }
             showSigning(true);
             setStep('Opening wallet...');
@@ -886,8 +897,18 @@
             try {
                 const App = Cap.registerPlugin('App');
                 App.addListener('appUrlOpen', (event) => {
-                    const next = muzzGate.tokenFromUrl(event && event.url);
-                    if (next) acceptAuthToken(next);
+                    const url = event && event.url;
+                    const next = muzzGate.tokenFromUrl(url);
+                    if (next) {
+                        acceptAuthToken(next);
+                        return;
+                    }
+                    if (/^muzzsnap:\/\/wc\b/i.test(String(url || ''))) {
+                        window.dispatchEvent(new CustomEvent('muzz-wc-return'));
+                    }
+                });
+                App.addListener('resume', () => {
+                    window.dispatchEvent(new CustomEvent('muzz-wc-return'));
                 });
                 if (typeof App.getLaunchUrl === 'function') {
                     App.getLaunchUrl().then((res) => {

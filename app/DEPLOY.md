@@ -57,7 +57,7 @@ Chain id is not configurable. It is mainnet (1).
 | Variable | Required for a visual preview | What it does |
 | --- | --- | --- |
 | `MUZZ_PREVIEW` | No. The installable app does not use it | Leave it empty. The shipped pages are the real chat |
-| `WALLETCONNECT_PROJECT_ID` | No | 32 hex. QR and WalletConnect. Do not commit it |
+| `WALLETCONNECT_PROJECT_ID` | No | 32 hex. Overrides the public id already in `www/config.public.js`. Do not commit a different id |
 | `MUZZ_FUNCTIONS_BASE` | No | Functions URL, no trailing slash. Required for a real `?login=1` |
 | `MUZZ_MIN_MUZZ` | No | Integer shown before the server answers. The functions `MIN_MUZZ` is the one that counts |
 | `MUZZ_FIREBASE_API_KEY` | No | Set all six, or none. They replace the public `pulsari` web config |
@@ -104,7 +104,7 @@ APP_ORIGINS=http://127.0.0.1:4173,http://localhost:4173,https://localhost,capaci
 
 `app/www` is the real login, group chat, and private chat. It talks to the same `pulsari` Realtime Database as the website. There is no sample chat in this build.
 
-The 10,000,000 MUZZ check is `balanceOf` on a public RPC (`www/js/muzz-gate.js`) until you deploy functions. No env var is required for that. The APK opens `https://muzzsnap-app.vercel.app/login.html#from=apk` inside MetaMask, Trust, Coinbase, Rainbow, OKX, and Phantom (`APP_PUBLIC_URL` overrides it). `WALLETCONNECT_PROJECT_ID` is optional: without it there is no WalletConnect button. With it, signing stays inside the APK.
+The 10,000,000 MUZZ check is `balanceOf` on a public RPC (`www/js/muzz-gate.js`) until you deploy functions. No env var is required for that. Inside the APK the logo opens WalletConnect (Reown AppKit) with the public project id in `www/config.public.js`. MetaMask, Trust, Coinbase, Rainbow, OKX, Phantom, and the other wallets deep-link out of the app and return with `muzzsnap://wc`. The public page `https://muzzsnap-app.vercel.app/login.html#from=apk` stays as the fallback (`APP_PUBLIC_URL` overrides it).
 
 ### Publish only this app on Vercel
 
@@ -147,7 +147,7 @@ window.MUZZ_RUNTIME = {
 };
 ```
 
-Leave `walletConnectProjectId` empty. The id comes from `WALLETCONNECT_PROJECT_ID`, not from here.
+Leave `walletConnectProjectId` empty in this file. The public MuzzSnap id is already in `www/config.public.js`. `WALLETCONNECT_PROJECT_ID` overrides it at build time.
 
 `minMuzz` here is only the number shown before the server answers. The one that counts is the function’s `MIN_MUZZ`. They should match.
 
@@ -217,9 +217,11 @@ The APK is `app/android/app/build/outputs/apk/debug/app-debug.apk`. It is not co
 
 `ANDROID_HOME` needs platform android-35 and build-tools. The application id is `app.muzzsnap.chat`. The WebView origin is `https://localhost`.
 
-There is no injected wallet inside the APK, and the WebView origin is `https://localhost`. A wallet cannot open that page, so the logo does not use the MetaMask SDK against localhost. MetaMask, Trust, Coinbase, Rainbow, OKX, and Phantom open `APP_PUBLIC_URL/login.html#from=apk` (default `https://muzzsnap-app.vercel.app/login.html#from=apk`) inside the wallet browser, where `window.ethereum` exists. After the signature and the 10,000,000 MUZZ check, the wallet returns with `muzzsnap://auth?token=...`. The APK checks the signature, a 3-minute expiry, and the balance again, then enters chat. The same page also offers “Continue in this browser” if the custom scheme does not open the app.
+There is no injected wallet inside the APK, and the WebView origin is `https://localhost`. Tapping the logo opens WalletConnect. The wallet list includes MetaMask, Trust, Coinbase, Rainbow, OKX, and Phantom, plus the rest of the WalletConnect directory. The phone opens the wallet with a deep link and returns to the app with `muzzsnap://wc`. The signature is checked in the APK and the 10,000,000 MUZZ balance is read again before chat.
 
-That return token is the signature itself. Cloud Functions are not deployed, so there is no server one-time token and no Firebase custom token. The nonce is remembered only on the device that consumes it. Someone who copies the link could replay it on another phone for those 3 minutes. WalletConnect v2 (Reown AppKit) avoids the handoff: set `WALLETCONNECT_PROJECT_ID`, rebuild, and “Connect with WalletConnect” signs inside the APK. Without that id the button stays hidden. `muzzsnap://wc` remains the native return for WalletConnect. The public metadata URL is `APP_PUBLIC_URL`, not `https://localhost`.
+The public page is the fallback. “Open in wallet” still opens `APP_PUBLIC_URL/login.html#from=apk` (default `https://muzzsnap-app.vercel.app/login.html#from=apk`) inside the wallet browser. After that signature and the balance check, the wallet returns with `muzzsnap://auth?token=...`. The same page also offers “Continue in this browser” if the custom scheme does not open the app. That token is the signature itself. Cloud Functions are not deployed, so there is no server one-time token. The nonce is remembered only on the device that consumes it.
+
+The Reown project id in `www/config.public.js` is a public client id (`8ff03dad157892146048cfe2b4e381ca`, project MuzzSnap). Its allowed domains are `muzzsnap-app.vercel.app` and `localhost`. WalletConnect metadata uses the public URL, not `https://localhost`, so the wallet does not try to load the WebView origin.
 
 Publish `app/www` as its own Vercel project (Root Directory `app`, output `www`). Do not add a root `vercel.json` and do not change the current site.
 

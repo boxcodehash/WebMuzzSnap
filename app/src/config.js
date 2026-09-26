@@ -27,7 +27,11 @@ export function getConfig() {
     tokenAddress: TOKEN_ADDRESS,
     chainId: CHAIN_ID,
     functionsBase: String(runtime.functionsBase || '').replace(/\/$/, ''),
-    walletConnectProjectId: String(runtime.walletConnectProjectId || '').trim(),
+    walletConnectProjectId: String(
+      runtime.walletConnectProjectId
+      || (globalThis.MUZZ_PUBLIC && globalThis.MUZZ_PUBLIC.walletConnectProjectId)
+      || ''
+    ).trim(),
     preview: runtime.preview === true,
     firebase
   };

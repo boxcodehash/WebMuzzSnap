@@ -77,8 +77,12 @@ test('el token de vuelta se verifica una sola vez y caduca', async () => {
   const nonce = 'ab'.repeat(16);
   const message = gate.buildLoginMessage(wallet.address, { nonce, exp, returnApk: true });
   assert.match(message, /Return: apk/);
+  const inApp = gate.buildLoginMessage(wallet.address, { nonce, exp, returnApk: false });
+  assert.doesNotMatch(inApp, /Return: apk/);
   assert.match(message, new RegExp(`Nonce: ${nonce}`));
   const signature = await wallet.signMessage(message);
+  const inAppSig = await wallet.signMessage(inApp);
+  assert.equal(verifyMessage(inApp, inAppSig).toLowerCase(), wallet.address.toLowerCase());
   const token = gate.encodeHandoff({ a: wallet.address, n: nonce, e: exp, s: signature });
   const url = gate.handoffUrl(token);
   assert.match(url, /^muzzsnap:\/\/auth\?token=/);
@@ -100,11 +104,14 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   const activity = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/MainActivity.java', import.meta.url), 'utf8');
   const wallet = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
   assert.match(pub, /https:\/\/muzzsnap-app\.vercel\.app/);
+  assert.match(pub, /8ff03dad157892146048cfe2b4e381ca/);
   assert.match(login, /config\.public\.js/);
   assert.match(login, /loginPageForWallets\(runningInApk\(\) \|\| wantsApkReturn\(\)\)/);
   assert.doesNotMatch(login, /walletDeepLinks\(location\.href/);
   assert.match(login, /muzzAcceptAuth/);
   assert.match(login, /Connect with WalletConnect/);
+  assert.match(login, /if \(muzzGate\.walletConnectProjectId\(\)\) \{\s*await accessWithWalletConnect\(\)/);
+  assert.match(login, /muzzsnap:\/\/wc/);
   assert.match(login, /Continue in this browser/);
   assert.match(login, /explainSignError/);
   assert.match(login, /\.\/js\/wc-login\.js/);

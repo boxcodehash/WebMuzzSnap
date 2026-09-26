@@ -42,6 +42,6 @@ npm run android:debug
 
 The debug APK is `app/android/app/build/outputs/apk/debug/app-debug.apk`.
 
-Wallet buttons in the APK open `https://muzzsnap-app.vercel.app/login.html` (see `APP_PUBLIC_URL`) inside the wallet, then return with `muzzsnap://auth`. WalletConnect appears only after `WALLETCONNECT_PROJECT_ID` is set and the APK is rebuilt.
+In the APK, the logo opens WalletConnect and the wallet returns with `muzzsnap://wc`. The public project id is in `www/config.public.js`. “Open in wallet” is the fallback: it opens `https://muzzsnap-app.vercel.app/login.html` and returns with `muzzsnap://auth`.
 
 To publish only this app on Vercel, create a new project and set Root Directory to `app`. Output is `www`. Do not add a `vercel.json` at the repo root.
