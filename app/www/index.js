@@ -232,71 +232,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkBalance(address) {
-        try {
-            const validatedUserAddress = ethers.utils.getAddress(address);
-            const validatedContractAddress = ethers.utils.getAddress(CONFIG.CONTRACT_ADDRESS);
-            
-            let provider;
+        const validatedUserAddress = ethers.utils.getAddress(address);
+        const validatedContractAddress = ethers.utils.getAddress(CONFIG.CONTRACT_ADDRESS);
+        const urls = [
+            'https://ethereum.publicnode.com',
+            'https://eth.drpc.org',
+            'https://rpc.ankr.com/eth'
+        ];
+        let last = null;
+        for (const url of urls) {
             try {
-                // Intenta usar la conexión de la wallet
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-            } catch (providerError) {
-                // Fallback a un RPC público si falla la conexión directa (menos seguro, pero robusto)
-                provider = new ethers.providers.JsonRpcProvider(CONFIG.RPC_URLS[CONFIG.NETWORK_ID] || 'https://eth.drpc.org');
+                const provider = new ethers.providers.JsonRpcProvider(url);
+                const contract = new ethers.Contract(validatedContractAddress, ERC20_ABI, provider);
+                const balance = await contract.balanceOf(validatedUserAddress);
+                const decimals = await contract.decimals();
+                const balanceFormatted = ethers.utils.formatUnits(balance, decimals);
+                const balanceNumber = parseFloat(balanceFormatted);
+                return {
+                    balance: balance,
+                    raw: balanceNumber,
+                    formatted: balanceNumber.toLocaleString(undefined, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                    }),
+                    hasAccess: balanceNumber >= CONFIG.MIN_BALANCE
+                };
+            } catch (error) {
+                last = error;
             }
-            
-            const contract = new ethers.Contract(validatedContractAddress, ERC20_ABI, provider);
-            
-            const balance = await contract.balanceOf(validatedUserAddress); 
-            const decimals = await contract.decimals();
-            
-            const balanceFormatted = ethers.utils.formatUnits(balance, decimals);
-            const balanceNumber = parseFloat(balanceFormatted);
-            
-            return {
-                balance: balance,
-                raw: balanceNumber,
-                formatted: balanceNumber.toLocaleString(undefined, {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 2
-                }),
-                hasAccess: balanceNumber >= CONFIG.MIN_BALANCE
-            };
-        } catch (error) {
-            console.error('Error checking balance details:', error);
-            // Error específico si el contrato no existe en la red o el ABI es incorrecto
-            throw new Error(`Could not verify token balance. Check if the wallet is on the correct network (Ethereum Mainnet).`);
         }
-    }
-
-    function mainnetChainNumber(value) {
-        if (value == null || value === '') return NaN;
-        if (typeof value === 'number') return value;
-        let text = String(value).trim().toLowerCase();
-        if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
-        if (text.startsWith('0x')) return parseInt(text, 16);
-        if (/^\d+$/.test(text)) return Number(text);
-        return NaN;
-    }
-
-    async function checkNetwork() {
-        try {
-            if (!window.ethereum) return true;
-            
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-            const currentChainId = mainnetChainNumber(chainId);
-            
-            if (currentChainId !== CONFIG.NETWORK_ID) {
-                const networkNames = { 1: 'Ethereum Mainnet', 56: 'BSC Mainnet', 137: 'Polygon' };
-                const currentNetwork = networkNames[currentChainId] || `Chain ID ${currentChainId}`;
-                const expectedNetwork = networkNames[CONFIG.NETWORK_ID] || `Chain ID ${CONFIG.NETWORK_ID}`;
-                
-                throw new Error(`Wrong network! Connected to ${currentNetwork}, but need ${expectedNetwork}`);
-            }
-            return true;
-        } catch (error) {
-            throw error;
-        }
+        console.error('Error checking balance details:', last);
+        throw new Error('RPC unreachable. Could not read the MUZZ balance.');
     }
 
     // ==========================================
@@ -342,9 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const address = accounts[0];
             currentAddress = address;
 
-            // 2. Revisión de Red
-            updateStatus("Checking network...", 'info');
-            await checkNetwork();
+            // Balance is read on Ethereum RPCs. The wallet chain is not checked.
 
             // 3. Revisión de Balance
             updateStatus("Checking balance...", 'info');

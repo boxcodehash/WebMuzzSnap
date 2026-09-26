@@ -2,14 +2,6 @@ import { ethers } from 'ethers';
 import { matchWalletId, walletById } from './walletCatalog.js';
 import { mapWalletError, walletError } from './walletErrors.js';
 
-const MAINNET = {
-  chainId: '0x1',
-  chainName: 'Ethereum',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: ['https://ethereum.publicnode.com'],
-  blockExplorerUrls: ['https://etherscan.io']
-};
-
 export function isMobile(userAgent = globalThis.navigator?.userAgent || '') {
   return /Android|iPhone|iPad|iPod/i.test(userAgent);
 }
@@ -71,10 +63,58 @@ export function sessionHasMainnet(provider, hint) {
   });
 }
 
-export function chainMismatchError(detected) {
-  const err = new Error(`Accept the switch to Ethereum mainnet and try again. (detected: ${chainLabel(detected)})`);
-  err.code = 'chain';
-  return err;
+const SWITCH_METHODS = new Set(['wallet_switchEthereumChain', 'wallet_addEthereumChain']);
+
+function rpcMethod(payload) {
+  if (payload && typeof payload === 'object') return String(payload.method || '');
+  return '';
+}
+
+/** Login never asks the wallet to change chain. AppKit still calls these methods. */
+export function ignoreChainSwitch(provider) {
+  if (!provider || typeof provider.request !== 'function' || provider.__muzzNoSwitch) return provider;
+  const original = provider.request.bind(provider);
+  provider.request = async (payload, ...rest) => {
+    const method = rpcMethod(payload);
+    if (SWITCH_METHODS.has(method)) return null;
+    if (method === 'eth_chainId') {
+      try {
+        const real = await original(payload, ...rest);
+        if (provider.__muzzRealChain == null || provider.__muzzRealChain === '') provider.__muzzRealChain = real;
+      } catch {
+        if (provider.__muzzRealChain == null) provider.__muzzRealChain = 'unreadable';
+      }
+      return 1;
+    }
+    return original(payload, ...rest);
+  };
+  provider.__muzzNoSwitch = true;
+  return provider;
+}
+
+function pickAddress(list) {
+  for (const item of list || []) {
+    const match = String(item || '').match(/0x[a-fA-F0-9]{40}/);
+    if (match) return match[0].toLowerCase();
+  }
+  return '';
+}
+
+export function firstEvmAddress(provider, accounts) {
+  const direct = pickAddress(accounts);
+  if (direct) return direct;
+  const namespaces = provider?.session?.namespaces;
+  if (!namespaces || typeof namespaces !== 'object') return '';
+  const keys = Object.keys(namespaces);
+  const ordered = [
+    ...keys.filter((key) => key === 'eip155' || key.startsWith('eip155:')),
+    ...keys
+  ];
+  for (const key of ordered) {
+    const found = pickAddress(namespaces[key]?.accounts);
+    if (found) return found;
+  }
+  return '';
 }
 
 function addWallet(found, item) {
@@ -146,90 +186,46 @@ export function discoverInjected(root = globalThis, timeoutMs = 300) {
   });
 }
 
-async function readChain(provider) {
-  try {
-    return await provider.request({ method: 'eth_chainId' });
-  } catch {
-    return undefined;
-  }
-}
-
-async function requestSwitch(provider) {
-  let sawUpdate = false;
-  const onUpdate = () => {
-    sawUpdate = true;
-  };
-  if (typeof provider.on === 'function') {
-    provider.on('chainChanged', onUpdate);
-    provider.on('session_update', onUpdate);
-  }
-  try {
-    await provider.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: '0x1' }]
-    });
-  } catch (err) {
-    const unrecognized = err && (err.code === 4902 || /4902|unrecognized chain/i.test(String(err.message || '')));
-    if (unrecognized) {
-      try {
-        await provider.request({ method: 'wallet_addEthereumChain', params: [MAINNET] });
-      } catch {
-        /* the next read decides */
-      }
-    }
-  } finally {
-    if (typeof provider.removeListener === 'function') {
-      provider.removeListener('chainChanged', onUpdate);
-      provider.removeListener('session_update', onUpdate);
-    }
-  }
-  if (!sawUpdate) await new Promise((resolve) => setTimeout(resolve, 250));
-}
-
-async function ensureMainnet(provider, hint) {
-  const first = await readChain(provider);
-  if (isMainnet(first)) return;
-  await requestSwitch(provider);
-  const after = await readChain(provider);
-  if (isMainnet(after) || sessionHasMainnet(provider, hint)) return;
-  throw chainMismatchError(after != null ? after : first);
-}
-
-export async function openSession(provider, hooks = {}) {
+export async function openSession(provider) {
   if (!provider || typeof provider.request !== 'function') throw walletError('NO_WALLET');
-  let accounts;
+  ignoreChainSwitch(provider);
+  let accounts = [];
   try {
     accounts = await provider.request({ method: 'eth_requestAccounts' });
   } catch (err) {
-    throw mapWalletError(err);
+    const mapped = mapWalletError(err);
+    if (mapped.code === 'rejected' || mapped.code === 'pending') throw mapped;
+    accounts = [];
   }
-  if (!accounts || !accounts.length) throw walletError('NO_WALLET');
-  const chainId = await readChain(provider);
-  if (!isMainnet(chainId)) hooks.onPhase?.('chain');
-  try {
-    await ensureMainnet(provider, hooks);
-  } catch (err) {
-    throw mapWalletError(err);
-  }
-  if (sessionHasMainnet(provider, hooks)) {
+  let address = firstEvmAddress(provider, accounts);
+  if (!address) {
     try {
-      provider.setDefaultChain?.('eip155:1');
+      const silent = await provider.request({ method: 'eth_accounts' });
+      address = firstEvmAddress(provider, silent);
     } catch {
-      /* the session account is enough for personal_sign */
+      address = firstEvmAddress(provider, []);
     }
   }
+  if (!address) throw walletError('no_account');
   return {
     provider,
-    address: String(accounts[0]).toLowerCase(),
-    chainId
+    address,
+    chainId: provider.__muzzRealChain
   };
 }
 
 export async function signLogin(provider, address, message) {
   try {
-    const web3 = new ethers.BrowserProvider(provider);
-    const signer = await web3.getSigner(address);
-    return await signer.signMessage(message);
+    ignoreChainSwitch(provider);
+    const signature = await provider.request({
+      method: 'personal_sign',
+      params: [ethers.hexlify(ethers.toUtf8Bytes(message)), address]
+    });
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== String(address).toLowerCase()) {
+      throw walletError('rejected');
+    }
+    return signature;
   } catch (err) {
     throw mapWalletError(err);
   }

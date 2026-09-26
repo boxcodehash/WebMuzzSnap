@@ -8,7 +8,8 @@ const MESSAGES = {
   NO_WALLET: 'Wallet not installed. Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, or Phantom, or connect another wallet with WalletConnect.',
   NO_PROJECT_ID: 'WalletConnect project id is missing. Create one for free at cloud.reown.com and set WALLETCONNECT_PROJECT_ID. Do not commit it.',
   rejected: 'Signature rejected. The wallet cancelled the connection or the signature.',
-  chain: 'Wrong network. Accept the switch to Ethereum mainnet and try again.',
+  no_account: 'No account returned. Connect the wallet again and approve an address.',
+  rpc: 'RPC unreachable. The Ethereum balance servers could not be reached. Try again.',
   disconnected: 'The wallet disconnected. Connect it again to continue.',
   account_changed: 'You switched accounts in the wallet. Sign in again with the new account.',
   pending: 'A request is already open in the wallet. Finish it there.',
@@ -27,8 +28,6 @@ export function mapWalletError(err) {
     return walletError('rejected');
   }
   if (code === -32002 || /already pending|request already/i.test(msg)) return walletError('pending');
-  if (code === 4902 || /chain|network|4902|unrecognized chain|unsupported chain/i.test(msg)) {
-    return walletError('chain');
-  }
+  if (code === 'no_account' || /no account|no wallet account/i.test(msg)) return walletError('no_account');
   return err || walletError('wc_load');
 }

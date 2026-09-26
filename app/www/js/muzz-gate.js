@@ -28,7 +28,6 @@
   async function readMuzzBalance(address) {
     if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
     const wallet = ethers.utils.getAddress(address);
-    let last = null;
     for (const url of RPCS) {
       try {
         const provider = new ethers.providers.JsonRpcProvider(url);
@@ -41,10 +40,12 @@
           minimum: '10,000,000'
         };
       } catch (err) {
-        last = err;
+        /* try the next public Ethereum RPC */
       }
     }
-    throw last || new Error('Could not read the MUZZ balance.');
+    const unreachable = new Error('RPC unreachable. The Ethereum balance servers could not be reached.');
+    unreachable.code = 'rpc';
+    throw unreachable;
   }
 
   function readSeen() {
@@ -364,16 +365,15 @@
       return {
         title: 'Wallet not installed.',
         desc: inWallet
-          ? 'This wallet browser did not expose an Ethereum provider. Switch to Ethereum mode and try again.'
+          ? 'This wallet browser did not expose an Ethereum account. Connect the wallet and try again.'
           : 'Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX or Phantom, or open this page inside the wallet.'
       };
     }
-    if (code === 'chain' || /Wrong network|detected:/i.test(msg)) {
-      const detected = msg.match(/\(detected:[^)]+\)/);
-      let detail = msg.replace(/^wrong network\.?\s*/i, '').trim();
-      if (!detail || detail === 'chain') detail = 'Accept the switch to Ethereum mainnet and try again.';
-      if (detected && detail.indexOf(detected[0]) === -1) detail += ' ' + detected[0];
-      return { title: 'Wrong network.', desc: detail };
+    if (code === 'no_account' || /no account|no wallet account/i.test(msg)) {
+      return { title: 'No account returned.', desc: 'The wallet did not return an address. Connect it again and approve an account.' };
+    }
+    if (code === 'rpc' || /RPC unreachable|could not read the MUZZ balance/i.test(msg)) {
+      return { title: 'RPC unreachable.', desc: 'The Ethereum balance servers could not be reached. Try again.' };
     }
     if (code === 'balance' || /Insufficient MUZZ/i.test(msg)) {
       return { title: 'Insufficient MUZZ balance.', desc: msg };
@@ -385,6 +385,46 @@
       return { title: 'Could not sign in.', desc: 'A request is already open in the wallet. Finish it there and try again.' };
     }
     return { title: 'Could not sign in.', desc: msg };
+  }
+
+  function compactNamespaces(namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return 'none';
+    const bits = [];
+    Object.keys(namespaces).forEach((key) => {
+      const item = namespaces[key] || {};
+      const chains = (item.chains || []).map((chain) => String(chain)).filter(Boolean);
+      if (chains.length) bits.push(chains.join('+'));
+      else if ((item.accounts || []).length) {
+        bits.push((item.accounts || []).slice(0, 2).map((account) => {
+          const parts = String(account).split(':');
+          return parts.length >= 2 ? parts.slice(0, 2).join(':') : String(account);
+        }).join('+'));
+      } else bits.push(key);
+    });
+    const text = bits.join(' ') || 'none';
+    return text.length > 96 ? text.slice(0, 96) : text;
+  }
+
+  function chainFromNamespaces(namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return '';
+    const keys = Object.keys(namespaces);
+    for (let i = 0; i < keys.length; i += 1) {
+      const chains = (namespaces[keys[i]] && namespaces[keys[i]].chains) || [];
+      if (chains[0]) {
+        const parts = String(chains[0]).split(':');
+        return parts.length > 1 ? parts[1] : parts[0];
+      }
+    }
+    return '';
+  }
+
+  function debugLine(err, info) {
+    const code = err && err.code != null && err.code !== '' ? String(err.code) : 'error';
+    const source = info || {};
+    let chain = source.chain;
+    if (chain == null || chain === '') chain = chainFromNamespaces(source.namespaces);
+    if (chain == null || chain === '') chain = 'unknown';
+    return 'err: ' + code + ' chain:' + chain + ' ns:' + compactNamespaces(source.namespaces);
   }
 
   function rememberWallet(address) {
@@ -432,6 +472,7 @@
     consumeNonce,
     verifyHandoff,
     explainSignError,
+    debugLine,
     rememberWallet,
     savedWallet,
     clearWallet

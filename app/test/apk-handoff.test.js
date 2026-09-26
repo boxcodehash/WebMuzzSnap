@@ -95,6 +95,15 @@ test('el token de vuelta se verifica una sola vez y caduca', async () => {
   const explained = gate.explainSignError(Object.assign(new Error('EXPIRED'), { code: 'expired' }));
   assert.equal(explained.title, 'Sign-in expired.');
   assert.match(explained.desc, /3 minutes/);
+  const chainish = gate.explainSignError(Object.assign(new Error('Switch network failed'), { code: 'chain' }));
+  assert.notEqual(chainish.title, 'Wrong network.');
+  assert.doesNotMatch(`${chainish.title} ${chainish.desc}`, /switch to Ethereum mainnet/i);
+  const line = gate.debugLine(Object.assign(new Error('x'), { code: 'balance' }), {
+    chain: 56,
+    namespaces: { eip155: { chains: ['eip155:56'], accounts: [`eip155:56:${wallet.address}`] } }
+  });
+  assert.equal(line, 'err: balance chain:56 ns:eip155:56');
+  assert.equal(gate.debugLine(new Error('x'), {}).startsWith('err: error chain:unknown ns:none'), true);
 });
 
 test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => {
@@ -112,15 +121,24 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(login, /Connect with WalletConnect/);
   assert.match(login, /if \(muzzGate\.walletConnectProjectId\(\)\) \{\s*await accessWithWalletConnect\(\)/);
   assert.match(login, /muzzsnap:\\?\/\\?\/wc/);
-  assert.match(login, /muzzGate\.sessionHasMainnet\(rawProvider, hint\)/);
-  assert.match(login, /detected:/);
+  assert.match(login, /id="debugLine"/);
+  assert.doesNotMatch(login, /ensureMainnet/);
+  assert.doesNotMatch(login, /method:\s*'wallet_switchEthereumChain'/);
+  assert.doesNotMatch(login, /Wrong network/);
   assert.doesNotMatch(login, /chainId === '0x1'/);
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.3/);
-  assert.match(wallet, /chains: \['eip155:1'\]/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.3"/);
+  assert.match(login, /v1\.0\.4/);
+  assert.match(wallet, /eip155:56/);
+  assert.match(wallet, /ignoreChainSwitch/);
+  assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.4"/);
+  const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
+  assert.equal(capacitor.server.url, undefined);
+  assert.equal(capacitor.server.androidScheme, 'https');
+  const bundledCap = JSON.parse(readFileSync(new URL('../android/app/src/main/assets/capacitor.config.json', import.meta.url), 'utf8'));
+  assert.equal(bundledCap.server.url, undefined);
   assert.match(login, /Wallet app not found\./);
   assert.match(wallet, /enableCoinbase:\s*false/);
   const gateSrc = readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8');
@@ -138,6 +156,15 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(wallet, /MUZZ_PUBLIC/);
   assert.doesNotMatch(wallet, /return 'https:\/\/localhost'/);
   assert.match(readFileSync(new URL('../src/wc-login.js', import.meta.url), 'utf8'), /connectWalletConnect/);
+  const legacy = readFileSync(new URL('../www/index.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(legacy, /Wrong network/);
+  assert.doesNotMatch(legacy, /wallet_switchEthereumChain/);
+  assert.match(legacy, /https:\/\/ethereum\.publicnode\.com/);
+  assert.match(legacy, /https:\/\/eth\.drpc\.org/);
+  assert.match(legacy, /https:\/\/rpc\.ankr\.com\/eth/);
+  const authStart = login.indexOf('async function acceptAuthToken');
+  const authBody = login.slice(authStart, login.indexOf('window.muzzAcceptAuth'));
+  assert.doesNotMatch(authBody, /chain|ensureMainnet|wallet_switchEthereumChain/);
 });
 
 test('APP_PUBLIC_URL se escribe solo si es https', () => {

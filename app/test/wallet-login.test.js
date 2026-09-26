@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import { SUPPORTED_WALLETS } from '../src/walletCatalog.js';
 import { mapWalletError, walletMessage } from '../src/walletErrors.js';
 import { inAppWalletId, walletDeepLinks } from '../src/walletLinks.js';
-import { discoverInjected, isMainnet, normalizeChainId, openSession, sessionHasMainnet, signLogin } from '../src/walletSession.js';
+import { discoverInjected, firstEvmAddress, ignoreChainSwitch, isMainnet, normalizeChainId, openSession, signLogin } from '../src/walletSession.js';
 
 function mockProvider(wallet, options = {}) {
   let chain = options.chainId || '0x1';
@@ -14,7 +14,8 @@ function mockProvider(wallet, options = {}) {
     calls,
     async request({ method, params }) {
       calls.push(method);
-      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [wallet.address];
+      if (method === 'eth_requestAccounts') return options.emptyRequest ? [] : [wallet.address];
+      if (method === 'eth_accounts') return options.emptyAccounts ? [] : [wallet.address];
       if (method === 'eth_chainId') return chain;
       if (method === 'wallet_switchEthereumChain') {
         if (options.rejectSwitch) {
@@ -113,45 +114,40 @@ test('mainnet acepta 1, 0x1 y eip155:1', async () => {
   }
 });
 
-test('eip155:1 aprobado no bloquea aunque eth_chainId sea 56', async () => {
+test('56, 0x1, 1 y solo eip155:56 llegan a personal_sign sin cambiar de red', async () => {
   const wallet = ethers.Wallet.createRandom();
   const message = 'MuzzSnap login';
-  for (const chainId of ['0x38', 56, '0x1', 1]) {
-    const provider = approve(mockProvider(wallet, { chainId, rejectSwitch: chainId !== 1 && chainId !== '0x1' }), wallet, ['eip155:1']);
-    assert.equal(sessionHasMainnet(provider), true);
+  for (const chainId of [56, '0x1', 1, '0x38']) {
+    const provider = mockProvider(wallet, { chainId, rejectSwitch: true });
     const session = await openSession(provider);
+    assert.equal(session.address, wallet.address.toLowerCase());
+    assert.equal(provider.calls.includes('wallet_switchEthereumChain'), false);
+    assert.equal(provider.calls.includes('wallet_addEthereumChain'), false);
     const signature = await signLogin(provider, session.address, message);
     assert.equal(ethers.verifyMessage(message, signature).toLowerCase(), session.address);
+    assert.equal(provider.calls.includes('wallet_switchEthereumChain'), false);
   }
-  const multi = approve(mockProvider(wallet, { chainId: '0x38', rejectSwitch: true }), wallet, ['eip155:56', 'eip155:1']);
-  const session = await openSession(multi);
+  const only56 = approve(mockProvider(wallet, { chainId: 56, rejectSwitch: true, emptyRequest: true, emptyAccounts: true }), wallet, ['eip155:56']);
+  assert.equal(firstEvmAddress(only56, []), wallet.address.toLowerCase());
+  const session = await openSession(only56);
   assert.equal(session.address, wallet.address.toLowerCase());
-  assert.ok(multi.calls.includes('personal_sign') === false);
-  const signature = await signLogin(multi, session.address, message);
+  assert.equal(only56.calls.includes('wallet_switchEthereumChain'), false);
+  const signature = await signLogin(only56, session.address, message);
   assert.equal(ethers.verifyMessage(message, signature).toLowerCase(), session.address);
 });
 
-test('la wallet simulada firma, cambia a mainnet y la firma se verifica', async () => {
+test('wallet_switchEthereumChain no se reenvía y la firma rechazada se explica', async () => {
   const wallet = ethers.Wallet.createRandom();
-  const provider = mockProvider(wallet, { chainId: '0xaa36a7' });
-  let phase = '';
-  const session = await openSession(provider, { onPhase: (next) => { phase = next; } });
-  assert.equal(phase, 'chain');
-  assert.equal(session.address, wallet.address.toLowerCase());
-  assert.ok(provider.calls.includes('wallet_switchEthereumChain'));
-  assert.equal(normalizeChainId(await provider.request({ method: 'eth_chainId' })), '0x1');
-  const message = 'MuzzSnap prueba de firma';
-  const signature = await signLogin(provider, session.address, message);
-  assert.equal(ethers.verifyMessage(message, signature).toLowerCase(), session.address);
-});
-
-test('rechazar el cambio de red o la firma se explica en inglés', async () => {
-  const wallet = ethers.Wallet.createRandom();
-  await assert.rejects(
-    openSession(mockProvider(wallet, { chainId: '0x89', rejectSwitch: true })),
-    (err) => err.code === 'chain' && /detected: 137/.test(err.message)
-  );
-  assert.match(walletMessage('chain'), /Wrong network/);
+  const provider = mockProvider(wallet, { chainId: '0x89', rejectSwitch: true });
+  ignoreChainSwitch(provider);
+  assert.equal(await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] }), null);
+  assert.equal(await provider.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x1' }] }), null);
+  assert.equal(provider.calls.includes('wallet_switchEthereumChain'), false);
+  assert.equal(await provider.request({ method: 'eth_chainId' }), 1);
+  assert.equal(provider.__muzzRealChain, '0x89');
+  const switched = mapWalletError(new Error('EthersAdapter:connect - Switch network failed'));
+  assert.notEqual(switched.code, 'chain');
+  assert.doesNotMatch(String(switched.message || ''), /Wrong network/);
   const onMainnet = mockProvider(wallet, { rejectSign: true });
   await assert.rejects(
     signLogin(onMainnet, wallet.address, 'hello'),

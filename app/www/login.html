@@ -378,6 +378,24 @@
             color: rgba(255, 255, 255, 0.65);
         }
 
+        .debug-line {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            text-align: left;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.62rem;
+            line-height: 1.35;
+            letter-spacing: 0;
+            text-transform: none;
+            color: rgba(255, 255, 255, 0.45);
+            word-break: break-all;
+            cursor: pointer;
+        }
+
         footer {
             position: relative;
             z-index: 3;
@@ -534,6 +552,7 @@
         <div id="errorBox" class="error-box hidden">
             <p id="errorTitle"></p>
             <p id="errorDesc"></p>
+            <button type="button" id="debugLine" class="debug-line hidden"></button>
         </div>
     </main>
 
@@ -545,7 +564,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itsuki</span><small class="build">v1.0.3</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itsuki</span><small class="build">v1.0.4</small></footer>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -613,16 +632,33 @@
             loadingUI.classList.toggle('hidden', !show);
         }
 
-        function showError(title, desc) {
+        function showError(title, desc, debug) {
             showSigning(false);
             errorBox.classList.remove('hidden');
             document.getElementById('errorTitle').innerText = title;
             document.getElementById('errorDesc').innerText = desc;
+            const line = document.getElementById('debugLine');
+            if (debug) {
+                line.textContent = debug;
+                line.classList.remove('hidden');
+            } else {
+                line.textContent = '';
+                line.classList.add('hidden');
+            }
         }
 
-        function showSignError(err) {
+        function debugInfo(provider, hint) {
+            const namespaces = (provider && provider.session && provider.session.namespaces)
+                || (hint && hint.namespaces)
+                || null;
+            let chain = provider && provider.__muzzRealChain;
+            if ((chain == null || chain === '') && hint && hint.chainId != null) chain = hint.chainId;
+            return { chain: chain, namespaces: namespaces };
+        }
+
+        function showSignError(err, provider, hint) {
             const text = muzzGate.explainSignError(err, { inWallet: inApp || wantsApkReturn() });
-            showError(text.title, text.desc);
+            showError(text.title, text.desc, muzzGate.debugLine(err, debugInfo(provider, hint)));
         }
 
         function paintLinks() {
@@ -722,64 +758,67 @@
             return mmSdk.getProvider() || window.ethereum || null;
         }
 
-        async function readChain(rawProvider) {
-            try {
-                return await rawProvider.request({ method: 'eth_chainId' });
-            } catch (err) {
-                return undefined;
-            }
-        }
-
-        async function requestMainnetSwitch(rawProvider) {
-            let sawUpdate = false;
-            const onUpdate = function () { sawUpdate = true; };
-            if (rawProvider && typeof rawProvider.on === 'function') {
-                rawProvider.on('chainChanged', onUpdate);
-                rawProvider.on('session_update', onUpdate);
-            }
-            try {
-                await rawProvider.request({
-                    method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: '0x1' }]
-                });
-            } catch (err) {
-                const unrecognized = err && (err.code === 4902 || /4902|unrecognized chain/i.test(String(err.message || '')));
-                if (unrecognized) {
-                    try {
-                        await rawProvider.request({
-                            method: 'wallet_addEthereumChain',
-                            params: [{
-                                chainId: '0x1',
-                                chainName: 'Ethereum Mainnet',
-                                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-                                rpcUrls: ['https://ethereum.publicnode.com'],
-                                blockExplorerUrls: ['https://etherscan.io']
-                            }]
-                        });
-                    } catch (addErr) {
-                        /* re-read the session after this */
-                    }
+        function ignoreChainSwitch(provider) {
+            if (!provider || typeof provider.request !== 'function' || provider.__muzzNoSwitch) return provider;
+            const original = provider.request.bind(provider);
+            provider.request = function (payload) {
+                const method = payload && payload.method;
+                const rest = Array.prototype.slice.call(arguments, 1);
+                if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
+                    return Promise.resolve(null);
                 }
-            }
-            if (rawProvider && typeof rawProvider.removeListener === 'function') {
-                rawProvider.removeListener('chainChanged', onUpdate);
-                rawProvider.removeListener('session_update', onUpdate);
-            }
-            if (!sawUpdate) await new Promise((resolve) => setTimeout(resolve, 250));
+                if (method === 'eth_chainId') {
+                    return original.apply(provider, [payload].concat(rest)).then(function (real) {
+                        if (provider.__muzzRealChain == null || provider.__muzzRealChain === '') provider.__muzzRealChain = real;
+                        return 1;
+                    }, function () {
+                        if (provider.__muzzRealChain == null) provider.__muzzRealChain = 'unreadable';
+                        return 1;
+                    });
+                }
+                return original.apply(provider, [payload].concat(rest));
+            };
+            provider.__muzzNoSwitch = true;
+            return provider;
         }
 
-        async function ensureMainnet(rawProvider, hint) {
-            const first = await readChain(rawProvider);
-            if (!muzzGate.isMainnet(first)) await requestMainnetSwitch(rawProvider);
-            const after = await readChain(rawProvider);
-            if (muzzGate.isMainnet(after) || muzzGate.sessionHasMainnet(rawProvider, hint)) return;
-            const chainError = new Error('Accept the switch to Ethereum mainnet and try again. (detected: ' + muzzGate.chainLabel(after != null ? after : first) + ')');
-            chainError.code = 'chain';
-            throw chainError;
+        function pickAddress(list) {
+            const items = list || [];
+            for (let i = 0; i < items.length; i += 1) {
+                const match = String(items[i] || '').match(/0x[a-fA-F0-9]{40}/);
+                if (match) return match[0];
+            }
+            return '';
+        }
+
+        function firstEvmAddress(rawProvider, accounts, hint) {
+            const direct = pickAddress(accounts);
+            if (direct) return direct;
+            const namespaces = (rawProvider && rawProvider.session && rawProvider.session.namespaces)
+                || (hint && hint.namespaces)
+                || null;
+            if (!namespaces) return '';
+            const keys = Object.keys(namespaces);
+            const ordered = keys.filter(function (key) {
+                return key === 'eip155' || key.indexOf('eip155:') === 0;
+            }).concat(keys);
+            for (let i = 0; i < ordered.length; i += 1) {
+                const found = pickAddress(namespaces[ordered[i]] && namespaces[ordered[i]].accounts);
+                if (found) return found;
+            }
+            return '';
+        }
+
+        function rejectedRequest(err) {
+            const code = err && err.code;
+            const msg = String((err && (err.message || err.reason)) || '');
+            return code === 4001 || code === 'ACTION_REJECTED' || /user rejected|user denied|rejected the|denied|cancel/i.test(msg);
         }
 
         window.muzzWalletMissing = function () {
-            showError('Wallet app not found.', 'Install it or choose another wallet.');
+            const missing = new Error('NO_WALLET');
+            missing.code = 'NO_WALLET';
+            showError('Wallet app not found.', 'Install it or choose another wallet.', muzzGate.debugLine(missing, {}));
         };
 
         async function openWalletApp(href) {
@@ -835,20 +874,52 @@
                 missing.code = 'NO_WALLET';
                 throw missing;
             }
-            setStep('Ethereum mainnet');
-            await ensureMainnet(rawProvider, hint);
+            ignoreChainSwitch(rawProvider);
             setStep('Requesting account...');
-            const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
-            await web3.send('eth_requestAccounts', []);
-            const signer = web3.getSigner();
-            const address = await signer.getAddress();
-            if (!address) throw new Error('No wallet account detected.');
+            let accounts = [];
+            try {
+                accounts = await rawProvider.request({ method: 'eth_requestAccounts' });
+            } catch (err) {
+                if (rejectedRequest(err)) {
+                    const rejected = new Error('Signature rejected.');
+                    rejected.code = 'rejected';
+                    throw rejected;
+                }
+                accounts = [];
+            }
+            let address = firstEvmAddress(rawProvider, accounts, hint);
+            if (!address) {
+                try {
+                    const silent = await rawProvider.request({ method: 'eth_accounts' });
+                    address = firstEvmAddress(rawProvider, silent, hint);
+                } catch (err) {
+                    address = firstEvmAddress(rawProvider, [], hint);
+                }
+            }
+            if (!address) {
+                const missing = new Error('No account returned.');
+                missing.code = 'no_account';
+                throw missing;
+            }
 
             const nonce = muzzGate.randomNonce();
             const exp = Date.now() + muzzGate.HANDOFF_MS;
             const message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
             setStep('Sign the message');
-            const signature = await signer.signMessage(message);
+            let signature;
+            try {
+                signature = await rawProvider.request({
+                    method: 'personal_sign',
+                    params: [ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)), address]
+                });
+            } catch (err) {
+                if (rejectedRequest(err)) {
+                    const rejected = new Error('Signature rejected.');
+                    rejected.code = 'rejected';
+                    throw rejected;
+                }
+                throw err;
+            }
             const recovered = ethers.utils.verifyMessage(message, signature);
             if (normalizeAddress(recovered) !== normalizeAddress(address)) {
                 const bad = new Error('Signature does not match this wallet.');
@@ -869,6 +940,7 @@
 
         async function accessWithWallet() {
             errorBox.classList.add('hidden');
+            document.getElementById('debugLine').classList.add('hidden');
             const injected = await discoverInjectedProvider();
             if (injected) {
                 showSigning(true);
@@ -876,7 +948,7 @@
                 try {
                     await signInWithProvider(injected, wantsApkReturn());
                 } catch (err) {
-                    showSignError(err);
+                    showSignError(err, injected);
                 }
                 return;
             }
@@ -890,16 +962,18 @@
             }
             showSigning(true);
             setStep('Opening wallet...');
+            let rawProvider = null;
             try {
-                const rawProvider = await getWalletProvider();
+                rawProvider = await getWalletProvider();
                 await signInWithProvider(rawProvider, wantsApkReturn());
             } catch (err) {
-                showSignError(err);
+                showSignError(err, rawProvider);
             }
         }
 
         async function accessWithWalletConnect() {
             errorBox.classList.add('hidden');
+            document.getElementById('debugLine').classList.add('hidden');
             const projectId = muzzGate.walletConnectProjectId();
             if (!projectId) {
                 showSignError(Object.assign(new Error('NO_PROJECT_ID'), { code: 'NO_PROJECT_ID' }));
@@ -907,14 +981,15 @@
             }
             showSigning(true);
             setStep('Opening WalletConnect...');
+            let session = null;
             try {
                 window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
                 const mod = await import('./js/wc-login.js');
-                const session = await mod.connectWalletConnect();
+                session = await mod.connectWalletConnect();
                 await signInWithProvider(session && session.provider, false, session);
             } catch (err) {
-                showSignError(err);
+                showSignError(err, session && session.provider, session);
             }
         }
 
@@ -979,6 +1054,9 @@
             }
         }
 
+        document.getElementById('debugLine').addEventListener('click', () => {
+            document.getElementById('debugLine').classList.add('hidden');
+        });
         document.getElementById('btnWc').addEventListener('click', () => {
             accessWithWalletConnect();
         });

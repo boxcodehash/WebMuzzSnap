@@ -1,7 +1,7 @@
 /**
  * Drives login.html with a scripted WalletConnect wallet.
- * eth_chainId is answered as the number 1, which is what the Reown provider
- * returns. The page must reach personal_sign and then the MUZZ balance gate.
+ * The page must reach personal_sign without asking the wallet to switch chains.
+ * A zero-balance wallet then stops on the MUZZ balance check.
  */
 import { spawn } from 'node:child_process';
 import { Wallet, getBytes, toUtf8String } from 'ethers';
@@ -14,10 +14,10 @@ const PAGE = `http://127.0.0.1:${PORT}/login.html`;
 
 const wallet = Wallet.createRandom();
 const CASES = [
-  { name: 'eip155:1 reports 0x38', chains: ['eip155:1'], chainIdResult: '0x38' },
-  { name: 'eip155:1 reports number 1', chains: ['eip155:1'], chainIdResult: 1 },
-  { name: 'eip155:1 reports 0x1', chains: ['eip155:1'], chainIdResult: '0x1' },
-  { name: 'eip155:56 and eip155:1, active 56', chains: ['eip155:56', 'eip155:1'], chainIdResult: '0x38' }
+  { name: 'reports chain 56', chains: ['eip155:56', 'eip155:1'], chainIdResult: 56 },
+  { name: "reports chain '0x1'", chains: ['eip155:1'], chainIdResult: '0x1' },
+  { name: 'reports chain 1', chains: ['eip155:1'], chainIdResult: 1 },
+  { name: 'approves only eip155:56', chains: ['eip155:56'], chainIdResult: 56 }
 ];
 
 function sleep(ms) {
@@ -128,8 +128,14 @@ async function main() {
       const optional = proposal.params.optionalNamespaces || {};
       const requiredChains = (required.eip155 && required.eip155.chains) || [];
       const optionalChains = (optional.eip155 && optional.eip155.chains) || [];
-      if (!requiredChains.includes('eip155:1') && !optionalChains.includes('eip155:1')) {
-        throw new Error(`eip155:1 was not requested (${JSON.stringify({ requiredChains, optionalChains })})`);
+      const proposed = [...requiredChains, ...optionalChains];
+      for (const chain of active.chains) {
+        if (!proposed.includes(chain)) {
+          throw new Error(`${chain} was not proposed (${JSON.stringify({ requiredChains, optionalChains })})`);
+        }
+      }
+      if (requiredChains.length) {
+        throw new Error(`login must not require a chain (${JSON.stringify(requiredChains)})`);
       }
       const methods = [...new Set([
         ...((required.eip155 && required.eip155.methods) || []),
@@ -281,8 +287,11 @@ async function main() {
       const row = { name: spec.name, requests: [...seen], title, desc };
       results.push(row);
       console.log(JSON.stringify(row));
-      if (/Wrong network/i.test(`${title} ${desc}`)) {
+      if (/Wrong network|switch to Ethereum mainnet/i.test(`${title} ${desc}`)) {
         throw new Error(`${spec.name} blocked on the network check: ${title} ${desc}`);
+      }
+      if (seen.includes('wallet_switchEthereumChain') || seen.includes('wallet_addEthereumChain')) {
+        throw new Error(`${spec.name} asked the wallet to switch chains: ${seen.join(',')}`);
       }
       if (!seen.includes('personal_sign') && !seen.includes('eth_sign')) {
         throw new Error(`${spec.name} did not reach personal_sign. Methods: ${seen.join(',')}`);

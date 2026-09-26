@@ -4,10 +4,10 @@ import { NATIVE_RETURN, SUPPORTED_WALLETS } from './walletCatalog.js';
 import { walletError } from './walletErrors.js';
 import {
   discoverInjected,
+  ignoreChainSwitch,
   inspectInjected,
   isMobile,
   openSession,
-  sessionHasMainnet,
   signLogin,
   watchProvider
 } from './walletSession.js';
@@ -78,19 +78,35 @@ async function buildModal() {
     console.error(err);
     throw walletError('wc_load');
   }
-  const requiredMainnet = {
-    eip155: {
-      chains: ['eip155:1'],
-      methods: ['personal_sign', 'eth_sign', 'eth_sendTransaction', 'wallet_switchEthereumChain', 'wallet_addEthereumChain'],
-      events: ['chainChanged', 'accountsChanged']
-    }
-  };
+  ignoreChainSwitch(universalProvider);
+  if (typeof window !== 'undefined') {
+    ignoreChainSwitch(window.ethereum);
+    window.addEventListener('eip6963:announceProvider', (event) => {
+      ignoreChainSwitch(event?.detail?.provider);
+    });
+  }
   const originalConnect = universalProvider.connect.bind(universalProvider);
   universalProvider.connect = async (params = {}) => {
-    // Sign Client folds requiredNamespaces into optionalNamespaces before the
-    // proposal, so eip155:1 is set on both. The session still has to include it.
-    universalProvider.namespaces = requiredMainnet;
-    return originalConnect(params);
+    // Do not send a required chain. Wallets may approve any eip155 account,
+    // including a session that only contains eip155:56.
+    universalProvider.namespaces = {};
+    const incoming = (params && params.optionalNamespaces) || {};
+    const eip = incoming.eip155 || {};
+    const methods = [...new Set([...(eip.methods || []), 'personal_sign', 'eth_sign', 'eth_requestAccounts', 'eth_accounts'])]
+      .filter((method) => method !== 'wallet_switchEthereumChain' && method !== 'wallet_addEthereumChain');
+    return originalConnect({
+      ...params,
+      namespaces: {},
+      optionalNamespaces: {
+        ...incoming,
+        eip155: {
+          ...eip,
+          chains: [...new Set([...(eip.chains || []), 'eip155:1', 'eip155:56'])],
+          methods,
+          events: [...new Set([...(eip.events || []), 'chainChanged', 'accountsChanged'])]
+        }
+      }
+    });
   };
   return createAppKit({
     adapters: [new EthersAdapter()],
@@ -153,16 +169,14 @@ async function providerOf(modal) {
 
 async function finishConnect(modal, hooks) {
   const provider = await providerOf(modal);
+  ignoreChainSwitch(provider);
   const hint = sessionHint(modal);
-  const session = await openSession(provider, { ...hooks, ...hint });
-  if (sessionHasMainnet(provider, hint)) {
-    try {
-      provider.setDefaultChain?.('eip155:1');
-    } catch {
-      /* personal_sign does not need the wallet UI chain */
-    }
-  }
-  return { ...session, ...hint };
+  const session = await openSession(provider, hooks);
+  return {
+    ...session,
+    ...hint,
+    namespaces: provider.session?.namespaces || null
+  };
 }
 
 export async function connectModal(hooks = {}) {
