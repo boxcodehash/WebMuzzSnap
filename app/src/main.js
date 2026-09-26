@@ -8,7 +8,6 @@ import { bannerHtml, messagesHtml, shellHtml } from './render.js';
 import * as wallet from './wallet.js';
 import { walletMessage } from './walletErrors.js';
 import { inAppWalletId } from './walletLinks.js';
-import { isMainnet, normalizeChainId } from './walletSession.js';
 import { shortAddr } from './names.js';
 
 const DEMO_ME = '0x875c5a7794b601f273da0000000000000000d3e0';
@@ -290,9 +289,8 @@ function armWalletWatch(provider) {
       if (!next) dropSession(walletMessage('disconnected'));
       else if (state.me && next !== state.me.wallet) dropSession(walletMessage('account_changed'));
     },
-    onChain(chainId) {
-      const hex = normalizeChainId(chainId);
-      if (hex && !isMainnet(chainId)) dropSession(walletMessage('chain'));
+    onChain() {
+      /* An approved eip155:1 account stays signed in if the wallet UI changes chain. */
     }
   });
 }

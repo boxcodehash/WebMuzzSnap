@@ -16,11 +16,17 @@ export function isMobile(userAgent = globalThis.navigator?.userAgent || '') {
 
 export function normalizeChainId(value) {
   if (value == null || value === '') return '';
+  if (typeof value === 'bigint') return `0x${value.toString(16)}`;
   if (typeof value === 'number') {
     return Number.isFinite(value) ? `0x${value.toString(16)}` : '';
   }
+  if (typeof value === 'object') {
+    if (value.chainId != null) return normalizeChainId(value.chainId);
+    if (value.id != null) return normalizeChainId(value.id);
+    return '';
+  }
   let text = String(value).trim().toLowerCase();
-  if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
+  if (text.startsWith('eip155:')) text = text.slice('eip155:'.length).split(':')[0];
   if (text.startsWith('0x')) {
     const parsed = Number.parseInt(text, 16);
     return Number.isFinite(parsed) ? `0x${parsed.toString(16)}` : '';
@@ -31,6 +37,44 @@ export function normalizeChainId(value) {
 
 export function isMainnet(value) {
   return normalizeChainId(value) === '0x1';
+}
+
+export function chainLabel(value) {
+  const hex = normalizeChainId(value);
+  if (hex) return String(Number.parseInt(hex, 16));
+  if (value == null || value === '') return 'unknown';
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, 48) : 'unknown';
+}
+
+function pushNamespaces(values, namespaces) {
+  if (!namespaces || typeof namespaces !== 'object') return;
+  for (const [key, ns] of Object.entries(namespaces)) {
+    values.push(key);
+    for (const account of ns?.accounts || []) values.push(account);
+    for (const chain of ns?.chains || []) values.push(chain);
+  }
+}
+
+export function sessionHasMainnet(provider, hint) {
+  const values = [];
+  pushNamespaces(values, provider?.session?.namespaces);
+  pushNamespaces(values, hint?.namespaces);
+  if (hint?.caipAddress) values.push(hint.caipAddress);
+  if (hint?.caipNetworkId) values.push(hint.caipNetworkId);
+  const network = hint?.caipNetwork;
+  if (network?.caipNetworkId) values.push(network.caipNetworkId);
+  if (network?.id != null) values.push(`eip155:${network.id}`);
+  return values.some((item) => {
+    const text = String(item || '').trim().toLowerCase();
+    return text === 'eip155:1' || text.startsWith('eip155:1:');
+  });
+}
+
+export function chainMismatchError(detected) {
+  const err = new Error(`Accept the switch to Ethereum mainnet and try again. (detected: ${chainLabel(detected)})`);
+  err.code = 'chain';
+  return err;
 }
 
 function addWallet(found, item) {
@@ -102,8 +146,23 @@ export function discoverInjected(root = globalThis, timeoutMs = 300) {
   });
 }
 
-async function ensureMainnet(provider) {
-  if (isMainnet(await provider.request({ method: 'eth_chainId' }))) return;
+async function readChain(provider) {
+  try {
+    return await provider.request({ method: 'eth_chainId' });
+  } catch {
+    return undefined;
+  }
+}
+
+async function requestSwitch(provider) {
+  let sawUpdate = false;
+  const onUpdate = () => {
+    sawUpdate = true;
+  };
+  if (typeof provider.on === 'function') {
+    provider.on('chainChanged', onUpdate);
+    provider.on('session_update', onUpdate);
+  }
   try {
     await provider.request({
       method: 'wallet_switchEthereumChain',
@@ -111,17 +170,29 @@ async function ensureMainnet(provider) {
     });
   } catch (err) {
     const unrecognized = err && (err.code === 4902 || /4902|unrecognized chain/i.test(String(err.message || '')));
-    if (!unrecognized) throw walletError('chain');
-    try {
-      await provider.request({
-        method: 'wallet_addEthereumChain',
-        params: [MAINNET]
-      });
-    } catch {
-      throw walletError('chain');
+    if (unrecognized) {
+      try {
+        await provider.request({ method: 'wallet_addEthereumChain', params: [MAINNET] });
+      } catch {
+        /* the next read decides */
+      }
+    }
+  } finally {
+    if (typeof provider.removeListener === 'function') {
+      provider.removeListener('chainChanged', onUpdate);
+      provider.removeListener('session_update', onUpdate);
     }
   }
-  if (!isMainnet(await provider.request({ method: 'eth_chainId' }))) throw walletError('chain');
+  if (!sawUpdate) await new Promise((resolve) => setTimeout(resolve, 250));
+}
+
+async function ensureMainnet(provider, hint) {
+  const first = await readChain(provider);
+  if (isMainnet(first)) return;
+  await requestSwitch(provider);
+  const after = await readChain(provider);
+  if (isMainnet(after) || sessionHasMainnet(provider, hint)) return;
+  throw chainMismatchError(after != null ? after : first);
 }
 
 export async function openSession(provider, hooks = {}) {
@@ -133,16 +204,24 @@ export async function openSession(provider, hooks = {}) {
     throw mapWalletError(err);
   }
   if (!accounts || !accounts.length) throw walletError('NO_WALLET');
-  const chainId = await provider.request({ method: 'eth_chainId' });
+  const chainId = await readChain(provider);
   if (!isMainnet(chainId)) hooks.onPhase?.('chain');
   try {
-    await ensureMainnet(provider);
+    await ensureMainnet(provider, hooks);
   } catch (err) {
     throw mapWalletError(err);
   }
+  if (sessionHasMainnet(provider, hooks)) {
+    try {
+      provider.setDefaultChain?.('eip155:1');
+    } catch {
+      /* the session account is enough for personal_sign */
+    }
+  }
   return {
     provider,
-    address: String(accounts[0]).toLowerCase()
+    address: String(accounts[0]).toLowerCase(),
+    chainId
   };
 }
 

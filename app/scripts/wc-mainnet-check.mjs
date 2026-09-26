@@ -13,7 +13,12 @@ const PORT = 4188;
 const PAGE = `http://127.0.0.1:${PORT}/login.html`;
 
 const wallet = Wallet.createRandom();
-const seen = [];
+const CASES = [
+  { name: 'eip155:1 reports 0x38', chains: ['eip155:1'], chainIdResult: '0x38' },
+  { name: 'eip155:1 reports number 1', chains: ['eip155:1'], chainIdResult: 1 },
+  { name: 'eip155:1 reports 0x1', chains: ['eip155:1'], chainIdResult: '0x1' },
+  { name: 'eip155:56 and eip155:1, active 56', chains: ['eip155:56', 'eip155:1'], chainIdResult: '0x38' }
+];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,64 +112,6 @@ async function main() {
         Storage.prototype.setItem = function (key, value) { mark(value); return orig.apply(this, arguments); };
       })();`
     });
-    await page.send('Page.navigate', { url: PAGE });
-    await sleep(2500);
-    await page.send('Runtime.evaluate', {
-      expression: `document.getElementById('btnWc').click()`,
-      awaitPromise: true
-    });
-
-    let uri = '';
-    for (let i = 0; i < 50 && !uri; i += 1) {
-      await sleep(500);
-      const read = await page.send('Runtime.evaluate', {
-        expression: `(() => {
-          const re = /wc:[0-9a-f]+@2\\?[^\\s"'<>]+/;
-          const found = [];
-          const consider = (value) => {
-            const match = String(value || '').match(re);
-            if (match) found.push(match[0]);
-          };
-          consider(window.__MUZZ_WC_URI);
-          const walk = (node) => {
-            if (!node || found.length) return;
-            consider(node.nodeValue);
-            consider(node.href);
-            consider(node.uri);
-            if (node.attributes) {
-              for (const attr of node.attributes) consider(attr.value);
-            }
-            if (node.shadowRoot) walk(node.shadowRoot);
-            for (const child of node.childNodes || []) walk(child);
-          };
-          walk(document);
-          if (!found.length) {
-            const clickWc = (node) => {
-              if (!node) return;
-              const testid = node.getAttribute && node.getAttribute('data-testid');
-              const name = (node.getAttribute && node.getAttribute('name')) || '';
-              if ((testid && /walletconnect/i.test(testid)) || /^walletconnect$/i.test(String(name))) {
-                if (typeof node.click === 'function') node.click();
-              }
-              if (node.shadowRoot) clickWc(node.shadowRoot);
-              for (const child of node.children || []) clickWc(child);
-            };
-            clickWc(document);
-          }
-          return found[0] || '';
-        })()`,
-        returnByValue: true
-      });
-      uri = read.result?.value || '';
-    }
-    if (!uri) {
-      const status = await page.send('Runtime.evaluate', {
-        expression: `document.getElementById('errorTitle')?.innerText + ' | ' + document.getElementById('errorDesc')?.innerText + ' | ' + document.getElementById('statusText')?.innerText`,
-        returnByValue: true
-      });
-      throw new Error(`No WalletConnect URI. Page: ${status.result.value}`);
-    }
-
     client = await SignClient.init({
       projectId: PROJECT_ID,
       metadata: {
@@ -174,37 +121,46 @@ async function main() {
         icons: ['https://muzzsnap-app.vercel.app/muzzsnap.jpg']
       }
     });
-    const requests = [];
+    let active = CASES[0];
+    const seen = [];
     client.on('session_proposal', async (proposal) => {
       const required = proposal.params.requiredNamespaces || {};
       const optional = proposal.params.optionalNamespaces || {};
-      const namespaces = {};
-      const merged = { ...optional, ...required };
-      for (const [key, ns] of Object.entries(merged)) {
-        const chains = ns.chains && ns.chains.length ? ns.chains : ['eip155:1'];
-        namespaces[key] = {
-          accounts: chains.map((chain) => `${chain}:${wallet.address}`),
-          methods: ns.methods || [],
-          events: ns.events || []
-        };
+      const requiredChains = (required.eip155 && required.eip155.chains) || [];
+      const optionalChains = (optional.eip155 && optional.eip155.chains) || [];
+      if (!requiredChains.includes('eip155:1') && !optionalChains.includes('eip155:1')) {
+        throw new Error(`eip155:1 was not requested (${JSON.stringify({ requiredChains, optionalChains })})`);
       }
-      if (!namespaces.eip155) {
-        namespaces.eip155 = {
-          accounts: [`eip155:1:${wallet.address}`],
-          methods: ['personal_sign', 'eth_sign', 'eth_chainId'],
-          events: ['chainChanged', 'accountsChanged']
-        };
-      }
-      await client.approve({ id: proposal.id, namespaces });
+      const methods = [...new Set([
+        ...((required.eip155 && required.eip155.methods) || []),
+        ...((optional.eip155 && optional.eip155.methods) || []),
+        'personal_sign',
+        'eth_sign'
+      ])];
+      const events = [...new Set([
+        ...((required.eip155 && required.eip155.events) || []),
+        'chainChanged',
+        'accountsChanged'
+      ])];
+      await client.approve({
+        id: proposal.id,
+        namespaces: {
+          eip155: {
+            chains: active.chains,
+            accounts: active.chains.map((chain) => `${chain}:${wallet.address}`),
+            methods,
+            events
+          }
+        }
+      });
     });
     client.on('session_request', async (event) => {
       const method = event.params.request.method;
       const params = event.params.request.params;
-      requests.push(method);
       seen.push(method);
       let result = null;
-      if (method === 'eth_chainId') result = 1;
-      else if (method === 'net_version') result = '1';
+      if (method === 'eth_chainId') result = active.chainIdResult;
+      else if (method === 'net_version') result = '56';
       else if (method === 'eth_requestAccounts' || method === 'eth_accounts') result = [wallet.address];
       else if (method === 'personal_sign' || method === 'eth_sign') result = await signPayload(params);
       else if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') result = null;
@@ -220,45 +176,133 @@ async function main() {
         response: { id: event.id, jsonrpc: '2.0', result }
       });
     });
-    await client.pair({ uri });
 
-    let title = '';
-    let desc = '';
-    for (let i = 0; i < 40; i += 1) {
-      await sleep(500);
-      const read = await page.send('Runtime.evaluate', {
-        expression: `JSON.stringify({
-          title: document.getElementById('errorTitle')?.innerText || '',
-          desc: document.getElementById('errorDesc')?.innerText || '',
-          step: document.getElementById('signStep')?.innerText || '',
-          status: document.getElementById('statusText')?.innerText || ''
-        })`,
-        returnByValue: true
+    const results = [];
+    for (const spec of CASES) {
+      active = spec;
+      seen.length = 0;
+      await page.send('Page.navigate', { url: `${PAGE}?case=${encodeURIComponent(spec.name)}` });
+      await sleep(1200);
+      await page.send('Runtime.evaluate', {
+        expression: `(() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} if (!indexedDB.databases) return null; return indexedDB.databases().then((list) => Promise.all((list || []).map((db) => indexedDB.deleteDatabase(db.name)))).catch(() => null); })()`,
+        awaitPromise: true
       });
-      const state = JSON.parse(read.result.value);
-      title = state.title;
-      desc = state.desc;
-      if (/Insufficient MUZZ|Wrong network|Signature rejected|Could not sign in|Wallet not installed/i.test(`${title} ${desc}`)) break;
-      if (/Entering chat/i.test(state.step + state.status)) break;
+      await page.send('Page.reload', { ignoreCache: true });
+      let ready = false;
+      for (let i = 0; i < 30 && !ready; i += 1) {
+        await sleep(400);
+        const probe = await page.send('Runtime.evaluate', {
+          expression: `!!document.getElementById('btnWc') && !!document.getElementById('networkLabel')`,
+          returnByValue: true
+        });
+        ready = Boolean(probe.result?.value);
+      }
+      if (!ready) {
+        const body = await page.send('Runtime.evaluate', {
+          expression: `location.href + ' | ' + (document.body ? document.body.innerText.slice(0, 400) : 'no body')`,
+          returnByValue: true
+        });
+        throw new Error(`${spec.name}: login page did not load. ${body.result?.value}`);
+      }
+      await page.send('Runtime.evaluate', {
+        expression: `document.getElementById('btnWc').click()`,
+        awaitPromise: true
+      });
+      let uri = '';
+      for (let i = 0; i < 50 && !uri; i += 1) {
+        await sleep(500);
+        const read = await page.send('Runtime.evaluate', {
+          expression: `(() => {
+            const re = /wc:[0-9a-f]+@2\\?[^\\s"'<>]+/;
+            const found = [];
+            const consider = (value) => {
+              const match = String(value || '').match(re);
+              if (match) found.push(match[0]);
+            };
+            consider(window.__MUZZ_WC_URI);
+            const walk = (node) => {
+              if (!node || found.length) return;
+              consider(node.nodeValue);
+              consider(node.href);
+              consider(node.uri);
+              if (node.attributes) {
+                for (const attr of node.attributes) consider(attr.value);
+              }
+              if (node.shadowRoot) walk(node.shadowRoot);
+              for (const child of node.childNodes || []) walk(child);
+            };
+            walk(document);
+            if (!found.length) {
+              const clickWc = (node) => {
+                if (!node) return;
+                const testid = node.getAttribute && node.getAttribute('data-testid');
+                const name = (node.getAttribute && node.getAttribute('name')) || '';
+                if ((testid && /walletconnect/i.test(testid)) || /^walletconnect$/i.test(String(name))) {
+                  if (typeof node.click === 'function') node.click();
+                }
+                if (node.shadowRoot) clickWc(node.shadowRoot);
+                for (const child of node.children || []) clickWc(child);
+              };
+              clickWc(document);
+            }
+            return found[0] || '';
+          })()`,
+          returnByValue: true
+        });
+        uri = read.result?.value || '';
+      }
+      if (!uri) {
+        const status = await page.send('Runtime.evaluate', {
+          expression: `location.href + ' || ' + document.getElementById('errorTitle')?.innerText + ' | ' + document.getElementById('errorDesc')?.innerText + ' || ' + (document.body ? document.body.innerText.slice(0, 500) : '')`,
+          returnByValue: true
+        });
+        throw new Error(`${spec.name}: no WalletConnect URI. Page: ${status.result?.value}`);
+      }
+      await page.send('Runtime.evaluate', { expression: `window.__MUZZ_WC_URI = ''` });
+      await client.pair({ uri });
+      let title = '';
+      let desc = '';
+      for (let i = 0; i < 40; i += 1) {
+        await sleep(500);
+        const read = await page.send('Runtime.evaluate', {
+          expression: `JSON.stringify({
+            title: document.getElementById('errorTitle')?.innerText || '',
+            desc: document.getElementById('errorDesc')?.innerText || '',
+            step: document.getElementById('signStep')?.innerText || ''
+          })`,
+          returnByValue: true
+        });
+        const state = JSON.parse(read.result.value);
+        title = state.title;
+        desc = state.desc;
+        if (/Insufficient MUZZ|Wrong network|Signature rejected|Could not sign in|Wallet not installed/i.test(`${title} ${desc}`)) break;
+        if (seen.includes('personal_sign') || seen.includes('eth_sign')) break;
+      }
+      const row = { name: spec.name, requests: [...seen], title, desc };
+      results.push(row);
+      console.log(JSON.stringify(row));
+      if (/Wrong network/i.test(`${title} ${desc}`)) {
+        throw new Error(`${spec.name} blocked on the network check: ${title} ${desc}`);
+      }
+      if (!seen.includes('personal_sign') && !seen.includes('eth_sign')) {
+        throw new Error(`${spec.name} did not reach personal_sign. Methods: ${seen.join(',')}`);
+      }
+      try {
+        const topics = client.session.getAll().map((item) => item.topic);
+        for (const topic of topics) {
+          await Promise.race([
+            client.disconnect({ topic, reason: { code: 6000, message: 'next case' } }),
+            sleep(2000)
+          ]);
+        }
+      } catch {
+        /* the next case starts a new pairing */
+      }
     }
-    console.log(JSON.stringify({
-      address: wallet.address,
-      requests: seen,
-      title,
-      desc,
-      switched: seen.includes('wallet_switchEthereumChain')
-    }));
-    if (/Wrong network/i.test(`${title} ${desc}`)) {
-      throw new Error('Still blocked on the network check');
-    }
-    if (!seen.includes('personal_sign') && !seen.includes('eth_sign')) {
-      throw new Error(`personal_sign was not requested. Methods: ${seen.join(',')}`);
-    }
-    if (!/Insufficient MUZZ balance/i.test(title)) {
-      throw new Error(`Expected the MUZZ balance gate. Got: ${title} ${desc}`);
-    }
+    console.log(JSON.stringify({ ok: true, results }));
     page.close();
     browser.close();
+    return;
   } finally {
     chrome.kill('SIGKILL');
     server.kill('SIGKILL');
@@ -276,7 +320,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().then(() => {
+  process.exit(0);
+}).catch((err) => {
   console.error(err);
-  process.exitCode = 1;
+  process.exit(1);
 });

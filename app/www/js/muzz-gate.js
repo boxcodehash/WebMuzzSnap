@@ -76,13 +76,60 @@
     return (list || []).filter((msg) => msg && msg.id && clock - Number(map[msg.id] || clock) < READ_MS);
   }
 
-  function isMainnet(value) {
-    if (value == null || value === '') return false;
-    if (typeof value === 'number') return value === 1;
+  function chainNumber(value) {
+    if (value == null || value === '') return NaN;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof value === 'object') {
+      if (value.chainId != null) return chainNumber(value.chainId);
+      if (value.id != null) return chainNumber(value.id);
+      return NaN;
+    }
     let text = String(value).trim().toLowerCase();
-    if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
-    if (text.startsWith('0x')) return parseInt(text, 16) === 1;
-    return text === '1';
+    if (text.indexOf('eip155:') === 0) text = text.slice('eip155:'.length).split(':')[0];
+    if (text.indexOf('0x') === 0) {
+      const parsed = parseInt(text, 16);
+      return isFinite(parsed) ? parsed : NaN;
+    }
+    if (/^\d+$/.test(text)) return Number(text);
+    return NaN;
+  }
+
+  function isMainnet(value) {
+    return chainNumber(value) === 1;
+  }
+
+  function chainLabel(value) {
+    const n = chainNumber(value);
+    if (isFinite(n)) return String(n);
+    if (value == null || value === '') return 'unknown';
+    const text = String(value).replace(/\s+/g, ' ').trim();
+    return text ? text.slice(0, 48) : 'unknown';
+  }
+
+  function pushNamespaces(values, namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return;
+    Object.keys(namespaces).forEach((key) => {
+      const ns = namespaces[key] || {};
+      values.push(key);
+      (ns.accounts || []).forEach((item) => values.push(item));
+      (ns.chains || []).forEach((item) => values.push(item));
+    });
+  }
+
+  function sessionHasMainnet(provider, hint) {
+    const values = [];
+    pushNamespaces(values, provider && provider.session && provider.session.namespaces);
+    pushNamespaces(values, hint && hint.namespaces);
+    if (hint && hint.caipAddress) values.push(hint.caipAddress);
+    if (hint && hint.caipNetworkId) values.push(hint.caipNetworkId);
+    const network = hint && hint.caipNetwork;
+    if (network && network.caipNetworkId) values.push(network.caipNetworkId);
+    if (network && network.id != null) values.push('eip155:' + network.id);
+    return values.some((item) => {
+      const text = String(item || '').trim().toLowerCase();
+      return text === 'eip155:1' || text.indexOf('eip155:1:') === 0;
+    });
   }
 
   function appPublicUrl() {
@@ -321,11 +368,12 @@
           : 'Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX or Phantom, or open this page inside the wallet.'
       };
     }
-    if (code === 'chain' || /Wrong network/i.test(msg)) {
-      return {
-        title: 'Wrong network.',
-        desc: /Wrong network/i.test(msg) ? msg : 'Wrong network. Accept the switch to Ethereum mainnet and try again.'
-      };
+    if (code === 'chain' || /Wrong network|detected:/i.test(msg)) {
+      const detected = msg.match(/\(detected:[^)]+\)/);
+      let detail = msg.replace(/^wrong network\.?\s*/i, '').trim();
+      if (!detail || detail === 'chain') detail = 'Accept the switch to Ethereum mainnet and try again.';
+      if (detected && detail.indexOf(detected[0]) === -1) detail += ' ' + detected[0];
+      return { title: 'Wrong network.', desc: detail };
     }
     if (code === 'balance' || /Insufficient MUZZ/i.test(msg)) {
       return { title: 'Insufficient MUZZ balance.', desc: msg };
@@ -366,6 +414,8 @@
     readMuzzBalance,
     visible,
     isMainnet,
+    chainLabel,
+    sessionHasMainnet,
     appPublicUrl,
     isEmbeddedOrigin,
     publicLoginUrl,

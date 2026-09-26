@@ -7,6 +7,7 @@ import {
   inspectInjected,
   isMobile,
   openSession,
+  sessionHasMainnet,
   signLogin,
   watchProvider
 } from './walletSession.js';
@@ -77,6 +78,20 @@ async function buildModal() {
     console.error(err);
     throw walletError('wc_load');
   }
+  const requiredMainnet = {
+    eip155: {
+      chains: ['eip155:1'],
+      methods: ['personal_sign', 'eth_sign', 'eth_sendTransaction', 'wallet_switchEthereumChain', 'wallet_addEthereumChain'],
+      events: ['chainChanged', 'accountsChanged']
+    }
+  };
+  const originalConnect = universalProvider.connect.bind(universalProvider);
+  universalProvider.connect = async (params = {}) => {
+    // Sign Client folds requiredNamespaces into optionalNamespaces before the
+    // proposal, so eip155:1 is set on both. The session still has to include it.
+    universalProvider.namespaces = requiredMainnet;
+    return originalConnect(params);
+  };
   return createAppKit({
     adapters: [new EthersAdapter()],
     networks: [mainnet],
@@ -136,13 +151,26 @@ async function providerOf(modal) {
   throw walletError('NO_WALLET');
 }
 
+async function finishConnect(modal, hooks) {
+  const provider = await providerOf(modal);
+  const hint = sessionHint(modal);
+  const session = await openSession(provider, { ...hooks, ...hint });
+  if (sessionHasMainnet(provider, hint)) {
+    try {
+      provider.setDefaultChain?.('eip155:1');
+    } catch {
+      /* personal_sign does not need the wallet UI chain */
+    }
+  }
+  return { ...session, ...hint };
+}
+
 export async function connectModal(hooks = {}) {
   const modal = await getModal();
   if (modal.getIsConnectedState?.() && modal.getAddress?.()) {
-    const provider = await providerOf(modal);
-    return openSession(provider, hooks);
+    return finishConnect(modal, hooks);
   }
-  const session = await new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     let opened = false;
     let settled = false;
     let unsubAccount = () => {};
@@ -164,8 +192,21 @@ export async function connectModal(hooks = {}) {
     });
     modal.open().catch((err) => finish(() => reject(err)));
   });
-  const provider = await providerOf(modal);
-  return openSession(provider, hooks);
+  return finishConnect(modal, hooks);
+}
+
+function sessionHint(modal) {
+  let caipAddress = '';
+  let caipNetwork = null;
+  let appKitChainId;
+  try {
+    caipAddress = modal.getCaipAddress?.() || '';
+    caipNetwork = modal.getCaipNetwork?.() || null;
+    appKitChainId = modal.getChainId?.();
+  } catch {
+    /* the provider session is the source of truth */
+  }
+  return { caipAddress, caipNetwork, appKitChainId };
 }
 
 export async function connectInjected(id, hooks = {}) {

@@ -146,6 +146,7 @@
             text-shadow: 0 0 16px var(--red-glow);
         }
 
+        #networkLabel,
         #statusText {
             font-family: 'Orbitron', sans-serif;
             font-size: 0.62rem;
@@ -395,6 +396,38 @@
             text-shadow: 0 0 10px var(--red-glow);
         }
 
+        footer .build {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.5rem;
+            letter-spacing: 0.08em;
+            text-transform: none;
+            color: rgba(255, 255, 255, 0.28);
+        }
+
+        .fallback {
+            margin: 2px 0 0;
+            padding: 0;
+            border: 0;
+            background: none;
+            color: rgba(255, 255, 255, 0.55);
+            font: inherit;
+            font-size: 0.82rem;
+            letter-spacing: 0;
+            text-transform: none;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .link-row.plain { justify-content: center; }
+        .link-row.plain a {
+            box-shadow: none;
+            padding: 2px 6px;
+            color: rgba(255, 255, 255, 0.62);
+            text-decoration: underline;
+            background: none;
+        }
+
         .sign-overlay {
             position: fixed;
             inset: 0;
@@ -484,25 +517,18 @@
             <img src="muzzsnap.jpg" alt="MuzzSnap">
         </button>
 
-        <p id="statusText">Tap the logo to connect with WalletConnect</p>
+        <p id="networkLabel">Ethereum mainnet</p>
+        <p id="statusText" class="hidden"></p>
 
         <button type="button" id="btnWc" class="btn btn-primary">Connect with WalletConnect</button>
-        <p id="wcNote" class="fine">WalletConnect opens your wallet and returns to this app. It does not load a localhost page.</p>
+        <p><button type="button" id="openWalletLink" class="fallback">Open in wallet</button></p>
+        <div id="walletLinks" class="link-row plain hidden"></div>
 
         <div id="returnBox" class="return-box hidden">
             <p class="fine" id="returnText">Signed in. Return to the MuzzSnap app.</p>
             <a id="returnLink" class="btn btn-primary" href="#">Return to MuzzSnap</a>
             <button type="button" id="stayBtn" class="btn btn-ghost">Continue in this browser</button>
             <p class="fine">If the app does not open, continue here. The chat works in this wallet browser too.</p>
-        </div>
-
-        <div class="panel">
-            <p class="fine">Hold at least 10,000,000 MUZZ on Ethereum. The balance is read with <span class="mono">balanceOf</span> on a public RPC until Cloud Functions are deployed. Server verification is already in the app functions.</p>
-            <details class="deeplinks" id="walletDetails">
-                <summary>Open in wallet</summary>
-                <p class="fine" id="walletNote"></p>
-                <div class="link-row" id="walletLinks"></div>
-            </details>
         </div>
 
         <div id="errorBox" class="error-box hidden">
@@ -519,7 +545,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itsuki</span></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itsuki</span><small class="build">v1.0.3</small></footer>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -615,17 +641,8 @@
                 });
                 box.appendChild(link);
             });
-            const note = document.getElementById('walletNote');
-            if (runningInApk()) {
-                note.textContent = 'WalletConnect is the main sign-in. It opens MetaMask, Trust, Coinbase, Rainbow, OKX, Phantom, or any other wallet and returns with muzzsnap://wc. If that fails, these links open ' + muzzGate.appPublicUrl() + '/login.html inside the wallet. A wallet cannot load https://localhost.';
-            } else if (wantsApkReturn()) {
-                note.textContent = 'Sign the message in this wallet. It does not spend gas. Then return to the MuzzSnap app, or continue in this browser.';
-            } else {
-                note.textContent = 'If this browser has no wallet, open the page inside MetaMask, Trust, Coinbase, Rainbow, OKX or Phantom. Phantom must be on Ethereum, not Solana.';
-            }
             const projectId = muzzGate.walletConnectProjectId();
             document.getElementById('btnWc').classList.toggle('hidden', !projectId);
-            document.getElementById('wcNote').classList.toggle('hidden', !projectId);
             if (projectId) {
                 window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
@@ -705,42 +722,60 @@
             return mmSdk.getProvider() || window.ethereum || null;
         }
 
-        async function ensureMainnet(rawProvider) {
-            const chainId = await rawProvider.request({ method: 'eth_chainId' });
-            if (muzzGate.isMainnet(chainId)) return;
+        async function readChain(rawProvider) {
+            try {
+                return await rawProvider.request({ method: 'eth_chainId' });
+            } catch (err) {
+                return undefined;
+            }
+        }
+
+        async function requestMainnetSwitch(rawProvider) {
+            let sawUpdate = false;
+            const onUpdate = function () { sawUpdate = true; };
+            if (rawProvider && typeof rawProvider.on === 'function') {
+                rawProvider.on('chainChanged', onUpdate);
+                rawProvider.on('session_update', onUpdate);
+            }
             try {
                 await rawProvider.request({
                     method: 'wallet_switchEthereumChain',
                     params: [{ chainId: '0x1' }]
                 });
             } catch (err) {
-                if (err && err.code === 4902) {
-                    await rawProvider.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [{
-                            chainId: '0x1',
-                            chainName: 'Ethereum Mainnet',
-                            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-                            rpcUrls: ['https://ethereum.publicnode.com'],
-                            blockExplorerUrls: ['https://etherscan.io']
-                        }]
-                    });
-                } else if (err && (err.code === 4001 || /rejected|denied|cancel/i.test(String(err.message || '')))) {
-                    const rejected = new Error('Signature rejected.');
-                    rejected.code = 'rejected';
-                    throw rejected;
-                } else {
-                    const chainError = new Error('Wrong network. Accept the switch to Ethereum mainnet and try again.');
-                    chainError.code = 'chain';
-                    throw chainError;
+                const unrecognized = err && (err.code === 4902 || /4902|unrecognized chain/i.test(String(err.message || '')));
+                if (unrecognized) {
+                    try {
+                        await rawProvider.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: '0x1',
+                                chainName: 'Ethereum Mainnet',
+                                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                                rpcUrls: ['https://ethereum.publicnode.com'],
+                                blockExplorerUrls: ['https://etherscan.io']
+                            }]
+                        });
+                    } catch (addErr) {
+                        /* re-read the session after this */
+                    }
                 }
             }
-            const after = await rawProvider.request({ method: 'eth_chainId' });
-            if (!muzzGate.isMainnet(after)) {
-                const chainError = new Error('Wrong network. Accept the switch to Ethereum mainnet and try again.');
-                chainError.code = 'chain';
-                throw chainError;
+            if (rawProvider && typeof rawProvider.removeListener === 'function') {
+                rawProvider.removeListener('chainChanged', onUpdate);
+                rawProvider.removeListener('session_update', onUpdate);
             }
+            if (!sawUpdate) await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+
+        async function ensureMainnet(rawProvider, hint) {
+            const first = await readChain(rawProvider);
+            if (!muzzGate.isMainnet(first)) await requestMainnetSwitch(rawProvider);
+            const after = await readChain(rawProvider);
+            if (muzzGate.isMainnet(after) || muzzGate.sessionHasMainnet(rawProvider, hint)) return;
+            const chainError = new Error('Accept the switch to Ethereum mainnet and try again. (detected: ' + muzzGate.chainLabel(after != null ? after : first) + ')');
+            chainError.code = 'chain';
+            throw chainError;
         }
 
         window.muzzWalletMissing = function () {
@@ -763,7 +798,7 @@
 
         function openChooser(text) {
             showSigning(false);
-            document.getElementById('walletDetails').open = true;
+            document.getElementById('walletLinks').classList.remove('hidden');
             statusText.dataset.busy = '1';
             statusText.textContent = text;
         }
@@ -793,7 +828,7 @@
             setTimeout(() => { window.location.href = url; }, 300);
         }
 
-        async function signInWithProvider(rawProvider, returnApk) {
+        async function signInWithProvider(rawProvider, returnApk, hint) {
             if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
             if (!rawProvider) {
                 const missing = new Error('NO_WALLET');
@@ -801,7 +836,7 @@
                 throw missing;
             }
             setStep('Ethereum mainnet');
-            await ensureMainnet(rawProvider);
+            await ensureMainnet(rawProvider, hint);
             setStep('Requesting account...');
             const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
             await web3.send('eth_requestAccounts', []);
@@ -877,7 +912,7 @@
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
                 const mod = await import('./js/wc-login.js');
                 const session = await mod.connectWalletConnect();
-                await signInWithProvider(session && session.provider, false);
+                await signInWithProvider(session && session.provider, false, session);
             } catch (err) {
                 showSignError(err);
             }
@@ -946,6 +981,9 @@
 
         document.getElementById('btnWc').addEventListener('click', () => {
             accessWithWalletConnect();
+        });
+        document.getElementById('openWalletLink').addEventListener('click', () => {
+            document.getElementById('walletLinks').classList.remove('hidden');
         });
         document.getElementById('stayBtn').addEventListener('click', () => {
             window.location.href = 'chat.html';
