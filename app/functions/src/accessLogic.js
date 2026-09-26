@@ -1,6 +1,15 @@
 import { ethers } from 'ethers';
 import { parseLoginMessage } from './loginMessage.js';
 
+/** One non-admin wallet skips the MUZZ minimum. Compare lowercase. */
+const BALANCE_EXEMPT = new Set([
+  '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a'
+]);
+
+export function isBalanceExempt(address) {
+  return BALANCE_EXEMPT.has(String(address || '').trim().toLowerCase());
+}
+
 /** Compara enteros. No usa parseFloat: un saldo justo en el mínimo entra; uno por debajo, no. */
 export function hasEnoughBalance(balanceWei, decimals, minTokens) {
   const dec = Number(decimals);

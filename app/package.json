@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",
+    "@capacitor/local-notifications": "^7.0.7",
     "@reown/appkit": "^1.8.24",
     "@reown/appkit-adapter-ethers": "^1.8.24",
     "ethers": "^6.15.0",

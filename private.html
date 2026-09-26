@@ -9,6 +9,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+  <script src="muzz-names.js"></script>
+  <script src="private-notify.js"></script>
   <style>
     :root{
       --bg:#181d23;
@@ -76,10 +78,20 @@
       .composer{padding:12px calc(12px + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(12px + var(--safe-left))}
       .msg-wrap{max-width:92%}
     }
+    .people-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:14px;border:1px solid rgba(255,42,42,.28);background:rgba(255,42,42,.1);color:#ffd0d0;font-weight:800;font-size:12px;cursor:pointer;position:relative}
+    .people-btn .badge{display:none;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ff2a2a;color:#fff;font-size:10px;align-items:center;justify-content:center}
+    .people-btn .badge.show{display:inline-flex}
+    .unread-dot{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ff2a2a;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+    .app.picker-closed{grid-template-columns:minmax(0,1fr)}
+    .app.picker-closed .sidebar{display:none !important}
+    .app.picker-open .sidebar{display:flex !important}
+    @media (max-width: 920px){
+      .app.picker-open .sidebar{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:40;overflow:auto}
+    }
   </style>
 </head>
 <body>
-  <div class="app">
+  <div class="app picker-open" id="appShell">
     <aside class="sidebar">
       <div class="brand">
         <img src="muzzsnap.jpg" alt="MuzzSnap" class="logo">
@@ -107,6 +119,7 @@
       <div class="mobile-top">
         <button class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="window.location.href='chat.html'">← Back</button>
         <div style="font-weight:900;letter-spacing:.08em">MUZZ<span style="color:var(--red)">SNAP</span></div>
+        <button type="button" class="people-btn" aria-label="People">People<span class="badge"></span></button>
       </div>
       <div class="topbar" id="chatHeader"></div>
       <div class="messages" id="messages"></div>
@@ -123,11 +136,6 @@
     const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
     const MUZZ_MIN_REQUIRED = 2000000;
     const ONLINE_TTL_MS = 45000;
-    const ADMIN_WALLETS = [
-      '0x208157b5ec396759e8754058108ecf53e32392ff',
-      '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
-      '0x875c5a7794b601f273da58e3c1d10671d16130ec'
-    ];
     const ERC20_ABI = [
       'function balanceOf(address) view returns (uint256)',
       'function decimals() view returns (uint8)'
@@ -143,22 +151,25 @@
       appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
     };
 
-    if (!firebase.apps.length) firebase.initializeApp(fbConfig);
-    const db = firebase.database();
+    const localShot = new URLSearchParams(location.search).get('shot') === '1'
+      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    if (!localShot && !firebase.apps.length) firebase.initializeApp(fbConfig);
+    const db = localShot ? null : firebase.database();
 
     const meRaw = sessionStorage.getItem('muzz_wallet_address') || '';
     const meWallet = String(meRaw || '').trim().toLowerCase();
-    const storedAdmin = sessionStorage.getItem('muzz_is_admin') === 'true';
     const isGuest = !meWallet || meWallet.startsWith('guest_');
-    const isAdmin = storedAdmin || ADMIN_WALLETS.includes(meWallet);
-    const meRole = meWallet === ADMIN_WALLETS[0] ? 'ryachu' : meWallet === ADMIN_WALLETS[1] ? 'itsuki' : meWallet === ADMIN_WALLETS[2] ? 'esteban' : 'user';
-    const meName = isGuest ? meRaw.replace('guest_','') : (meRole === 'user' ? `Node_${meWallet.slice(-4) || 'User'}` : (meRole === 'ryachu' ? 'Ryachu' : meRole === 'itsuki' ? 'Itsuki' : 'Esteban'));
+    const isAdmin = window.MuzzNames ? MuzzNames.isAdmin(meWallet) : false;
+    const meRole = window.MuzzNames ? MuzzNames.roleOf(meWallet) : 'user';
+    const meName = isGuest ? String(meRaw).replace('guest_','') : (window.MuzzNames ? MuzzNames.displayName(meWallet) : `Node_${meWallet.slice(-4) || 'User'}`);
     const meIdentity = isGuest ? `guest_${meName}` : `wallet_${meWallet}`;
 
     let contacts = [];
     let activeWallet = null;
     let messages = [];
     let inboxUnsub = null;
+    let pickerOpen = true;
+    let unreadMap = {};
 
     function escapeHtml(str){
       return String(str)
@@ -184,7 +195,7 @@
         window.location.href = 'chat.html';
         return false;
       }
-      if(isAdmin) return true;
+      if(isAdmin || (window.MuzzNames && MuzzNames.isWhitelisted(meWallet))) return true;
       if(typeof window.ethereum === 'undefined' || typeof ethers === 'undefined'){
         alert('A Web3 wallet is required to verify your MUZZ balance.');
         window.location.href = 'chat.html';
@@ -225,6 +236,43 @@
       document.getElementById('meSubtext').textContent = isAdmin ? 'Admin private access' : 'Wallet + 2M MUZZ verified';
     }
 
+    function unreadTotal(){
+      return Object.keys(unreadMap).reduce((sum, key) => sum + (unreadMap[key] || 0), 0);
+    }
+
+    function peopleButtonHtml(){
+      const n = unreadTotal();
+      const badge = n ? `<span class="badge show">${n > 9 ? '9+' : n}</span>` : '<span class="badge"></span>';
+      return `<button type="button" class="people-btn" aria-label="People">People${badge}</button>`;
+    }
+
+    function applyPicker(){
+      const shell = document.getElementById('appShell');
+      shell.classList.toggle('picker-open', pickerOpen);
+      shell.classList.toggle('picker-closed', !pickerOpen);
+      document.querySelectorAll('.people-btn .badge').forEach(el => {
+        const n = unreadTotal();
+        el.textContent = n ? (n > 9 ? '9+' : String(n)) : '';
+        el.classList.toggle('show', n > 0);
+      });
+    }
+
+    function contactName(wallet, entry){
+      if (window.MuzzNames && (MuzzNames.isAdmin(wallet) || MuzzNames.isWhitelisted(wallet))) {
+        return MuzzNames.displayName(wallet);
+      }
+      if (entry && entry.username) return entry.username;
+      return 'Node_' + String(wallet).slice(-4);
+    }
+
+    function contactAvatar(wallet){
+      const role = window.MuzzNames ? MuzzNames.roleOf(wallet) : 'user';
+      if (role === 'ryachu') return '👑';
+      if (role === 'itsuki') return '💎';
+      if (role === 'esteban') return '🛡️';
+      return '👤';
+    }
+
     function renderContacts(){
       const list = document.getElementById('contactList');
       list.innerHTML = '';
@@ -235,12 +283,13 @@
       contacts.forEach(chat => {
         const row = document.createElement('button');
         row.className = 'contact' + (chat.wallet === activeWallet ? ' active' : '');
+        const unread = unreadMap[chat.wallet] || 0;
         row.innerHTML = `
           <div class="avatar">${escapeHtml(chat.avatar)}</div>
           <div style="min-width:0;flex:1;text-align:left">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
               <div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chat.name)}</div>
-              <div class="small muted">${chat.online ? 'online' : ''}</div>
+              ${unread ? `<span class="unread-dot">${unread > 9 ? '9+' : unread}</span>` : `<div class="small muted">${chat.online ? 'online' : ''}</div>`}
             </div>
             <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chat.lastText || chat.subtitle || '')}</div>
           </div>
@@ -262,7 +311,7 @@
               <div class="small muted">Select a wallet conversation.</div>
             </div>
           </div>
-          <div class="pill">2M MUZZ</div>
+          <div style="display:flex;align-items:center;gap:8px">${peopleButtonHtml()}<div class="pill">2M MUZZ</div></div>
         `;
         return;
       }
@@ -274,29 +323,16 @@
             <div class="small muted"><span class="status" style="background:${chat.online ? 'var(--green)' : '#5f6b7a'};box-shadow:${chat.online ? '0 0 10px var(--green)' : 'none'}"></span>${chat.online ? 'Online' : 'Offline'} · ${escapeHtml(chat.subtitle)}</div>
           </div>
         </div>
-        <div class="pill">PRIVATE</div>
+        <div style="display:flex;align-items:center;gap:8px">${peopleButtonHtml()}<div class="pill">PRIVATE</div></div>
       `;
     }
 
     function renderMessages(){
       const box = document.getElementById('messages');
       if(!activeWallet){
-        if(!contacts.length){
-          box.innerHTML = '<div class="empty">No wallet contacts yet.</div>';
-          return;
-        }
-        box.innerHTML = contacts.map(chat => `
-          <button class="contact" data-wallet="${escapeHtml(chat.wallet)}" style="max-width:100%">
-            <div class="avatar">${escapeHtml(chat.avatar)}</div>
-            <div style="min-width:0;flex:1;text-align:left">
-              <div style="font-weight:800">${escapeHtml(chat.name)} ${chat.online ? '· online' : ''}</div>
-              <div class="small muted">${escapeHtml(chat.subtitle)}</div>
-            </div>
-          </button>
-        `).join('');
-        box.querySelectorAll('[data-wallet]').forEach(btn => {
-          btn.onclick = () => openThread(btn.getAttribute('data-wallet'));
-        });
+        box.innerHTML = pickerOpen
+          ? '<div class="empty">Choose a conversation.</div>'
+          : '<div class="empty">Tap People to choose a conversation.</div>';
         return;
       }
       if(!messages.length){
@@ -324,10 +360,14 @@
       renderContacts();
       renderHeader();
       renderMessages();
+      applyPicker();
     }
 
     function openThread(wallet){
-      activeWallet = wallet;
+      activeWallet = String(wallet || '').toLowerCase();
+      pickerOpen = false;
+      applyPicker();
+      if (window.MuzzNotify) MuzzNotify.clear(activeWallet);
       if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} }
       const ref = db.ref('privateInbox/' + threadId(meWallet, wallet) + '/messages').limitToLast(100);
       const handler = snap => {
@@ -373,8 +413,8 @@
         const live = statusMap[identity] || {};
         map[wallet] = {
           wallet,
-          name: entry.role === 'ryachu' ? 'Ryachu' : entry.role === 'itsuki' ? 'Itsuki' : entry.role === 'esteban' ? 'Esteban' : (entry.username || ('Node_' + wallet.slice(-4))),
-          avatar: entry.role === 'ryachu' ? '👑' : entry.role === 'itsuki' ? '💎' : entry.role === 'esteban' ? '🛡️' : '👤',
+          name: contactName(wallet, entry),
+          avatar: contactAvatar(wallet),
           subtitle: shortenWallet(wallet),
           lastText: '',
           lastAt: Number(entry.lastSeen || 0),
@@ -388,8 +428,8 @@
         if(!map[w]){
           map[w] = {
             wallet: w,
-            name: 'Node_' + w.slice(-4),
-            avatar: '👤',
+            name: contactName(w),
+            avatar: contactAvatar(w),
             subtitle: shortenWallet(w),
             lastText: idx.lastText || '',
             lastAt: Number(idx.lastAt || 0),
@@ -405,7 +445,7 @@
         return Number(b.lastAt||0) - Number(a.lastAt||0);
       });
       if(activeWallet && !contacts.some(c => c.wallet === activeWallet)){
-        activeWallet = contacts[0] ? contacts[0].wallet : null;
+        activeWallet = null;
       }
       render();
     }
@@ -465,13 +505,55 @@
       }
     });
 
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest && event.target.closest('.people-btn');
+      if (!btn) return;
+      event.preventDefault();
+      pickerOpen = !pickerOpen;
+      applyPicker();
+      if (window.MuzzNotify) MuzzNotify.requestPermission();
+    });
+    window.addEventListener('muzz-unread', (event) => {
+      unreadMap = (event.detail && event.detail.unread) || {};
+      renderContacts();
+      applyPicker();
+    });
+
     (async function boot(){
+      if (localShot) {
+        contacts = [{
+          wallet: '0x208157b5ec396759e8754058108ecf53e32392ff',
+          name: 'RYASHU',
+          avatar: '👑',
+          subtitle: '0x2081...92ff',
+          lastText: 'Hello',
+          online: true
+        }];
+        activeWallet = contacts[0].wallet;
+        pickerOpen = false;
+        messages = [{ from: contacts[0].wallet, text: 'Hello from private', timestamp: Date.now() }];
+        render();
+        document.getElementById('meName').textContent = 'Node_6bcb8a';
+        if (window.MuzzNotify) MuzzNotify.demo({ name: 'RYASHU', text: 'New private message', peer: contacts[0].wallet });
+        return;
+      }
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
       try { await firebase.auth().signInAnonymously(); } catch (err) { console.error(err); }
       autoResizeInput();
       markWalletPresence();
       startLiveData();
+      if (window.MuzzNotify) {
+        MuzzNotify.start({
+          db,
+          me: meWallet,
+          viewing: () => activeWallet || '',
+          open: (peer) => openThread(peer),
+          nameOf: (wallet) => contactName(wallet)
+        });
+      }
+      const peer = new URLSearchParams(location.search).get('peer');
+      if (peer && /^0x[a-f0-9]{40}$/i.test(peer)) openThread(peer);
       render();
     })();
   </script>

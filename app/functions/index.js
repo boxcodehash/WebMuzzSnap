@@ -7,7 +7,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { randomBytes } from 'node:crypto';
 import { CHAIN_ID, DEFAULT_MIN_MUZZ, TOKEN_ADDRESS } from './src/policy.js';
 import { originOf } from './src/loginMessage.js';
-import { hasEnoughBalance, recoverAccess } from './src/accessLogic.js';
+import { hasEnoughBalance, isBalanceExempt, recoverAccess } from './src/accessLogic.js';
 import { readHolding as fetchHolding } from './src/holding.js';
 
 initializeApp();
@@ -92,6 +92,19 @@ async function readHolding(cfg, address) {
   }
 }
 
+async function readHoldingForGate(cfg, address) {
+  if (!isBalanceExempt(address)) return readHolding(cfg, address);
+  try {
+    return await readHolding(cfg, address);
+  } catch (err) {
+    return { balance: 0n, decimals: 18 };
+  }
+}
+
+function gateEnough(holding, address, cfg) {
+  return isBalanceExempt(address) || hasEnoughBalance(holding.balance, holding.decimals, cfg.minMuzz);
+}
+
 async function bearerWallet(req) {
   const header = String(req.get('authorization') || '');
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -156,8 +169,8 @@ export const verifyAccess = onRequest({ region: REGION, invoker: 'public', timeo
     fail(401, 'nonce');
   }
 
-  const holding = await readHolding(cfg, address);
-  const enough = hasEnoughBalance(holding.balance, holding.decimals, cfg.minMuzz);
+  const holding = await readHoldingForGate(cfg, address);
+  const enough = gateEnough(holding, address, cfg);
 
   let nonceConsumed = false;
   await db.runTransaction(async (tx) => {
@@ -220,8 +233,8 @@ export const verifyAccess = onRequest({ region: REGION, invoker: 'public', timeo
 export const recheckBalance = onRequest({ region: REGION, invoker: 'public', timeoutSeconds: 30, memory: '256MiB' }, withHttp(async (req, res, cfg) => {
   const decoded = await bearerWallet(req);
   const wallet = decoded.wallet;
-  const holding = await readHolding(cfg, wallet);
-  const enough = hasEnoughBalance(holding.balance, holding.decimals, cfg.minMuzz);
+  const holding = await readHoldingForGate(cfg, wallet);
+  const enough = gateEnough(holding, wallet, cfg);
   const db = getFirestore();
   if (!enough) {
     await db.collection('access').doc(wallet).set({

@@ -14,7 +14,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+  <script src="js/muzz-names.js"></script>
   <script src="js/muzz-gate.js"></script>
+  <script src="js/private-notify.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -359,9 +361,9 @@
     const db = firebase.database();
 
     const ADMIN_WALLETS = {
-      ryachu: atob('MHgyMDgxNTdiNWVjMzk2NzU5ZTg3NTQwNTgxMDhlY2Y1M2UzMjM5MmZm').toLowerCase(),
-      itsuki: atob('MHhmYWI1ODM1Y2ExNGZiM2Y5Zjk3OGM1ZTRkNzMzNzM0ZTYzOTRlMDNm').toLowerCase(),
-      esteban: '0x875c5a7794b601f273da58e3c1d10671d16130ec'.toLowerCase()
+      ryachu: MuzzNames.ADMINS.ryachu.wallet,
+      itsuki: MuzzNames.ADMINS.itsuki.wallet,
+      esteban: MuzzNames.ADMINS.esteban.wallet
     };
 
     const ADMIN_ROLES = ['ryachu','itsuki','esteban'];
@@ -512,19 +514,8 @@
           let role = 'user';
 
           if (isWallet) {
-            if (wallet === ADMIN_WALLETS.ryachu) {
-              username = 'Ryachu';
-              role = 'ryachu';
-            } else if (wallet === ADMIN_WALLETS.itsuki) {
-              username = 'Itsuki';
-              role = 'itsuki';
-            } else if (wallet === ADMIN_WALLETS.esteban) {
-              username = 'Esteban';
-              role = 'esteban';
-            } else {
-              username = `Node_${sessionWallet.slice(-4)}`;
-              role = 'user';
-            }
+            username = MuzzNames.displayName(wallet);
+            role = MuzzNames.roleOf(wallet);
           } else {
             username = sessionWallet.replace('guest_','');
             role = 'guest';
@@ -683,10 +674,25 @@
         };
       }, []);
 
+      useEffect(() => {
+        if (!me || !me.wallet || !window.MuzzNotify) return;
+        MuzzNotify.start({
+          db,
+          me: me.wallet,
+          viewing: () => '',
+          open: (peer) => { window.location.href = 'private.html?peer=' + encodeURIComponent(peer); },
+          nameOf: (wallet) => MuzzNames.displayName(wallet)
+        });
+      }, [me]);
+
       const goToPrivate = async () => {
         if (!me) return;
 
         const walletAddress = (muzzGate.savedWallet() || '').toLowerCase();
+        if (MuzzNames.isWhitelisted(walletAddress)) {
+          window.location.href = 'private.html';
+          return;
+        }
         if (!/^0x[a-f0-9]{40}$/.test(walletAddress)) {
           showNotice('WALLET REQUIRED', 'Sign in with a wallet that holds at least 10,000,000 MUZZ.', 'yellow');
           return;

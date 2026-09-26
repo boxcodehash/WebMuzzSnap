@@ -25,8 +25,21 @@
     return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
+  const BALANCE_EXEMPT = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
+
+  function isBalanceExempt(address) {
+    const wallet = String(address || '').trim().toLowerCase();
+    if (global.MuzzNames && typeof global.MuzzNames.isWhitelisted === 'function') {
+      return global.MuzzNames.isWhitelisted(wallet);
+    }
+    return wallet === BALANCE_EXEMPT;
+  }
+
   async function readMuzzBalance(address) {
     if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
+    if (isBalanceExempt(address)) {
+      return { ok: true, formatted: 'exempt', minimum: '10,000,000', exempt: true };
+    }
     const wallet = ethers.utils.getAddress(address);
     for (const url of RPCS) {
       try {
@@ -451,6 +464,7 @@
     MIN_WHOLE,
     DEFAULT_PUBLIC,
     HANDOFF_MS,
+    isBalanceExempt,
     readMuzzBalance,
     visible,
     isMainnet,
