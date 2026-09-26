@@ -112,6 +112,16 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(login, /Connect with WalletConnect/);
   assert.match(login, /if \(muzzGate\.walletConnectProjectId\(\)\) \{\s*await accessWithWalletConnect\(\)/);
   assert.match(login, /muzzsnap:\/\/wc/);
+  assert.match(login, /muzzGate\.isMainnet\(chainId\)/);
+  assert.match(login, /muzzGate\.isMainnet\(after\)/);
+  assert.doesNotMatch(login, /chainId === '0x1'/);
+  assert.match(login, /Wallet app not found\./);
+  assert.match(wallet, /enableCoinbase:\s*false/);
+  const gateSrc = readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8');
+  assert.match(gateSrc, /https:\/\/ethereum\.publicnode\.com/);
+  assert.match(gateSrc, /https:\/\/eth\.drpc\.org/);
+  assert.match(gateSrc, /https:\/\/rpc\.ankr\.com\/eth/);
+  assert.doesNotMatch(gateSrc, /cloudflare-eth\.com|eth\.llamarpc\.com/);
   assert.match(login, /Continue in this browser/);
   assert.match(login, /explainSignError/);
   assert.match(login, /\.\/js\/wc-login\.js/);

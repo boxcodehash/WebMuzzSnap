@@ -8,7 +8,7 @@ import { bannerHtml, messagesHtml, shellHtml } from './render.js';
 import * as wallet from './wallet.js';
 import { walletMessage } from './walletErrors.js';
 import { inAppWalletId } from './walletLinks.js';
-import { normalizeChainId } from './walletSession.js';
+import { isMainnet, normalizeChainId } from './walletSession.js';
 import { shortAddr } from './names.js';
 
 const DEMO_ME = '0x875c5a7794b601f273da0000000000000000d3e0';
@@ -292,7 +292,7 @@ function armWalletWatch(provider) {
     },
     onChain(chainId) {
       const hex = normalizeChainId(chainId);
-      if (hex && hex !== '0x1') dropSession(walletMessage('chain'));
+      if (hex && !isMainnet(chainId)) dropSession(walletMessage('chain'));
     }
   });
 }

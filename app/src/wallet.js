@@ -87,7 +87,7 @@ async function buildModal() {
     featuredWalletIds: SUPPORTED_WALLETS.map((wallet) => wallet.wcId),
     enableEIP6963: true,
     enableInjected: true,
-    enableCoinbase: true,
+    enableCoinbase: false,
     enableWalletConnect: true,
     enableBaseAccount: false,
     coinbasePreference: 'eoaOnly',

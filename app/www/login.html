@@ -608,6 +608,11 @@
                 link.href = item.href;
                 link.textContent = item.name;
                 link.rel = 'noopener';
+                link.addEventListener('click', (event) => {
+                    if (!runningInApk()) return;
+                    event.preventDefault();
+                    openWalletApp(item.href);
+                });
                 box.appendChild(link);
             });
             const note = document.getElementById('walletNote');
@@ -702,7 +707,7 @@
 
         async function ensureMainnet(rawProvider) {
             const chainId = await rawProvider.request({ method: 'eth_chainId' });
-            if (chainId === '0x1') return;
+            if (muzzGate.isMainnet(chainId)) return;
             try {
                 await rawProvider.request({
                     method: 'wallet_switchEthereumChain',
@@ -731,10 +736,28 @@
                 }
             }
             const after = await rawProvider.request({ method: 'eth_chainId' });
-            if (after !== '0x1') {
+            if (!muzzGate.isMainnet(after)) {
                 const chainError = new Error('Wrong network. Accept the switch to Ethereum mainnet and try again.');
                 chainError.code = 'chain';
                 throw chainError;
+            }
+        }
+
+        window.muzzWalletMissing = function () {
+            showError('Wallet app not found.', 'Install it or choose another wallet.');
+        };
+
+        async function openWalletApp(href) {
+            const Cap = window.Capacitor;
+            if (!Cap || typeof Cap.registerPlugin !== 'function') {
+                window.location.href = href;
+                return;
+            }
+            try {
+                const WalletLink = Cap.registerPlugin('WalletLink');
+                await WalletLink.open({ url: href });
+            } catch (err) {
+                window.muzzWalletMissing();
             }
         }
 

@@ -2,6 +2,7 @@ package app.muzzsnap.chat;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import com.getcapacitor.Bridge;
@@ -11,6 +12,12 @@ import org.json.JSONObject;
 public class MainActivity extends BridgeActivity {
     private String pendingAuth = null;
     private int authAttempts = 0;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(WalletLinkPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
 
     @Override
     protected void onNewIntent(Intent intent) {

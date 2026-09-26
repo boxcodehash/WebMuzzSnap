@@ -16,14 +16,21 @@ export function isMobile(userAgent = globalThis.navigator?.userAgent || '') {
 
 export function normalizeChainId(value) {
   if (value == null || value === '') return '';
-  if (typeof value === 'number') return `0x${value.toString(16)}`;
-  const text = String(value).trim().toLowerCase();
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? `0x${value.toString(16)}` : '';
+  }
+  let text = String(value).trim().toLowerCase();
+  if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
   if (text.startsWith('0x')) {
     const parsed = Number.parseInt(text, 16);
     return Number.isFinite(parsed) ? `0x${parsed.toString(16)}` : '';
   }
   if (/^\d+$/.test(text)) return `0x${Number(text).toString(16)}`;
   return '';
+}
+
+export function isMainnet(value) {
+  return normalizeChainId(value) === '0x1';
 }
 
 function addWallet(found, item) {
@@ -96,8 +103,7 @@ export function discoverInjected(root = globalThis, timeoutMs = 300) {
 }
 
 async function ensureMainnet(provider) {
-  const current = normalizeChainId(await provider.request({ method: 'eth_chainId' }));
-  if (current === '0x1') return;
+  if (isMainnet(await provider.request({ method: 'eth_chainId' }))) return;
   try {
     await provider.request({
       method: 'wallet_switchEthereumChain',
@@ -115,8 +121,7 @@ async function ensureMainnet(provider) {
       throw walletError('chain');
     }
   }
-  const after = normalizeChainId(await provider.request({ method: 'eth_chainId' }));
-  if (after !== '0x1') throw walletError('chain');
+  if (!isMainnet(await provider.request({ method: 'eth_chainId' }))) throw walletError('chain');
 }
 
 export async function openSession(provider, hooks = {}) {
@@ -128,8 +133,8 @@ export async function openSession(provider, hooks = {}) {
     throw mapWalletError(err);
   }
   if (!accounts || !accounts.length) throw walletError('NO_WALLET');
-  const chainId = normalizeChainId(await provider.request({ method: 'eth_chainId' }));
-  if (chainId !== '0x1') hooks.onPhase?.('chain');
+  const chainId = await provider.request({ method: 'eth_chainId' });
+  if (!isMainnet(chainId)) hooks.onPhase?.('chain');
   try {
     await ensureMainnet(provider);
   } catch (err) {

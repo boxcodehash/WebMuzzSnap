@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import { SUPPORTED_WALLETS } from '../src/walletCatalog.js';
 import { mapWalletError, walletMessage } from '../src/walletErrors.js';
 import { inAppWalletId, walletDeepLinks } from '../src/walletLinks.js';
-import { discoverInjected, normalizeChainId, openSession, signLogin } from '../src/walletSession.js';
+import { discoverInjected, isMainnet, normalizeChainId, openSession, signLogin } from '../src/walletSession.js';
 
 function mockProvider(wallet, options = {}) {
   let chain = options.chainId || '0x1';
@@ -82,6 +82,21 @@ test('sin anuncio EIP-6963 sigue viendo Phantom y MetaMask globales', async () =
   const root = fakeWindow([], { phantom: { ethereum: phantom }, ethereum: metamask });
   const found = await discoverInjected(root, 0);
   assert.deepEqual(found.map((item) => item.id).sort(), ['metamask', 'phantom']);
+});
+
+test('mainnet acepta 1, 0x1 y eip155:1', async () => {
+  for (const value of [1, '1', '0x1', '0x01', 'eip155:1']) {
+    assert.equal(isMainnet(value), true, String(value));
+    assert.equal(normalizeChainId(value), '0x1');
+  }
+  assert.equal(isMainnet(137), false);
+  assert.equal(isMainnet('0x89'), false);
+  assert.equal(isMainnet('eip155:137'), false);
+  const wallet = ethers.Wallet.createRandom();
+  const provider = mockProvider(wallet, { chainId: 1 });
+  const session = await openSession(provider);
+  assert.equal(session.address, wallet.address.toLowerCase());
+  assert.equal(provider.calls.includes('wallet_switchEthereumChain'), false);
 });
 
 test('la wallet simulada firma, cambia a mainnet y la firma se verifica', async () => {

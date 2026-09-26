@@ -6,7 +6,7 @@ import { readHolding } from '../functions/src/holding.js';
 import { buildLoginMessage } from '../shared/loginMessage.js';
 import { TOKEN_ADDRESS } from '../shared/policy.js';
 
-const RPCS = ['https://ethereum.publicnode.com', 'https://cloudflare-eth.com'];
+const RPCS = ['https://ethereum.publicnode.com', 'https://eth.drpc.org', 'https://rpc.ankr.com/eth'];
 const HOLDER = '0xd6a07b8065f9e8386a9a5bba6a754a10a9cd1074';
 const EMPTY = '0x0000000000000000000000000000000000000001';
 const MIN = '10000000';

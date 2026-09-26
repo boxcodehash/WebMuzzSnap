@@ -8,7 +8,7 @@
 (function (global) {
   const TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
   const MIN_WHOLE = '10000000';
-  const RPCS = ['https://ethereum.publicnode.com', 'https://cloudflare-eth.com'];
+  const RPCS = ['https://ethereum.publicnode.com', 'https://eth.drpc.org', 'https://rpc.ankr.com/eth'];
   const ABI = [
     'function balanceOf(address) view returns (uint256)',
     'function decimals() view returns (uint8)'
@@ -74,6 +74,15 @@
     }
     if (changed) localStorage.setItem(SEEN_KEY, JSON.stringify(map));
     return (list || []).filter((msg) => msg && msg.id && clock - Number(map[msg.id] || clock) < READ_MS);
+  }
+
+  function isMainnet(value) {
+    if (value == null || value === '') return false;
+    if (typeof value === 'number') return value === 1;
+    let text = String(value).trim().toLowerCase();
+    if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
+    if (text.startsWith('0x')) return parseInt(text, 16) === 1;
+    return text === '1';
   }
 
   function appPublicUrl() {
@@ -356,6 +365,7 @@
     HANDOFF_MS,
     readMuzzBalance,
     visible,
+    isMainnet,
     appPublicUrl,
     isEmbeddedOrigin,
     publicLoginUrl,

@@ -18,7 +18,7 @@ const CONFIG = {
     
     // RPCs públicos de respaldo
     RPC_URLS: {
-        1: 'https://eth.llamarpc.com',
+        1: 'https://ethereum.publicnode.com',
         56: 'https://bsc-dataseed.binance.org',
         137: 'https://polygon-rpc.com',
         8453: 'https://mainnet.base.org'
@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 provider = new ethers.providers.Web3Provider(window.ethereum);
             } catch (providerError) {
                 // Fallback a un RPC público si falla la conexión directa (menos seguro, pero robusto)
-                provider = new ethers.providers.JsonRpcProvider(CONFIG.RPC_URLS[CONFIG.NETWORK_ID] || 'https://eth.llamarpc.com');
+                provider = new ethers.providers.JsonRpcProvider(CONFIG.RPC_URLS[CONFIG.NETWORK_ID] || 'https://eth.drpc.org');
             }
             
             const contract = new ethers.Contract(validatedContractAddress, ERC20_ABI, provider);
@@ -269,12 +269,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function mainnetChainNumber(value) {
+        if (value == null || value === '') return NaN;
+        if (typeof value === 'number') return value;
+        let text = String(value).trim().toLowerCase();
+        if (text.startsWith('eip155:')) text = text.slice('eip155:'.length);
+        if (text.startsWith('0x')) return parseInt(text, 16);
+        if (/^\d+$/.test(text)) return Number(text);
+        return NaN;
+    }
+
     async function checkNetwork() {
         try {
             if (!window.ethereum) return true;
             
             const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-            const currentChainId = parseInt(chainId, 16);
+            const currentChainId = mainnetChainNumber(chainId);
             
             if (currentChainId !== CONFIG.NETWORK_ID) {
                 const networkNames = { 1: 'Ethereum Mainnet', 56: 'BSC Mainnet', 137: 'Polygon' };
