@@ -15,9 +15,10 @@
     "test": "node scripts/sync-shared.mjs && node --test test/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project demo-muzz \"node --test test/rules.test.js\"",
     "cap:sync": "cap sync android",
-    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug"
+    "android:debug": "node scripts/build-wc.mjs && cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
     "@reown/appkit": "^1.8.24",
     "@reown/appkit-adapter-ethers": "^1.8.24",
     "ethers": "^6.15.0",

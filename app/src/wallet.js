@@ -15,14 +15,24 @@ export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected }
 
 let modalPromise = null;
 
+const DEFAULT_PUBLIC_URL = 'https://muzzsnap-app.vercel.app';
+
+function configuredPublicUrl() {
+  const raw = globalThis.MUZZ_PUBLIC && globalThis.MUZZ_PUBLIC.appPublicUrl;
+  const value = String(raw || DEFAULT_PUBLIC_URL).trim().replace(/\/$/, '');
+  return /^https:\/\/[^/]+/i.test(value) ? value : DEFAULT_PUBLIC_URL;
+}
+
 export function dappUrl() {
   try {
     const origin = location.origin;
-    if (origin && origin !== 'null' && /^https?:/i.test(origin)) return origin;
+    const host = location.hostname;
+    const local = !origin || origin === 'null' || host === 'localhost' || host === '127.0.0.1';
+    if (!local && origin && /^https?:/i.test(origin)) return origin;
   } catch {
-    /* sin location */
+    /* sin location, o el WebView del APK */
   }
-  return 'https://localhost';
+  return configuredPublicUrl();
 }
 
 function validProjectId(value) {

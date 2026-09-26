@@ -43,6 +43,7 @@ function pick(name) {
 }
 
 const projectId = pick('WALLETCONNECT_PROJECT_ID');
+const appPublicUrl = pick('APP_PUBLIC_URL').replace(/\/$/, '');
 const preview = Object.prototype.hasOwnProperty.call(process.env, 'MUZZ_PREVIEW')
   ? truthy(process.env.MUZZ_PREVIEW)
   : truthy(fileEnv.MUZZ_PREVIEW);
@@ -81,12 +82,18 @@ if (!process.exitCode && minRaw && !/^\d+$/.test(minRaw)) {
   process.exitCode = 1;
 }
 
+if (!process.exitCode && appPublicUrl && !/^https:\/\/[^/]+/i.test(appPublicUrl)) {
+  console.error('APP_PUBLIC_URL tiene que ser https con host. No se escribe config.local.json.');
+  process.exitCode = 1;
+}
+
 if (!process.exitCode) {
   const payload = {
     walletConnectProjectId: projectId || '',
     preview
   };
   if (functionsBase) payload.functionsBase = functionsBase;
+  if (appPublicUrl) payload.appPublicUrl = appPublicUrl;
   if (minRaw) payload.minMuzz = Number(minRaw);
   if (Object.keys(firebase).length) payload.firebase = firebase;
   writeFileSync(target, `${JSON.stringify(payload, null, 2)}\n`);

@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="config.public.js"></script>
     <script src="js/muzz-gate.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -272,6 +273,22 @@
             transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
         }
 
+        .btn-ghost {
+            margin-top: 10px;
+            color: #fff;
+            background: transparent;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+        }
+
+        .return-box {
+            width: min(92vw, 360px);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .return-box .fine { margin-top: 4px; }
+
         .btn-primary {
             color: #fff;
             background: linear-gradient(180deg, #ff4a4a 0%, #e01010 38%, #9a0000 100%);
@@ -469,9 +486,19 @@
 
         <p id="statusText">Tap the logo to connect a wallet</p>
 
+        <button type="button" id="btnWc" class="btn btn-primary hidden">Connect with WalletConnect</button>
+        <p id="wcNote" class="fine hidden">WalletConnect signs inside this app. It does not open a localhost page.</p>
+
+        <div id="returnBox" class="return-box hidden">
+            <p class="fine" id="returnText">Signed in. Return to the MuzzSnap app.</p>
+            <a id="returnLink" class="btn btn-primary" href="#">Return to MuzzSnap</a>
+            <button type="button" id="stayBtn" class="btn btn-ghost">Continue in this browser</button>
+            <p class="fine">If the app does not open, continue here. The chat works in this wallet browser too.</p>
+        </div>
+
         <div class="panel">
             <p class="fine">Hold at least 10,000,000 MUZZ on Ethereum. The balance is read with <span class="mono">balanceOf</span> on a public RPC until Cloud Functions are deployed. Server verification is already in the app functions.</p>
-            <details class="deeplinks">
+            <details class="deeplinks" id="walletDetails">
                 <summary>Open in wallet</summary>
                 <p class="fine" id="walletNote"></p>
                 <div class="link-row" id="walletLinks"></div>
@@ -508,14 +535,21 @@
         ];
 
         let mmSdk = null;
+        let handledAuth = '';
 
         const inApp = /MetaMask|Trust|CoinbaseWallet|CBWallet|Rainbow|OKApp|OKX|Phantom/i.test(navigator.userAgent);
-        const nativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-        document.getElementById('walletNote').textContent = nativeApp
-            ? 'Inside the Android app there is no injected wallet. MetaMask uses the same deeplink as this site. Trust, Coinbase, Rainbow, OKX and Phantom open from these links. A WalletConnect QR needs WALLETCONNECT_PROJECT_ID, which is not in this build.'
-            : 'If this browser has no wallet, open the page inside MetaMask, Trust, Coinbase, Rainbow, OKX or Phantom. Phantom must be on Ethereum, not Solana.';
-        document.getElementById('walletLinks').innerHTML = muzzGate.walletDeepLinks(location.href.split('#')[0])
-            .map((item) => `<a href="${item.href}">${item.name}</a>`).join('');
+
+        function runningInApk() {
+            const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+            return native || muzzGate.isEmbeddedOrigin();
+        }
+
+        function wantsApkReturn() {
+            const hash = String(location.hash || '').replace(/^#/, '');
+            const fromHash = new URLSearchParams(hash);
+            if (fromHash.get('from') === 'apk') return true;
+            return new URLSearchParams(location.search).get('from') === 'apk';
+        }
 
         try {
             const firebaseConfig = {
@@ -530,9 +564,13 @@
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
             firebase.database().ref('.info/connected').on('value', (snap) => {
                 if (statusText.dataset.busy === '1') return;
-                statusText.textContent = snap.val()
-                    ? 'Live database connected. Tap the logo to sign in.'
-                    : 'Connecting to the live database...';
+                if (!snap.val()) {
+                    statusText.textContent = 'Connecting to the live database...';
+                    return;
+                }
+                statusText.textContent = runningInApk()
+                    ? 'Live database connected. Choose a wallet below.'
+                    : 'Live database connected. Tap the logo to sign in.';
             });
         } catch (err) {
             console.error(err);
@@ -554,6 +592,58 @@
             errorBox.classList.remove('hidden');
             document.getElementById('errorTitle').innerText = title;
             document.getElementById('errorDesc').innerText = desc;
+        }
+
+        function showSignError(err) {
+            const text = muzzGate.explainSignError(err, { inWallet: inApp || wantsApkReturn() });
+            showError(text.title, text.desc);
+        }
+
+        function paintLinks() {
+            const page = muzzGate.loginPageForWallets(runningInApk() || wantsApkReturn());
+            const box = document.getElementById('walletLinks');
+            while (box.firstChild) box.removeChild(box.firstChild);
+            muzzGate.walletDeepLinks(page).forEach((item) => {
+                const link = document.createElement('a');
+                link.href = item.href;
+                link.textContent = item.name;
+                link.rel = 'noopener';
+                box.appendChild(link);
+            });
+            const note = document.getElementById('walletNote');
+            if (runningInApk()) {
+                note.textContent = 'The app opens ' + muzzGate.appPublicUrl() + '/login.html inside the wallet. Sign there, then return to MuzzSnap. A wallet cannot load https://localhost.';
+                document.getElementById('walletDetails').open = true;
+            } else if (wantsApkReturn()) {
+                note.textContent = 'Sign the message in this wallet. It does not spend gas. Then return to the MuzzSnap app, or continue in this browser.';
+            } else {
+                note.textContent = 'If this browser has no wallet, open the page inside MetaMask, Trust, Coinbase, Rainbow, OKX or Phantom. Phantom must be on Ethereum, not Solana.';
+            }
+            const projectId = muzzGate.walletConnectProjectId();
+            document.getElementById('btnWc').classList.toggle('hidden', !projectId);
+            document.getElementById('wcNote').classList.toggle('hidden', !projectId);
+            if (projectId) {
+                window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
+                window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
+            }
+        }
+
+        async function loadLocalConfig() {
+            try {
+                const res = await fetch('config.local.json', { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                window.MUZZ_PUBLIC = window.MUZZ_PUBLIC || {};
+                if (data.appPublicUrl && /^https:\/\/[^/]+/i.test(data.appPublicUrl)) {
+                    window.MUZZ_PUBLIC.appPublicUrl = String(data.appPublicUrl).replace(/\/$/, '');
+                }
+                const projectId = String(data.walletConnectProjectId || '').trim();
+                if (/^[a-f0-9]{32}$/i.test(projectId)) {
+                    window.MUZZ_PUBLIC.walletConnectProjectId = projectId;
+                }
+            } catch (err) {
+                /* the public URL in config.public.js is enough */
+            }
         }
 
         function normalizeAddress(address) {
@@ -588,6 +678,7 @@
         async function getWalletProvider() {
             const injected = await discoverInjectedProvider();
             if (injected) return injected;
+            if (runningInApk() || wantsApkReturn()) return null;
 
             const mod = await import('https://esm.sh/@metamask/sdk@0.32.1');
             const MetaMaskSDK = mod.MetaMaskSDK || mod.default;
@@ -595,8 +686,8 @@
                 mmSdk = new MetaMaskSDK({
                     dappMetadata: {
                         name: 'MuzzSnap',
-                        url: window.location.origin,
-                        iconUrl: new URL('muzzsnap.jpg', window.location.href).href
+                        url: (!muzzGate.isEmbeddedOrigin() && location.protocol === 'https:') ? location.origin : muzzGate.appPublicUrl(),
+                        iconUrl: ((!muzzGate.isEmbeddedOrigin() && location.protocol === 'https:') ? location.origin : muzzGate.appPublicUrl()) + '/muzzsnap.jpg'
                     },
                     useDeeplink: true,
                     checkInstallationImmediately: false,
@@ -630,97 +721,196 @@
                             blockExplorerUrls: ['https://etherscan.io']
                         }]
                     });
-                    return;
+                } else if (err && (err.code === 4001 || /rejected|denied|cancel/i.test(String(err.message || '')))) {
+                    const rejected = new Error('Signature rejected.');
+                    rejected.code = 'rejected';
+                    throw rejected;
+                } else {
+                    const chainError = new Error('Wrong network. Accept the switch to Ethereum mainnet and try again.');
+                    chainError.code = 'chain';
+                    throw chainError;
                 }
+            }
+            const after = await rawProvider.request({ method: 'eth_chainId' });
+            if (after !== '0x1') {
                 const chainError = new Error('Wrong network. Accept the switch to Ethereum mainnet and try again.');
                 chainError.code = 'chain';
                 throw chainError;
             }
         }
 
+        function openChooser(text) {
+            showSigning(false);
+            document.getElementById('walletDetails').open = true;
+            statusText.dataset.busy = '1';
+            statusText.textContent = text;
+        }
+
+        function finishInBrowser(address, signature, message) {
+            saveUserSession(address);
+            muzzGate.rememberWallet(address);
+            sessionStorage.setItem('muzz_login_sig', signature);
+            sessionStorage.setItem('muzz_login_msg', message);
+            setStep('Verified. Entering chat...');
+            window.location.href = 'chat.html';
+        }
+
+        function finishReturnToApk(address, signature, message, exp, nonce) {
+            saveUserSession(address);
+            muzzGate.rememberWallet(address);
+            sessionStorage.setItem('muzz_login_sig', signature);
+            sessionStorage.setItem('muzz_login_msg', message);
+            const token = muzzGate.encodeHandoff({ a: address, n: nonce, e: exp, s: signature });
+            const url = muzzGate.handoffUrl(token);
+            showSigning(false);
+            statusText.dataset.busy = '1';
+            statusText.textContent = 'Signed in. Return to the MuzzSnap app.';
+            const box = document.getElementById('returnBox');
+            box.classList.remove('hidden');
+            document.getElementById('returnLink').href = url;
+            setTimeout(() => { window.location.href = url; }, 300);
+        }
+
+        async function signInWithProvider(rawProvider, returnApk) {
+            if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
+            if (!rawProvider) {
+                const missing = new Error('NO_WALLET');
+                missing.code = 'NO_WALLET';
+                throw missing;
+            }
+            setStep('Ethereum mainnet');
+            await ensureMainnet(rawProvider);
+            setStep('Requesting account...');
+            const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
+            await web3.send('eth_requestAccounts', []);
+            const signer = web3.getSigner();
+            const address = await signer.getAddress();
+            if (!address) throw new Error('No wallet account detected.');
+
+            const nonce = muzzGate.randomNonce();
+            const exp = Date.now() + muzzGate.HANDOFF_MS;
+            const message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
+            setStep('Sign the message');
+            const signature = await signer.signMessage(message);
+            const recovered = ethers.utils.verifyMessage(message, signature);
+            if (normalizeAddress(recovered) !== normalizeAddress(address)) {
+                const bad = new Error('Signature does not match this wallet.');
+                bad.code = 'bad_sig';
+                throw bad;
+            }
+
+            setStep('Checking MUZZ balance');
+            const holding = await muzzGate.readMuzzBalance(address);
+            if (!holding.ok) {
+                const denied = new Error('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is ' + holding.minimum + ' MUZZ.');
+                denied.code = 'balance';
+                throw denied;
+            }
+            if (returnApk) finishReturnToApk(address, signature, message, exp, nonce);
+            else finishInBrowser(address, signature, message);
+        }
+
         async function accessWithWallet() {
             errorBox.classList.add('hidden');
+            if (runningInApk()) {
+                const injected = await discoverInjectedProvider();
+                if (!injected) {
+                    openChooser('Choose a wallet below. Signing happens on the public page, then you return here.');
+                    return;
+                }
+            }
             showSigning(true);
             setStep('Opening wallet...');
-
             try {
-                if (typeof ethers === 'undefined') {
-                    throw new Error('Wallet library failed to load.');
-                }
-
                 const rawProvider = await getWalletProvider();
-                if (!rawProvider) {
-                    throw new Error('NO_WALLET');
-                }
+                await signInWithProvider(rawProvider, wantsApkReturn());
+            } catch (err) {
+                showSignError(err);
+            }
+        }
 
-                setStep('Ethereum mainnet');
-                await ensureMainnet(rawProvider);
+        async function accessWithWalletConnect() {
+            errorBox.classList.add('hidden');
+            const projectId = muzzGate.walletConnectProjectId();
+            if (!projectId) {
+                showSignError(Object.assign(new Error('NO_PROJECT_ID'), { code: 'NO_PROJECT_ID' }));
+                return;
+            }
+            showSigning(true);
+            setStep('Opening WalletConnect...');
+            try {
+                window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
+                window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
+                const mod = await import('./js/wc-login.js');
+                const session = await mod.connectWalletConnect();
+                await signInWithProvider(session && session.provider, false);
+            } catch (err) {
+                showSignError(err);
+            }
+        }
 
-                setStep('Requesting account...');
-                const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
-                await web3.send('eth_requestAccounts', []);
-                const signer = web3.getSigner();
-                const address = await signer.getAddress();
-                if (!address) throw new Error('No wallet account detected.');
-
-                setStep('Sign the message');
-                const issued = new Date().toISOString();
-                const message = [
-                    'MuzzSnap Login',
-                    '',
-                    address + ' wants to sign in to MuzzSnap.',
-                    'Sign this message to prove you control this wallet. It does not spend gas.',
-                    '',
-                    'Wallet: ' + address,
-                    'Chain ID: 1',
-                    'Issued At: ' + issued,
-                    'Token: ' + muzzGate.TOKEN,
-                    'Minimum: 10000000 MUZZ'
-                ].join('\n');
-
-                const signature = await signer.signMessage(message);
-                const recovered = ethers.utils.verifyMessage(message, signature);
-                if (normalizeAddress(recovered) !== normalizeAddress(address)) {
-                    throw new Error('Signature does not match this wallet.');
-                }
-
+        async function acceptAuthToken(token) {
+            const value = String(token || '');
+            if (!value || handledAuth === value) return;
+            if (!runningInApk()) return;
+            handledAuth = value;
+            errorBox.classList.add('hidden');
+            showSigning(true);
+            setStep('Checking the signature...');
+            try {
+                sessionStorage.setItem('muzz_auth_done', value);
+                const proof = muzzGate.verifyHandoff(value);
                 setStep('Checking MUZZ balance');
-                const holding = await muzzGate.readMuzzBalance(address);
+                const holding = await muzzGate.readMuzzBalance(proof.address);
                 if (!holding.ok) {
                     const denied = new Error('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is ' + holding.minimum + ' MUZZ.');
                     denied.code = 'balance';
                     throw denied;
                 }
-
-                saveUserSession(address);
-                muzzGate.rememberWallet(address);
-                sessionStorage.setItem('muzz_login_sig', signature);
-                sessionStorage.setItem('muzz_login_msg', message);
-                setStep('Verified. Entering chat...');
-                window.location.href = 'chat.html';
+                sessionStorage.removeItem('muzz_auth_token');
+                finishInBrowser(proof.address, proof.signature, proof.message);
             } catch (err) {
-                const msg = (err && (err.message || err.reason)) ? String(err.message || err.reason) : 'Connection rejected.';
-                if (msg === 'NO_WALLET' || /no provider|sdk/i.test(msg)) {
-                    showError('Wallet not installed.', inApp
-                        ? 'This wallet browser did not expose an Ethereum provider. Use the wallet’s Ethereum mode and try again.'
-                        : 'Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX or Phantom, or open this page inside the wallet.');
-                    return;
-                }
-                if (err && err.code === 'chain') {
-                    showError('Wrong network.', msg);
-                    return;
-                }
-                if (err && err.code === 'balance') {
-                    showError('Insufficient MUZZ balance.', msg);
-                    return;
-                }
-                if (/rejected|denied|cancel/i.test(msg)) {
-                    showError('Signature rejected.', 'The wallet cancelled the connection or the signature.');
-                    return;
-                }
-                showError('Could not sign in.', msg);
+                sessionStorage.removeItem('muzz_auth_token');
+                showSignError(err);
             }
         }
+
+        window.muzzAcceptAuth = acceptAuthToken;
+
+        function listenForApkReturn() {
+            if (!runningInApk()) return;
+            const queued = sessionStorage.getItem('muzz_auth_token');
+            if (queued) acceptAuthToken(queued);
+            const Cap = window.Capacitor;
+            if (!Cap || typeof Cap.registerPlugin !== 'function') return;
+            try {
+                const App = Cap.registerPlugin('App');
+                App.addListener('appUrlOpen', (event) => {
+                    const next = muzzGate.tokenFromUrl(event && event.url);
+                    if (next) acceptAuthToken(next);
+                });
+                if (typeof App.getLaunchUrl === 'function') {
+                    App.getLaunchUrl().then((res) => {
+                        const next = muzzGate.tokenFromUrl(res && res.url);
+                        if (next) acceptAuthToken(next);
+                    }).catch(() => {});
+                }
+            } catch (err) {
+                /* MainActivity also delivers muzzsnap://auth */
+            }
+        }
+
+        document.getElementById('btnWc').addEventListener('click', () => {
+            accessWithWalletConnect();
+        });
+        document.getElementById('stayBtn').addEventListener('click', () => {
+            window.location.href = 'chat.html';
+        });
+
+        loadLocalConfig().then(() => {
+            paintLinks();
+            listenForApkReturn();
+        });
     </script>
 </body>
 </html>
