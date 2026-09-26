@@ -163,45 +163,15 @@ Abre `http://127.0.0.1:4173/`. Sin `functionsBase` verás el aviso y no entrará
 
 La vista `?demo=1` solo existe en `127.0.0.1` y no comprueba nada. No la uses como prueba de seguridad.
 
-### Versión de prueba sin Firebase
+### App instalable
 
-No hace falta desplegar functions para ver la interfaz. Desde `app/`:
+`app/www` es el login, el chat y el privado reales, contra el mismo Realtime Database `pulsari`. No hay chat de muestra. El mínimo de 10.000.000 MUZZ se lee con `balanceOf` en un RPC público hasta que despliegues las functions. No hace falta ninguna variable para eso.
 
-```bash
-npm run build:preview
-```
-
-Eso deja el sitio estático en `app/dist`, con `MUZZ_PREVIEW=1` dentro de `dist/config.local.json`. `dist/` está en `.gitignore`. Abre el chat de muestra. `?login=1` muestra el acceso real (y, sin functions, el aviso de que falta `functionsBase`).
-
-APK de prueba con el mismo modo:
-
-```bash
-npm run android:preview
-```
-
-El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Tampoco se sube. Al abrirlo se ve el chat de muestra, no el login real.
+Sin `WALLETCONNECT_PROJECT_ID` no hay código QR. El APK usa el deeplink de MetaMask, igual que `login.html`, y enlaces a Trust, Coinbase, Rainbow, OKX y Phantom.
 
 ### Publicar solo esta app en Vercel
 
-No toca GitHub Pages ni el sitio de la raíz. Crea un proyecto de Vercel **nuevo**. Root Directory: `app`. El `vercel.json` de esta carpeta ya pone build `npm run build:preview` y salida `dist`. No añadas un `vercel.json` en la raíz del repo.
-
-Variables en Vercel, solo si quieres más que el chat de muestra:
-
-| Variable | Obligatoria para el preview visual | Para qué |
-| --- | --- | --- |
-| `MUZZ_PREVIEW` | No. `build:preview` la fuerza a 1 en `dist` | `1` deja el chat de muestra. `0` en un build normal lo apaga |
-| `WALLETCONNECT_PROJECT_ID` | No | 32 hex. QR y WalletConnect. No la commitees |
-| `MUZZ_FUNCTIONS_BASE` | No | URL de las functions, sin barra final. Hace falta para `?login=1` de verdad |
-| `MUZZ_MIN_MUZZ` | No | Entero que se enseña antes de que responda el servidor. El que manda es `MIN_MUZZ` de las functions |
-| `MUZZ_FIREBASE_API_KEY` | No | Las seis juntas, o ninguna. Sustituyen la config pública de `pulsari` |
-| `MUZZ_FIREBASE_AUTH_DOMAIN` | No | |
-| `MUZZ_FIREBASE_PROJECT_ID` | No | |
-| `MUZZ_FIREBASE_STORAGE_BUCKET` | No | |
-| `MUZZ_FIREBASE_MESSAGING_SENDER_ID` | No | |
-| `MUZZ_FIREBASE_APP_ID` | No | |
-| `MUZZ_FIREBASE_DATABASE_URL` | No | Opcional |
-
-En el servidor, si despliegas functions para esa prueba, `functions/.env` sigue usando `MIN_MUZZ`, `TOKEN_ADDRESS`, `ETH_RPC_URL`, `ACCESS_TTL_MINUTES` y `APP_ORIGINS`. En `APP_ORIGINS` tiene que estar el origen de Vercel (el preview cambia de URL; añade el dominio del proyecto). Sin esas variables de functions no hay login real: el preview visual no las necesita.
+No toca GitHub Pages ni el sitio de la raíz. Crea un proyecto de Vercel **nuevo**. Root Directory: `app`. El `vercel.json` sirve `www`. No añadas un `vercel.json` en la raíz del repo.
 
 El emulador de reglas (hace falta Java):
 
@@ -230,19 +200,15 @@ npm install
 npm run android:debug
 ```
 
-Eso hace el build web, `cap sync` y `./gradlew assembleDebug`. El APK queda en:
+Eso copia `www/` (las páginas reales) y genera el APK en:
 
 ```text
 app/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Hace falta `ANDROID_HOME` con platform android-35 y build-tools. Si Gradle no encuentra el SDK, Android Studio lo instala la primera vez que abres `app/android/`.
+Hace falta `ANDROID_HOME` con platform android-35 y build-tools. El id es `app.muzzsnap.chat`. El WebView es `https://localhost`.
 
-El id de aplicación es `app.muzzsnap.chat`. El WebView usa `https://localhost`, así que ese origen tiene que estar en `APP_ORIGINS` (ya está en la lista por defecto) y en los dominios permitidos del project id de Reown.
-
-Dentro del APK no hay MetaMask inyectado. “Connect wallet” usa WalletConnect. Al volver de la wallet, Android abre el esquema `muzzsnap://wc` (está en el manifest, `singleTask`). Hay que haber generado `www/config.local.json` **antes** de `npm run android:debug`, porque el APK copia `www/`. Sin ese json el APK no puede mostrar el QR.
-
-También puedes abrir la PWA dentro del navegador de la propia wallet: ahí la wallet sí está inyectada y no hace falta el project id.
+Dentro del APK no hay wallet inyectada. El logo usa el deeplink de MetaMask, el mismo de `login.html`. Las otras wallets son enlaces. Esos enlaces abren la página dentro de la wallet solo si la página tiene una URL pública; `https://localhost` no carga el APK. El QR de WalletConnect necesita `WALLETCONNECT_PROJECT_ID` y no va en este build. `muzzsnap://wc` sigue en el manifest para cuando exista ese id.
 
 No firmes este APK de debug para Play Store. Para una release hace falta una keystore tuya, que no debe subirse al repo.
 

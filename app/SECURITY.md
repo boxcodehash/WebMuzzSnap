@@ -105,8 +105,12 @@ Orphan factors are swept at 96 h, after the unread cap, so a message is not made
 
 This is not Signal’s Double Ratchet. There is no continuous symmetric chain and no post-compromise recovery beyond throwing away one-time prekeys that were already used. If they run out, the message is not sent. A prekey is not reused in silence.
 
-## Demo and preview
+## What the installable app does today
 
-`?demo=1` paints the UI only when the host is exactly `127.0.0.1`. It does not sign, encrypt, or talk to Firebase. The APK origin is `https://localhost`, so that shortcut does not open there.
+The Android app and `app/www` are the real site: `login.html`, `chat.html`, and `private.html`, on the same `pulsari` Realtime Database. Messages stay plaintext `{ content, username, role, timestamp }` in `messages/general` and `{ text, from, to, timestamp }` in `privateInbox`. There is no sample chat and no `MUZZ_PREVIEW` in that build.
 
-`MUZZ_PREVIEW=1` (in `app/.env` or the build environment, never in `config.runtime.js`) writes `"preview": true` into `config.local.json`. That file is not committed. With the flag, the app opens the sample chat on any host, including a Vercel preview and an APK built that way. It still has no Firebase, no signature, and no encryption. `?login=1` shows the real sign-in screen. It is not a backdoor: it does not issue a token and it does not read Firestore. A production build must leave `MUZZ_PREVIEW` empty.
+End-to-end encryption from `app/src/crypto.js` is **not** applied to those messages. The website reads plaintext. Writing ciphertext into the same database would show garbage in `chat.html` and `private.html`. The encryption module stays in the repo for a separate Firestore backend. It is not compatible with the live data.
+
+Deletion 24 hours after a message is seen is **on this device only** (`localStorage`). Deleting the Realtime Database rows would also delete them from the website. That shared purge is not turned on.
+
+The 10,000,000 MUZZ check uses `balanceOf` on a public Ethereum RPC (`app/www/js/muzz-gate.js`) until Cloud Functions are deployed. `app/functions` still has the server check. It is not deployed, so the client check is what the app enforces. There is no guest login and no admin balance bypass in the app copy.

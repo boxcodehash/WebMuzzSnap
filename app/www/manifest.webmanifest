@@ -1,8 +1,8 @@
 {
   "name": "MuzzSnap",
   "short_name": "MuzzSnap",
-  "description": "Encrypted group chat and private messages for MUZZ holders.",
-  "start_url": "./index.html",
+  "description": "Group chat and private messages for MUZZ holders.",
+  "start_url": "./login.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

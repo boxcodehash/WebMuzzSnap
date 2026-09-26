@@ -69,12 +69,23 @@ test('MUZZ_PREVIEW escribe el json sin imprimir secretos', () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('el sitio de Vercel sale de app/ y no de la raíz del repo', () => {
+test('el sitio de Vercel publica las páginas reales, no el chat de muestra', () => {
   const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
-  assert.equal(vercel.outputDirectory, 'dist');
-  assert.match(vercel.buildCommand, /build:preview/);
-  const ignore = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8');
-  assert.match(ignore, /^dist\/$/m);
-  const runtime = readFileSync(new URL('../www/config.runtime.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(runtime, /preview:\s*true/);
+  assert.equal(vercel.outputDirectory, 'www');
+  assert.doesNotMatch(vercel.buildCommand, /build:preview/);
+  const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
+  assert.match(login, /10,000,000 MUZZ/);
+  assert.match(login, /muzz-gate\.js/);
+  assert.doesNotMatch(login, /Enter as Guest/);
+  assert.doesNotMatch(login, /MUZZ_PREVIEW/);
+  const rootLogin = readFileSync(new URL('../../login.html', import.meta.url), 'utf8');
+  assert.match(rootLogin, /Enter as Guest/);
+  const chat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
+  const priv = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
+  assert.match(chat, /messages\/\$\{activeChannel\.id\}/);
+  assert.match(chat, /firebase\.database\(\)/);
+  assert.match(priv, /privateInbox/);
+  assert.match(chat, /muzzGate\.readMuzzBalance/);
+  assert.match(priv, /muzzGate\.readMuzzBalance/);
+  assert.doesNotMatch(chat, /MUZZ_PREVIEW/);
 });

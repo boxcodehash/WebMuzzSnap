@@ -56,7 +56,7 @@ Chain id is not configurable. It is mainnet (1).
 
 | Variable | Required for a visual preview | What it does |
 | --- | --- | --- |
-| `MUZZ_PREVIEW` | No. `npm run build:preview` forces it on in `dist` | `1` opens the sample chat with no Firebase. Leave it empty for a real build |
+| `MUZZ_PREVIEW` | No. The installable app does not use it | Leave it empty. The shipped pages are the real chat |
 | `WALLETCONNECT_PROJECT_ID` | No | 32 hex. QR and WalletConnect. Do not commit it |
 | `MUZZ_FUNCTIONS_BASE` | No | Functions URL, no trailing slash. Required for a real `?login=1` |
 | `MUZZ_MIN_MUZZ` | No | Integer shown before the server answers. The functions `MIN_MUZZ` is the one that counts |
@@ -100,31 +100,15 @@ If you publish the PWA, add the real origin to `APP_ORIGINS` on the functions as
 APP_ORIGINS=http://127.0.0.1:4173,http://localhost:4173,https://localhost,capacitor://localhost,https://your-project.vercel.app
 ```
 
-## 2. Test version without Firebase
+## 2. The installable app
 
-You do not need functions to look at the interface.
+`app/www` is the real login, group chat, and private chat. It talks to the same `pulsari` Realtime Database as the website. There is no sample chat in this build.
 
-```bash
-cd app
-npm install
-npm run build:preview
-```
-
-The static site is `app/dist`. `dist/config.local.json` has `"preview": true`. `dist/` is gitignored. Opening it shows the sample chat. `?login=1` shows real sign-in (and, without functions, the notice that `functionsBase` is missing).
-
-Preview APK, same mode:
-
-```bash
-npm run android:preview
-```
-
-The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. It is not committed. Opening it shows the sample chat, not real sign-in.
+The 10,000,000 MUZZ check is `balanceOf` on a public RPC (`www/js/muzz-gate.js`) until you deploy functions. No env var is required for that. `WALLETCONNECT_PROJECT_ID` is optional: without it the APK uses the same MetaMask deeplink as `login.html`, plus deep links for Trust, Coinbase, Rainbow, OKX, and Phantom. There is no QR code until that id exists.
 
 ### Publish only this app on Vercel
 
-This does not touch GitHub Pages or the site at the repo root. Create a **new** Vercel project. Set Root Directory to `app`. `app/vercel.json` already sets the build to `npm run build:preview` and the output to `dist`. Do not add a `vercel.json` at the repo root.
-
-No env var is required for the sample chat, because `build:preview` turns preview on. Set the client variables above only if that same preview should also reach a real backend through `?login=1`. If you deploy functions for that test, `APP_ORIGINS` must include the Vercel origin. Preview URLs change; add the project domain.
+This does not touch GitHub Pages or the site at the repo root. Create a **new** Vercel project. Set Root Directory to `app`. `app/vercel.json` serves `www`. Do not add a `vercel.json` at the repo root.
 
 ## 3. Functions, rules, and indexes
 
@@ -217,17 +201,11 @@ It does not contact `pulsari`. It uses the fake project `demo-muzz`.
 
 ## 6. PWA
 
-After `npm run build`, `www/` is installable: `manifest.webmanifest` and `sw.js`. The service worker caches the shell (HTML, CSS, JS, icons). It does not cache messages. It is not registered inside the APK, so it does not fight the WebView.
+`www/` is the installable site: `login.html`, `chat.html`, `private.html`, and `manifest.webmanifest`. If the current site is published as a whole by GitHub Pages, **merging** this PR would also publish `/app/www/`. This work does not merge and does not change the Pages workflow. If you do not want it public yet, do not merge.
 
-Serve `www/` over HTTPS for a real install. `app/dist` is the preview build (`npm run build:preview`). If the current site is published as a whole by GitHub Pages, **merging** this PR would put the app at a path like `/app/www/`. This work does not merge and does not change the Pages workflow. If you do not want it public yet, do not merge.
-
-The app UI is English. On a phone: Safari or Chrome → Add to Home Screen. If the browser has no extension, “Open in wallet” loads the page in MetaMask, Trust, Coinbase, Rainbow, OKX, or Phantom. With the project id, “Connect wallet” opens the Reown AppKit modal: a QR code on desktop and a deep link on mobile, and after approval the wallet returns to this page.
+The UI is English. On a phone: Safari or Chrome → Add to Home Screen. “Open in wallet” loads the page in MetaMask, Trust, Coinbase, Rainbow, OKX, or Phantom.
 
 ## 7. Debug APK
-
-The Android project is generated with Capacitor (`android/`). It does not include a release keystore.
-
-Real sign-in APK (preview off, needs `config.local.json` with the project id if you want the QR code):
 
 ```bash
 cd app
@@ -235,25 +213,13 @@ npm install
 npm run android:debug
 ```
 
-Sample-chat APK, no Firebase:
+The APK is `app/android/app/build/outputs/apk/debug/app-debug.apk`. It is not committed. It packages `www/` (the real pages), not a sample chat.
 
-```bash
-npm run android:preview
-```
+`ANDROID_HOME` needs platform android-35 and build-tools. The application id is `app.muzzsnap.chat`. The WebView origin is `https://localhost`.
 
-Both write:
+There is no injected wallet inside the APK. Tapping the logo uses the MetaMask SDK deeplink, the same mechanism as `login.html`. The other wallets are deep links. Those links open the page inside the wallet only when the page has a public URL. On `https://localhost` they cannot load the APK. A WalletConnect QR needs `WALLETCONNECT_PROJECT_ID` and is not in this build. `muzzsnap://wc` stays in the manifest for when that id exists.
 
-```text
-app/android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-`ANDROID_HOME` needs platform android-35 and build-tools. If Gradle cannot find the SDK, Android Studio installs it the first time you open `app/android/`.
-
-The application id is `app.muzzsnap.chat`. The WebView uses `https://localhost`, so that origin has to be in `APP_ORIGINS` (it is already in the default list) and in the Reown project’s allowed domains.
-
-There is no injected MetaMask inside the APK. “Connect wallet” uses WalletConnect. When the wallet returns, Android opens the `muzzsnap://wc` scheme (it is in the manifest, `singleTask`). Generate `www/config.local.json` **before** `npm run android:debug`, because the APK copies `www/`. Without that json the APK cannot show the QR code. `android:preview` writes the preview flag into that json, syncs, then turns the flag back off in `www/` so the folder you serve locally is not left in preview mode. The APK already has its own copy.
-
-You can also open the PWA inside the wallet’s own browser. The wallet is injected there, and the project id is not required.
+You can also open a public copy of the PWA inside the wallet’s own browser. The wallet is injected there.
 
 Do not ship this debug APK to the Play Store. A release needs your own keystore, and that keystore must not be committed.
 

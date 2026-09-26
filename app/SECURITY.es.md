@@ -105,8 +105,12 @@ Los factores huérfanos se barren a las 96 h, después del tope de no leídos, p
 
 No es el Double Ratchet de Signal. No hay cadena simétrica continua ni recuperación post-compromiso más allá de tirar las prekeys de un solo uso que ya se usaron. Si se agotan, no se manda el mensaje: no se reutiliza una prekey en silencio.
 
-## Modo demo y preview
+## Qué hace hoy la app instalable
 
-`?demo=1` solo pinta la interfaz si el host es exactamente `127.0.0.1`. No firma, no cifra y no habla con Firebase. En el APK el origen es `https://localhost`, así que ese atajo no se abre.
+La app Android y `app/www` son el sitio real: `login.html`, `chat.html` y `private.html`, sobre el mismo Realtime Database de `pulsari`. Los mensajes siguen en claro (`content` en `messages/general`, `text` en `privateInbox`). Ese build no lleva chat de muestra ni `MUZZ_PREVIEW`.
 
-`MUZZ_PREVIEW=1` (en `app/.env` o en el entorno de build, nunca en `config.runtime.js`) escribe `"preview": true` en `config.local.json`. Ese archivo no se sube. Con el flag, la app abre el chat de muestra en cualquier host, incluido un preview de Vercel y un APK compilado así. Sigue sin Firebase, sin firma y sin cifrado. `?login=1` enseña la pantalla real de acceso. No es una puerta trasera: no emite token ni lee Firestore. Un build de producción tiene que dejar `MUZZ_PREVIEW` vacío.
+El cifrado de `app/src/crypto.js` **no** se aplica a esos mensajes. La web lee texto plano. Escribir ciphertext en la misma base rompería `chat.html` y `private.html`. El módulo sigue en el repo para un backend aparte en Firestore. No es compatible con los datos actuales.
+
+El borrado a las 24 h de ver un mensaje es **solo en este dispositivo** (`localStorage`). Borrar las filas del Realtime Database también las quitaría de la web. Esa purga compartida no está activada.
+
+Los 10.000.000 MUZZ se comprueban con `balanceOf` en un RPC público de Ethereum (`app/www/js/muzz-gate.js`) hasta que se desplieguen las Cloud Functions. `app/functions` ya tiene la comprobación de servidor y no está desplegada. En la copia de la app no hay invitado ni salto de saldo para admins.

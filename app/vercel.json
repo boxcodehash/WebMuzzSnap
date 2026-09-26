@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "installCommand": "npm install",
-  "buildCommand": "npm run build:preview",
-  "outputDirectory": "dist"
+  "installCommand": "echo skip",
+  "buildCommand": "echo static",
+  "outputDirectory": "www"
 }

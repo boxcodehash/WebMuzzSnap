@@ -31,16 +31,15 @@ Rules against the emulator (Java, does not use the real project):
 npm run test:rules
 ```
 
-## Test build without Firebase
+## Installable app
 
-`dist/` is gitignored. The sample chat does not call Firebase.
+`app/www` is the real login, chat, and private pages (copied from the site, then gated at 10,000,000 MUZZ). There is no sample chat in this build.
 
 ```bash
-npm run build:preview
-npm run android:preview
+cd app
+npm run android:debug
 ```
 
-- Static site: `app/dist`
-- Debug APK: `app/android/app/build/outputs/apk/debug/app-debug.apk`
+The debug APK is `app/android/app/build/outputs/apk/debug/app-debug.apk`.
 
-To publish only this app on Vercel, create a new project and set Root Directory to `app`. Do not add a `vercel.json` at the repo root. Variables: [DEPLOY.md](DEPLOY.md).
+To publish only this app on Vercel, create a new project and set Root Directory to `app`. Output is `www`. Do not add a `vercel.json` at the repo root.

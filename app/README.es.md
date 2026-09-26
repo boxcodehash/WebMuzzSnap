@@ -26,14 +26,15 @@ npm run serve
 
 El acceso real necesita las Cloud Functions. Hasta entonces la pantalla de login lo explica.
 
-Versión de prueba sin Firebase (chat de muestra). La carpeta `dist/` no se sube:
+La app instalable es el login, el chat y el privado reales (copiados del sitio, con el mínimo de 10.000.000 MUZZ). No hay chat de muestra.
 
 ```bash
-npm run build:preview
-npm run android:preview
+npm run android:debug
 ```
 
-Para publicarla en Vercel sin tocar el sitio actual, el Root Directory del proyecto nuevo tiene que ser `app`. Variables: [DEPLOY.es.md](DEPLOY.es.md).
+El APK queda en `app/android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Para publicarla en Vercel sin tocar el sitio actual, el Root Directory del proyecto nuevo tiene que ser `app`. La salida es `www`.
 
 Reglas contra el emulador (Java, no usa el proyecto real):
 
