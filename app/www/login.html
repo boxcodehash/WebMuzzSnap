@@ -583,11 +583,11 @@
         <div class="sign-card">
             <div class="spinner"></div>
             <h2 id="signStep">Connecting wallet</h2>
-            <p id="signHint">Approve the connection and the signature in your wallet. It does not spend gas. WalletConnect brings you back to this app.</p>
+            <p id="signHint">Approve once in your wallet. It does not spend gas. WalletConnect brings you back to this app.</p>
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build">v1.0.6</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build">v1.0.7</small></footer>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -598,6 +598,30 @@
 
         let mmSdk = null;
         let handledAuth = '';
+        let loginTask = null;
+        let loginDepth = 0;
+        let allowNestedConnect = false;
+        const shotStatus = (function () {
+            try {
+                const host = location.hostname;
+                if (host !== 'localhost' && host !== '127.0.0.1') return '';
+                const shot = new URLSearchParams(location.search).get('shot') || '';
+                if (shot === 'connecting') return 'Connecting…';
+                if (shot === 'sign') return 'Check your wallet to sign';
+                if (shot === 'verifying') return 'Verifying…';
+            } catch (err) {
+                /* screenshots are local only */
+            }
+            return '';
+        })();
+
+        function runLogin(task) {
+            if (loginTask) return loginTask;
+            loginTask = Promise.resolve().then(task).finally(() => {
+                loginTask = null;
+            });
+            return loginTask;
+        }
 
         const inApp = /MetaMask|Trust|CoinbaseWallet|CBWallet|Rainbow|OKApp|OKX|Phantom/i.test(navigator.userAgent);
 
@@ -625,7 +649,7 @@
             };
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
             firebase.database().ref('.info/connected').on('value', (snap) => {
-                if (statusText.dataset.busy === '1') return;
+                if (statusText.dataset.busy === '1' || shotStatus) return;
                 if (!snap.val()) {
                     statusText.textContent = 'Connecting to the live database...';
                     return;
@@ -642,6 +666,11 @@
             statusText.dataset.busy = '1';
             statusText.innerText = text;
             signStep.innerText = text;
+        }
+
+        if (shotStatus) {
+            showSigning(true);
+            setStep(shotStatus);
         }
 
         function showSigning(show) {
@@ -684,10 +713,12 @@
 
         async function openIosWallet(name) {
             showSigning(true);
-            setStep('Opening ' + name + '...');
+            setStep('Connecting…');
             sessionStorage.setItem('muzz_ios_wc', '1');
+            sessionStorage.setItem('muzz_wc_pending', '1');
             const mod = await import('./js/wc-login.js');
             const uri = await mod.walletConnectUri();
+            setStep('Check your wallet to sign');
             const target = muzzGate.walletConnectDeepLinks(uri).find((item) => item.name === name);
             if (!target) throw new Error('Wallet app not found.');
             window.location.assign(target.href);
@@ -890,6 +921,7 @@
         function finishInBrowser(address, signature, message) {
             saveUserSession(address);
             muzzGate.rememberWallet(address);
+            sessionStorage.removeItem('muzz_wc_proof');
             sessionStorage.setItem('muzz_login_sig', signature);
             sessionStorage.setItem('muzz_login_msg', message);
             setStep('Verified. Entering chat...');
@@ -899,6 +931,7 @@
         function finishReturnToApk(address, signature, message, exp, nonce) {
             saveUserSession(address);
             muzzGate.rememberWallet(address);
+            sessionStorage.removeItem('muzz_wc_proof');
             sessionStorage.setItem('muzz_login_sig', signature);
             sessionStorage.setItem('muzz_login_msg', message);
             const token = muzzGate.encodeHandoff({ a: address, n: nonce, e: exp, s: signature });
@@ -912,33 +945,87 @@
             setTimeout(() => { window.location.href = url; }, 300);
         }
 
-        async function signInWithProvider(rawProvider, returnApk, hint) {
+        function proofExpiry(message) {
+            const line = String(message || '').split('\n').find((item) => item.startsWith('Expires: '));
+            if (!line) return 0;
+            const exp = Number(line.slice('Expires: '.length).trim());
+            return Number.isFinite(exp) ? exp : 0;
+        }
+
+        function signatureMatches(message, signature, address) {
+            if (!message || !signature || !address) return false;
+            const exp = proofExpiry(message);
+            if (exp && exp <= Date.now()) return false;
+            try {
+                const recovered = ethers.utils.verifyMessage(message, signature);
+                return normalizeAddress(recovered) === normalizeAddress(address);
+            } catch (err) {
+                return false;
+            }
+        }
+
+        function readStoredLogin() {
+            const address = sessionStorage.getItem('muzz_wallet_address') || '';
+            const signature = sessionStorage.getItem('muzz_login_sig') || '';
+            const message = sessionStorage.getItem('muzz_login_msg') || '';
+            if (!signatureMatches(message, signature, address)) return null;
+            return { address: normalizeAddress(address), signature, message };
+        }
+
+        function readPendingProof() {
+            try {
+                const data = JSON.parse(sessionStorage.getItem('muzz_wc_proof') || 'null');
+                if (!data || !signatureMatches(data.message, data.signature, data.address)) return null;
+                return { address: normalizeAddress(data.address), signature: data.signature, message: data.message };
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function rememberProof(proof) {
+            sessionStorage.setItem('muzz_wc_proof', JSON.stringify({
+                address: normalizeAddress(proof.address),
+                signature: proof.signature,
+                message: proof.message
+            }));
+        }
+
+        function clearWalletAttempt() {
+            sessionStorage.removeItem('muzz_wc_pending');
+            sessionStorage.removeItem('muzz_ios_wc');
+        }
+
+        async function signInWithProvider(rawProvider, returnApk, hint, options) {
+            const opts = options || {};
             if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
-            if (!rawProvider) {
+            if (!rawProvider && !(opts.signature && opts.message)) {
                 const missing = new Error('NO_WALLET');
                 missing.code = 'NO_WALLET';
                 throw missing;
             }
-            ignoreChainSwitch(rawProvider);
-            setStep('Requesting account...');
-            let accounts = [];
-            try {
-                accounts = await rawProvider.request({ method: 'eth_requestAccounts' });
-            } catch (err) {
-                if (rejectedRequest(err)) {
-                    const rejected = new Error('Signature rejected.');
-                    rejected.code = 'rejected';
-                    throw rejected;
-                }
-                accounts = [];
-            }
-            let address = firstEvmAddress(rawProvider, accounts, hint);
-            if (!address) {
+            if (rawProvider) ignoreChainSwitch(rawProvider);
+            let address = opts.knownAddress || (hint && hint.address) || '';
+            if (!address && rawProvider) {
+                setStep('Connecting…');
+                let accounts = [];
                 try {
-                    const silent = await rawProvider.request({ method: 'eth_accounts' });
-                    address = firstEvmAddress(rawProvider, silent, hint);
+                    accounts = await rawProvider.request({ method: 'eth_requestAccounts' });
                 } catch (err) {
-                    address = firstEvmAddress(rawProvider, [], hint);
+                    if (rejectedRequest(err)) {
+                        const rejected = new Error('Signature rejected.');
+                        rejected.code = 'rejected';
+                        throw rejected;
+                    }
+                    accounts = [];
+                }
+                address = firstEvmAddress(rawProvider, accounts, hint);
+                if (!address) {
+                    try {
+                        const silent = await rawProvider.request({ method: 'eth_accounts' });
+                        address = firstEvmAddress(rawProvider, silent, hint);
+                    } catch (err) {
+                        address = firstEvmAddress(rawProvider, [], hint);
+                    }
                 }
             }
             if (!address) {
@@ -949,47 +1036,65 @@
 
             const nonce = muzzGate.randomNonce();
             const exp = Date.now() + muzzGate.HANDOFF_MS;
-            const message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
-            setStep('Sign the message');
-            let signature;
-            try {
-                signature = await rawProvider.request({
-                    method: 'personal_sign',
-                    params: [ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)), address]
-                });
-            } catch (err) {
-                if (rejectedRequest(err)) {
-                    const rejected = new Error('Signature rejected.');
-                    rejected.code = 'rejected';
-                    throw rejected;
+            let message = opts.message || '';
+            let signature = opts.signature || '';
+            if (!signature || !message || !signatureMatches(message, signature, address)) {
+                message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
+                setStep('Check your wallet to sign');
+                try {
+                    signature = await rawProvider.request({
+                        method: 'personal_sign',
+                        params: [ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)), address]
+                    });
+                } catch (err) {
+                    if (rejectedRequest(err)) {
+                        const rejected = new Error('Signature rejected.');
+                        rejected.code = 'rejected';
+                        throw rejected;
+                    }
+                    throw err;
                 }
-                throw err;
             }
+            setStep('Verifying…');
             const recovered = ethers.utils.verifyMessage(message, signature);
             if (normalizeAddress(recovered) !== normalizeAddress(address)) {
                 const bad = new Error('Signature does not match this wallet.');
                 bad.code = 'bad_sig';
                 throw bad;
             }
+            rememberProof({ address, signature, message });
 
-            setStep('Checking MUZZ balance');
             const holding = await muzzGate.readMuzzBalance(address);
             if (!holding.ok) {
+                sessionStorage.removeItem('muzz_wc_proof');
                 const denied = new Error('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is ' + holding.minimum + ' MUZZ.');
                 denied.code = 'balance';
                 throw denied;
             }
-            if (returnApk) finishReturnToApk(address, signature, message, exp, nonce);
+            clearWalletAttempt();
+            if (returnApk) finishReturnToApk(address, signature, message, proofExpiry(message) || exp, nonce);
             else finishInBrowser(address, signature, message);
         }
 
         async function accessWithWallet() {
+            if (loginDepth > 0) return accessWithWalletBody();
+            return runLogin(async () => {
+                loginDepth += 1;
+                try {
+                    await accessWithWalletBody();
+                } finally {
+                    loginDepth -= 1;
+                }
+            });
+        }
+
+        async function accessWithWalletBody() {
             errorBox.classList.add('hidden');
             document.getElementById('debugLine').classList.add('hidden');
             const injected = await discoverInjectedProvider();
             if (injected) {
                 showSigning(true);
-                setStep('Opening wallet...');
+                setStep('Connecting…');
                 try {
                     await signInWithProvider(injected, wantsApkReturn());
                 } catch (err) {
@@ -997,6 +1102,7 @@
                 }
                 return;
             }
+            allowNestedConnect = Boolean(muzzGate.walletConnectProjectId());
             if (muzzGate.walletConnectProjectId()) {
                 await accessWithWalletConnect();
                 return;
@@ -1006,7 +1112,7 @@
                 return;
             }
             showSigning(true);
-            setStep('Opening wallet...');
+            setStep('Connecting…');
             let rawProvider = null;
             try {
                 rawProvider = await getWalletProvider();
@@ -1017,25 +1123,122 @@
         }
 
         async function accessWithWalletConnect() {
+            sessionStorage.setItem('muzz_wc_pending', '1');
+            const nested = allowNestedConnect;
+            allowNestedConnect = false;
+            if (loginTask && !nested) return loginTask;
+            if (nested) return accessWithWalletConnectBody();
+            return runLogin(async () => {
+                loginDepth += 1;
+                try {
+                    await accessWithWalletConnectBody();
+                } finally {
+                    loginDepth -= 1;
+                }
+            });
+        }
+
+        async function accessWithWalletConnectBody() {
+            if (accessWithWalletConnectBody.running) return;
+            accessWithWalletConnectBody.running = true;
             errorBox.classList.add('hidden');
             document.getElementById('debugLine').classList.add('hidden');
             const projectId = muzzGate.walletConnectProjectId();
             if (!projectId) {
+                accessWithWalletConnectBody.running = false;
                 showSignError(Object.assign(new Error('NO_PROJECT_ID'), { code: 'NO_PROJECT_ID' }));
                 return;
             }
             showSigning(true);
-            setStep('Opening WalletConnect...');
+            setStep('Connecting…');
             let session = null;
             try {
                 window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
                 const mod = await import('./js/wc-login.js');
-                session = await mod.connectWalletConnect();
-                await signInWithProvider(session && session.provider, false, session);
+                session = await mod.connectWalletConnect({
+                    onStatus: (text) => setStep(text)
+                });
+                const knownAddress = session && session.address;
+                const signed = session && session.signature && session.message
+                    && signatureMatches(session.message, session.signature, knownAddress);
+                if (signed) setStep('Verifying…');
+                else setStep('Check your wallet to sign');
+                await signInWithProvider(session && session.provider, false, session, {
+                    knownAddress: knownAddress,
+                    signature: signed ? session.signature : '',
+                    message: signed ? session.message : ''
+                });
             } catch (err) {
+                clearWalletAttempt();
                 showSignError(err, session && session.provider, session);
+            } finally {
+                accessWithWalletConnectBody.running = false;
             }
+        }
+
+        function resumeWalletLogin() {
+            if (shotStatus) return;
+            if (document.visibilityState === 'hidden') return;
+            if (loginTask) return loginTask;
+            const pending = sessionStorage.getItem('muzz_wc_pending') === '1'
+                || sessionStorage.getItem('muzz_ios_wc') === '1';
+            if (!pending) return;
+            const stored = readStoredLogin();
+            if (stored) {
+                clearWalletAttempt();
+                window.location.href = 'chat.html';
+                return;
+            }
+            const proof = readPendingProof();
+            return runLogin(async () => {
+                loginDepth += 1;
+                try {
+                    if (proof) {
+                        showSigning(true);
+                        setStep('Verifying…');
+                        try {
+                            await signInWithProvider(null, false, null, {
+                                knownAddress: proof.address,
+                                signature: proof.signature,
+                                message: proof.message
+                            });
+                        } catch (err) {
+                            sessionStorage.removeItem('muzz_wc_proof');
+                            clearWalletAttempt();
+                            showSignError(err);
+                        }
+                        return;
+                    }
+                    showSigning(true);
+                    setStep('Connecting…');
+                    const projectId = muzzGate.walletConnectProjectId();
+                    if (!projectId) return;
+                    window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
+                    window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
+                    const mod = await import('./js/wc-login.js');
+                    const session = await mod.restoreWalletConnect();
+                    if (!session) {
+                        showSigning(false);
+                        return;
+                    }
+                    const knownAddress = session.address;
+                    const signed = session.signature && session.message
+                        && signatureMatches(session.message, session.signature, knownAddress);
+                    if (signed) setStep('Verifying…');
+                    else setStep('Check your wallet to sign');
+                    await signInWithProvider(session.provider, false, session, {
+                        knownAddress: knownAddress,
+                        signature: signed ? session.signature : '',
+                        message: signed ? session.message : ''
+                    });
+                } catch (err) {
+                    clearWalletAttempt();
+                    showSignError(err);
+                } finally {
+                    loginDepth -= 1;
+                }
+            });
         }
 
         async function acceptAuthToken(token) {
@@ -1112,16 +1315,15 @@
             window.location.href = 'chat.html';
         });
 
-        window.addEventListener('pageshow', () => {
-            if (!isIosBrowser()) return;
-            if (sessionStorage.getItem('muzz_ios_wc') !== '1') return;
-            sessionStorage.removeItem('muzz_ios_wc');
-            accessWithWalletConnect();
-        });
+        window.addEventListener('pageshow', () => resumeWalletLogin());
+        window.addEventListener('focus', () => resumeWalletLogin());
+        window.addEventListener('visibilitychange', () => resumeWalletLogin());
+        window.addEventListener('muzz-wc-return', () => resumeWalletLogin());
 
         loadLocalConfig().then(() => {
             paintLinks();
             listenForApkReturn();
+            resumeWalletLogin();
         });
     </script>
 </body>

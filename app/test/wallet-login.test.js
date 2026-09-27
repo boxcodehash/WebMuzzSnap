@@ -182,6 +182,11 @@ test('los deep links de móvil apuntan a la página y el APK vuelve por muzzsnap
   assert.match(ignore, /config\.local\.json/);
   assert.match(ignore, /^\.env$/m);
   const source = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
+  assert.match(source, /originalAuthenticate\(/);
+  assert.match(source, /hasLiveSession/);
+  assert.match(source, /modal\.close/);
+  assert.match(source, /authentication:/);
+  assert.match(source, /method !== 'wallet_switchEthereumChain'/);
   assert.match(source, /@reown\/appkit/);
   assert.match(source, /enableEIP6963:\s*true/);
   assert.match(source, /featuredWalletIds/);

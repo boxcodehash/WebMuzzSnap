@@ -1,4 +1,4 @@
-const CACHE = 'muzzsnap-app-v7';
+const CACHE = 'muzzsnap-app-v8';
 const SHELL = [
   './',
   './index.html',

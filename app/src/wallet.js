@@ -4,6 +4,7 @@ import { NATIVE_RETURN, SUPPORTED_WALLETS } from './walletCatalog.js';
 import { walletError } from './walletErrors.js';
 import {
   discoverInjected,
+  firstEvmAddress,
   ignoreChainSwitch,
   inspectInjected,
   isMobile,
@@ -11,6 +12,15 @@ import {
   signLogin,
   watchProvider
 } from './walletSession.js';
+import {
+  AUTH_CHAINS,
+  AUTH_METHODS,
+  authRequestParams,
+  buildOneClickAuth,
+  createSingleFlight,
+  hasLiveSession,
+  proofFromSession
+} from './wc-auth.js';
 
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
 
@@ -18,13 +28,116 @@ let modalPromise = null;
 let wcProvider = null;
 let latestUri = '';
 let connectStarted = false;
+let connectPromise = null;
+let pendingAuth = null;
+let closingModal = false;
+let statusHook = () => {};
 const uriWaiters = [];
+const connectFlight = createSingleFlight();
 
 function noteUri(uri) {
   if (!uri) return;
   latestUri = String(uri);
+  statusHook('Check your wallet to sign');
   const pending = uriWaiters.splice(0);
   pending.forEach((fn) => fn(latestUri));
+}
+
+function authContext() {
+  const url = dappUrl();
+  let domain = 'muzzsnap-app.vercel.app';
+  try {
+    domain = new URL(url).host;
+  } catch {
+    /* the public host is the fallback */
+  }
+  return { domain, uri: `${url.replace(/\/$/, '')}/login.html` };
+}
+
+function nextAuth() {
+  if (!pendingAuth) pendingAuth = buildOneClickAuth(authContext());
+  return pendingAuth;
+}
+
+function userRejected(err) {
+  const code = err && err.code;
+  const msg = String((err && (err.message || err.reason)) || '');
+  return code === 4001 || code === 'ACTION_REJECTED' || /user rejected|user denied|rejected the|denied|cancel|modal closed/i.test(msg);
+}
+
+async function closeModal(modal) {
+  if (!modal || typeof modal.close !== 'function') return;
+  closingModal = true;
+  try {
+    await modal.close();
+  } catch {
+    /* already closed */
+  } finally {
+    setTimeout(() => {
+      closingModal = false;
+    }, 0);
+  }
+}
+
+function optionalNamespaces(params) {
+  const incoming = (params && params.optionalNamespaces) || {};
+  const eip = incoming.eip155 || {};
+  const methods = [...new Set([...(eip.methods || []), ...AUTH_METHODS])]
+    .filter((method) => method !== 'wallet_switchEthereumChain' && method !== 'wallet_addEthereumChain');
+  return {
+    ...incoming,
+    eip155: {
+      ...eip,
+      chains: [...new Set([...(eip.chains || []), ...AUTH_CHAINS])],
+      methods,
+      events: [...new Set([...(eip.events || []), 'chainChanged', 'accountsChanged'])]
+    }
+  };
+}
+
+async function runWalletConnect(originalAuthenticate, originalConnect, params) {
+  // One proposal: SIWE / ReCap in the session authenticate request.
+  // A wallet that cannot one-click auth settles the paired session without a signature.
+  const auth = nextAuth();
+  wcProvider.namespaces = {};
+  let sawUri = false;
+  const onUri = () => {
+    sawUri = true;
+  };
+  if (typeof wcProvider.on === 'function') wcProvider.on('display_uri', onUri);
+  try {
+    if (originalAuthenticate) {
+      const result = await originalAuthenticate({
+        chains: auth.chains,
+        methods: AUTH_METHODS.slice(),
+        domain: auth.domain,
+        nonce: auth.nonce,
+        uri: auth.uri,
+        statement: auth.statement,
+        exp: auth.exp,
+        resources: auth.resources,
+        type: auth.type
+      });
+      const session = (result && result.session) || wcProvider.session;
+      if (session && result && Array.isArray(result.auths) && result.auths.length) {
+        if (!session.authentication || !session.authentication.length) session.authentication = result.auths;
+      }
+      if (hasLiveSession(wcProvider) || session) return session || wcProvider.session;
+    }
+  } catch (err) {
+    if (hasLiveSession(wcProvider)) return wcProvider.session;
+    if (sawUri || userRejected(err)) throw err;
+  } finally {
+    if (typeof wcProvider.removeListener === 'function') wcProvider.removeListener('display_uri', onUri);
+  }
+  if (hasLiveSession(wcProvider)) return wcProvider.session;
+  wcProvider.namespaces = {};
+  return originalConnect({
+    ...params,
+    namespaces: {},
+    optionalNamespaces: optionalNamespaces(params),
+    authentication: [authRequestParams(auth)]
+  });
 }
 
 function nativeReturnUrl(url) {
@@ -111,27 +224,18 @@ async function buildModal() {
     });
   }
   const originalConnect = universalProvider.connect.bind(universalProvider);
-  universalProvider.connect = async (params = {}) => {
-    // Do not send a required chain. Wallets may approve any eip155 account,
-    // including a session that only contains eip155:56.
-    universalProvider.namespaces = {};
-    const incoming = (params && params.optionalNamespaces) || {};
-    const eip = incoming.eip155 || {};
-    const methods = [...new Set([...(eip.methods || []), 'personal_sign', 'eth_sign', 'eth_requestAccounts', 'eth_accounts'])]
-      .filter((method) => method !== 'wallet_switchEthereumChain' && method !== 'wallet_addEthereumChain');
-    return originalConnect({
-      ...params,
-      namespaces: {},
-      optionalNamespaces: {
-        ...incoming,
-        eip155: {
-          ...eip,
-          chains: [...new Set([...(eip.chains || []), 'eip155:1', 'eip155:56'])],
-          methods,
-          events: [...new Set([...(eip.events || []), 'chainChanged', 'accountsChanged'])]
-        }
-      }
+  const originalAuthenticate = typeof universalProvider.authenticate === 'function'
+    ? universalProvider.authenticate.bind(universalProvider)
+    : null;
+  universalProvider.connect = (params = {}) => {
+    if (hasLiveSession(universalProvider)) return Promise.resolve(universalProvider.session);
+    if (connectPromise) return connectPromise;
+    const run = runWalletConnect(originalAuthenticate, originalConnect, params).finally(() => {
+      if (connectPromise === run) connectPromise = null;
+      pendingAuth = null;
     });
+    connectPromise = run;
+    return run;
   };
   return createAppKit({
     adapters: [new EthersAdapter()],
@@ -192,15 +296,35 @@ async function providerOf(modal) {
   throw walletError('NO_WALLET');
 }
 
-async function finishConnect(modal, hooks) {
-  const provider = await providerOf(modal);
+async function finishConnect(modal) {
+  if (connectPromise) {
+    try {
+      await connectPromise;
+    } catch {
+      /* the session may still be on the provider after a late approval */
+    }
+  }
+  const provider = wcProvider && typeof wcProvider.request === 'function'
+    ? wcProvider
+    : await providerOf(modal);
   ignoreChainSwitch(provider);
   const hint = sessionHint(modal);
-  const session = await openSession(provider, hooks);
+  const proof = proofFromSession(provider.session) || null;
+  let opened = { provider, address: '', chainId: provider.__muzzRealChain };
+  try {
+    opened = await openSession(provider, { silent: true });
+  } catch (err) {
+    if (!proof) throw err;
+  }
+  const address = (proof && proof.address) || opened.address;
+  if (!address) throw walletError('no_account');
   return {
-    ...session,
+    ...opened,
+    provider,
+    address,
     ...hint,
-    namespaces: provider.session?.namespaces || null
+    namespaces: provider.session?.namespaces || null,
+    ...(proof || {})
   };
 }
 
@@ -208,6 +332,7 @@ export async function walletConnectUri() {
   if (latestUri) return latestUri;
   await getModal();
   if (!wcProvider) throw walletError('wc_load');
+  if (hasLiveSession(wcProvider)) return latestUri;
   if (!connectStarted) {
     connectStarted = true;
     wcProvider.connect({
@@ -215,7 +340,7 @@ export async function walletConnectUri() {
       optionalNamespaces: {
         eip155: {
           chains: ['eip155:1', 'eip155:56'],
-          methods: ['personal_sign', 'eth_sign', 'eth_requestAccounts', 'eth_accounts'],
+          methods: AUTH_METHODS.slice(),
           events: ['chainChanged', 'accountsChanged']
         }
       }
@@ -233,9 +358,49 @@ export async function walletConnectUri() {
   });
 }
 
-export async function connectModal(hooks = {}) {
+function sessionAddress() {
+  if (!hasLiveSession(wcProvider)) return '';
+  return firstEvmAddress(wcProvider, []);
+}
+
+function waitForAddress(modal, ms) {
+  const immediate = sessionAddress() || (modal.getIsConnectedState?.() && modal.getAddress?.()) || '';
+  if (immediate) return Promise.resolve(String(immediate));
+  return new Promise((resolve) => {
+    let unsub = () => {};
+    const timer = setTimeout(() => {
+      unsub();
+      resolve(sessionAddress() || '');
+    }, ms);
+    unsub = modal.subscribeAccount((account) => {
+      if (account?.isConnected && account.address) {
+        clearTimeout(timer);
+        unsub();
+        resolve(String(account.address));
+      } else if (account?.status === 'disconnected') {
+        clearTimeout(timer);
+        unsub();
+        resolve(sessionAddress() || '');
+      }
+    });
+  });
+}
+
+async function connectModalInner(hooks = {}) {
   const modal = await getModal();
-  if (modal.getIsConnectedState?.() && modal.getAddress?.()) {
+  if (hooks.onStatus) statusHook = hooks.onStatus;
+  statusHook('Connecting…');
+  if (connectPromise) {
+    statusHook('Check your wallet to sign');
+    try {
+      await connectPromise;
+    } catch {
+      /* a rejected in-flight attempt still reports below if no session landed */
+    }
+  }
+  const restored = sessionAddress() || await waitForAddress(modal, hooks.waitMs || 400);
+  if (restored || hasLiveSession(wcProvider)) {
+    await closeModal(modal);
     return finishConnect(modal, hooks);
   }
   await new Promise((resolve, reject) => {
@@ -243,24 +408,64 @@ export async function connectModal(hooks = {}) {
     let settled = false;
     let unsubAccount = () => {};
     let unsubState = () => {};
+    let poll = 0;
     const finish = (fn) => {
       if (settled) return;
       settled = true;
+      clearInterval(poll);
       unsubAccount();
       unsubState();
       fn();
     };
+    const connected = () => {
+      closeModal(modal).finally(() => finish(() => resolve(sessionAddress() || modal.getAddress?.() || '')));
+    };
     unsubAccount = modal.subscribeAccount((account) => {
       if (!account?.isConnected || !account.address) return;
-      finish(() => resolve(account.address));
+      connected();
     });
     unsubState = modal.subscribeState((state) => {
       if (state?.open) opened = true;
-      else if (opened) finish(() => reject(walletError('rejected')));
+      else if (opened && !closingModal) {
+        setTimeout(() => {
+          if (settled || closingModal || hasLiveSession(wcProvider) || modal.getIsConnectedState?.()) return;
+          connectPromise = null;
+          pendingAuth = null;
+          finish(() => reject(walletError('rejected')));
+        }, 400);
+      }
     });
+    poll = setInterval(() => {
+      if (hasLiveSession(wcProvider)) connected();
+    }, 250);
     modal.open().catch((err) => finish(() => reject(err)));
   });
+  await closeModal(modal);
   return finishConnect(modal, hooks);
+}
+
+export function connectModal(hooks = {}) {
+  return connectFlight(() => connectModalInner(hooks));
+}
+
+export async function restoreWalletConnect(hooks = {}) {
+  if (!validProjectId(getConfig().walletConnectProjectId)) return null;
+  try {
+    const modal = await getModal();
+    if (connectPromise) {
+      try {
+        await connectPromise;
+      } catch {
+        /* resume still inspects whatever session survived */
+      }
+    }
+    const address = sessionAddress() || await waitForAddress(modal, hooks.waitMs || 2500);
+    if (!address && !hasLiveSession(wcProvider)) return null;
+    await closeModal(modal);
+    return finishConnect(modal, hooks);
+  } catch {
+    return null;
+  }
 }
 
 function sessionHint(modal) {
