@@ -37,7 +37,20 @@
     box.hidden = true;
     box.innerHTML = '<button type="button" class="open"><strong id="muzzPmName"></strong><span id="muzzPmText"></span></button><button type="button" class="x" aria-label="Dismiss">×</button>';
     document.body.appendChild(box);
-    box.querySelector('.x').addEventListener('click', function () { box.hidden = true; });
+    var dismissStamp = 0;
+    function dismissToast(event) {
+      var now = Date.now();
+      if (now - dismissStamp < 450) {
+        if (event) event.preventDefault();
+        return;
+      }
+      dismissStamp = now;
+      if (event) event.preventDefault();
+      box.hidden = true;
+    }
+    var closeBtn = box.querySelector('.x');
+    closeBtn.addEventListener('click', dismissToast);
+    closeBtn.addEventListener('touchend', dismissToast, { passive: false });
   }
 
   function showToast(name, text, peer, open) {

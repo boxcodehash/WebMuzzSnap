@@ -79,12 +79,12 @@ test('live pages and the app drop the old Itsuki wallet and add the private pick
   }
   assert.match(readFileSync(new URL('../../login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
   assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
-  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.5/);
+  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.6/);
   assert.match(readFileSync(new URL('../../chat.html', import.meta.url), 'utf8'), /MuzzNames\.isWhitelisted\(me\.wallet\)/);
   assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /MuzzNames\.isWhitelisted\(walletAddress\)/);
   const gradle = readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8');
-  assert.match(gradle, /versionCode 5/);
-  assert.match(gradle, /versionName "1\.0\.5"/);
+  assert.match(gradle, /versionCode 6/);
+  assert.match(gradle, /versionName "1\.0\.6"/);
   const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
   assert.match(manifest, /POST_NOTIFICATIONS/);
   assert.match(readFileSync(new URL('../www/sw.js', import.meta.url), 'utf8'), /notificationclick/);

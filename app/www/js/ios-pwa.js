@@ -1,8 +1,10 @@
 /**
- * Home-screen behavior for iPhone Safari.
+ * Home-screen behavior for iPhone Safari and installed standalone mode.
  * Splash links are injected before Add to Home Screen reads the document.
  */
 (function (global) {
+  var DISMISS_KEY = 'muzz.install.dismissed';
+  var MIN_KEY = 'muzz.install.minimized';
   var SPLASH = [
     [320, 568, 2],
     [375, 667, 2],
@@ -33,6 +35,55 @@
     return navigator.standalone === true || (global.matchMedia && matchMedia('(display-mode: standalone)').matches);
   }
 
+  function nativeApp() {
+    return !!(global.Capacitor && typeof global.Capacitor.isNativePlatform === 'function' && global.Capacitor.isNativePlatform());
+  }
+
+  function shotMode() {
+    var host = location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') return '';
+    return new URLSearchParams(location.search).get('shot') || '';
+  }
+
+  function onLoginPage() {
+    return /(?:^|\/)login\.html$/i.test(location.pathname);
+  }
+
+  function loggedIn() {
+    try {
+      return !!(sessionStorage.getItem('muzz_wallet_address') || sessionStorage.getItem('muzz_login_sig'));
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function stored(key) {
+    try { return localStorage.getItem(key) === '1'; } catch (err) { return false; }
+  }
+
+  function store(key, on) {
+    try {
+      if (on) localStorage.setItem(key, '1');
+      else localStorage.removeItem(key);
+    } catch (err) { /* private mode */ }
+  }
+
+  function bindPress(el, fn) {
+    var stamp = 0;
+    function go(event) {
+      var now = Date.now();
+      if (now - stamp < 450) {
+        event.preventDefault();
+        return;
+      }
+      stamp = now;
+      event.preventDefault();
+      fn();
+    }
+    el.addEventListener('click', go);
+    el.addEventListener('touchend', go, { passive: false });
+  }
+
   function injectSplash() {
     if (!document.head || document.head.dataset.muzzSplash === '1') return;
     document.head.dataset.muzzSplash = '1';
@@ -54,37 +105,168 @@
     document.documentElement.style.setProperty('--app-top', Math.round(top) + 'px');
   }
 
-  function showInstallHint() {
-    if (!isIosSafari() || isStandalone()) return;
-    if (new URLSearchParams(location.search).get('shot') === '1') return;
-    if (document.getElementById('muzzIosHint')) return;
-    var box = document.createElement('div');
-    box.id = 'muzzIosHint';
-    box.className = 'muzz-ios-hint';
-    box.innerHTML = '<div><strong>Install on iPhone</strong><span>Tap Share, then Add to Home Screen.</span></div><button type="button" aria-label="Dismiss">×</button>';
-    box.querySelector('button').addEventListener('click', function () { box.remove(); });
-    document.body.appendChild(box);
+  function markShell() {
+    var shot = shotMode();
+    var standalone = isStandalone() || shot === 'standalone';
+    document.documentElement.classList.toggle('muzz-standalone', standalone);
+    if (shot === 'standalone') {
+      document.documentElement.classList.add('muzz-shot');
+      document.documentElement.style.setProperty('--safe-t', '47px');
+      document.documentElement.style.setProperty('--safe-b', '34px');
+      document.documentElement.style.setProperty('--safe-top', '47px');
+      document.documentElement.style.setProperty('--safe-bottom', '34px');
+      document.documentElement.style.setProperty('--muzz-sat', '47px');
+      document.documentElement.style.setProperty('--muzz-sab', '34px');
+    }
+  }
+
+  function removeLegacyHint() {
+    var old = document.getElementById('muzzIosHint');
+    if (old) old.remove();
+  }
+
+  function shareIcon() {
+    return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0 4 4m-4-4-4 4M6 14v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-5"/></svg>';
+  }
+
+  function renderInstall(mode) {
+    var existing = document.getElementById('muzzInstall');
+    if (existing) existing.remove();
+    var root = document.createElement('div');
+    root.id = 'muzzInstall';
+    root.className = mode === 'pill' ? 'muzz-install is-pill' : 'muzz-install';
+    root.innerHTML = ''
+      + '<div class="muzz-install-card" role="dialog" aria-label="Install MuzzSnap for full screen">'
+      + '<p class="kicker">iPhone</p>'
+      + '<h2>Install MuzzSnap for full screen</h2>'
+      + '<ol>'
+      + '<li>' + shareIcon() + '<span>Tap the <strong>Share</strong> icon</span></li>'
+      + '<li><span class="step-num">2</span><span>Then tap <strong>Add to Home Screen</strong></span></li>'
+      + '</ol>'
+      + '<div class="actions">'
+      + '<button type="button" data-act="min">Minimize</button>'
+      + '<button type="button" data-act="close">Close</button>'
+      + '</div></div>'
+      + '<div class="muzz-install-arrow" aria-hidden="true"></div>'
+      + '<button type="button" class="muzz-install-pill" data-act="open">Install</button>';
+    document.body.appendChild(root);
+    bindPress(root.querySelector('[data-act="min"]'), function () {
+      store(MIN_KEY, true);
+      root.classList.add('is-pill');
+    });
+    bindPress(root.querySelector('[data-act="close"]'), function () {
+      store(DISMISS_KEY, true);
+      store(MIN_KEY, false);
+      root.remove();
+    });
+    bindPress(root.querySelector('[data-act="open"]'), function () {
+      store(MIN_KEY, false);
+      root.classList.remove('is-pill');
+    });
+  }
+
+  function maybeInstall() {
+    removeLegacyHint();
+    var shot = shotMode();
+    if (shot === 'install') return renderInstall('card');
+    if (shot === 'min') return renderInstall('pill');
+    if (shot === '1' || shot === 'standalone') return;
+    if (stored(DISMISS_KEY) || isStandalone() || !isIosSafari()) return;
+    if (onLoginPage() || !loggedIn()) return;
+    renderInstall(stored(MIN_KEY) ? 'pill' : 'card');
+  }
+
+  function canFullscreen() {
+    if (nativeApp()) return false;
+    var el = document.documentElement;
+    return typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function';
+  }
+
+  function toggleFullscreen() {
+    var el = document.documentElement;
+    var active = document.fullscreenElement || document.webkitFullscreenElement;
+    if (active) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+      return;
+    }
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) Promise.resolve(req.call(el)).catch(function () {});
+  }
+
+  function armFullscreen() {
+    if (!canFullscreen()) return;
+    document.documentElement.classList.add('muzz-fs-on');
+    document.querySelectorAll('.muzz-fs').forEach(function (btn) {
+      if (btn.dataset.muzzFs === '1') return;
+      btn.dataset.muzzFs = '1';
+      btn.hidden = false;
+      bindPress(btn, toggleFullscreen);
+    });
+  }
+
+  function tabBar() {
+    var shot = shotMode();
+    var standalone = isStandalone() || shot === 'standalone';
+    if (!standalone || onLoginPage()) {
+      var gone = document.getElementById('muzzTabbar');
+      if (gone) gone.remove();
+      return;
+    }
+    if (document.getElementById('muzzTabbar')) return;
+    var nav = document.createElement('nav');
+    nav.id = 'muzzTabbar';
+    nav.className = 'muzz-tabbar';
+    nav.setAttribute('aria-label', 'Main');
+    var here = /private\.html$/i.test(location.pathname) ? 'private' : 'chat';
+    nav.innerHTML = ''
+      + '<a href="chat.html"' + (here === 'chat' ? ' aria-current="page"' : '') + '>Chat</a>'
+      + '<a href="private.html"' + (here === 'private' ? ' aria-current="page"' : '') + '>Private</a>';
+    document.body.appendChild(nav);
   }
 
   injectSplash();
+  markShell();
   applyViewport();
   if (global.visualViewport) {
     visualViewport.addEventListener('resize', applyViewport);
     visualViewport.addEventListener('scroll', applyViewport);
   }
   global.addEventListener('orientationchange', applyViewport);
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', showInstallHint);
-  } else {
-    showInstallHint();
+
+  function boot() {
+    markShell();
+    removeLegacyHint();
+    maybeInstall();
+    armFullscreen();
+    tabBar();
   }
-  if ('serviceWorker' in navigator) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  global.addEventListener('pageshow', boot);
+  var chromeQueued = false;
+  function scheduleChrome() {
+    if (chromeQueued) return;
+    chromeQueued = true;
+    setTimeout(function () {
+      chromeQueued = false;
+      armFullscreen();
+      tabBar();
+    }, 60);
+  }
+  if (document.documentElement) {
+    new MutationObserver(scheduleChrome).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  if ('serviceWorker' in navigator && !nativeApp()) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 
   global.MuzzIos = {
     isIos: isIos,
     isIosSafari: isIosSafari,
-    isStandalone: isStandalone
+    isStandalone: isStandalone,
+    canFullscreen: canFullscreen,
+    promptInstall: function () { if (!stored(DISMISS_KEY)) renderInstall(stored(MIN_KEY) ? 'pill' : 'card'); }
   };
 })(window);

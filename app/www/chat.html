@@ -435,8 +435,10 @@
 
     const pinPathForChannel = (channelId) => `settings/pinned/${channelId}`;
 
-    const localShot = new URLSearchParams(location.search).get('shot') === '1'
-      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    const shotName = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? (new URLSearchParams(location.search).get('shot') || '')
+      : '';
+    const localShot = shotName === '1' || shotName === 'install' || shotName === 'min' || shotName === 'standalone';
 
     function App(){
       const [me, setMe] = useState(localShot ? {
@@ -990,6 +992,7 @@
               </div>
               <div className="flex items-center gap-2">
                 <div className="online-count" title="Connected now">{onlineUsers.length}</div>
+                <button type="button" className="muzz-fs" aria-label="Full screen">Full screen</button>
                 <button type="button" onClick={toggleTheme} className="icon-btn" aria-label="Toggle theme">
                   {darkMode ? <i className="fas fa-sun text-yellow-400"></i> : <i className="fas fa-moon text-blue-500"></i>}
                 </button>
