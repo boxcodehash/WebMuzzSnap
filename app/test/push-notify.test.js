@@ -304,7 +304,19 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.doesNotMatch(firebaseJson, /rtdb\.fcm\.rules/);
   const gradle = readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8');
   assert.match(gradle, /google-services\.json not found/);
-  assert.equal(googleServicesPresent(fileURLToPath(new URL('..', import.meta.url))), false);
+  const appRoot = fileURLToPath(new URL('..', import.meta.url));
+  assert.equal(googleServicesPresent(appRoot), true);
+  const services = JSON.parse(readFileSync(new URL('../android/app/google-services.json', import.meta.url), 'utf8'));
+  assert.equal(services.project_info.project_id, 'pulsari');
+  assert.equal(services.project_info.project_number, '824306321233');
+  assert.equal(services.client[0].client_info.mobilesdk_app_id, '1:824306321233:android:ad4f9716c07ef75f60b570');
+  assert.equal(services.client[0].client_info.android_client_info.package_name, 'app.muzzsnap.chat');
+  assert.equal(services.client[0].api_key[0].current_key, 'AIzaSyD3fgJ1qJ5s3qOItx5Ykuk-XEutROtRX0w');
+  assert.equal(JSON.stringify(services).includes('private_key'), false);
+  const settings = readFileSync(new URL('../android/capacitor.settings.gradle', import.meta.url), 'utf8');
+  const capBuild = readFileSync(new URL('../android/app/capacitor.build.gradle', import.meta.url), 'utf8');
+  assert.match(settings, /capacitor-push-notifications/);
+  assert.match(capBuild, /capacitor-push-notifications/);
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.ok(pkg.dependencies['@capacitor/push-notifications']);
   const sample = "include ':capacitor-push-notifications'\nproject(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')\n";
@@ -328,11 +340,11 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.equal(applyAndroidPush(dir), 'fcm');
   const uploaded = mkdtempSync(join(tmpdir(), 'muzz-up-'));
   mkdirSync(join(uploaded, 'uploads'), { recursive: true });
-  const services = JSON.stringify({
+  const uploadedServices = JSON.stringify({
     project_info: { project_id: 'pulsari' },
     client: [{ client_info: { android_client_info: { package_name: 'app.muzzsnap.chat' } } }]
   });
-  writeFileSync(join(uploaded, 'uploads', 'google-services.json'), services);
+  writeFileSync(join(uploaded, 'uploads', 'google-services.json'), uploadedServices);
   const appDir = join(uploaded, 'app');
   mkdirSync(join(appDir, 'android', 'app'), { recursive: true });
   assert.equal(installGoogleServices(appDir).endsWith('google-services.json'), true);
