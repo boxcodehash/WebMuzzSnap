@@ -154,7 +154,30 @@ export function muzzMark(label) {
   const first = rows.length ? rows[0].at : at;
   const row = { label, at, delta: at - first };
   rows.push(row);
+  nativeLoginLog(label, row.delta);
   return row;
+}
+
+const NATIVE_LOGIN_LOG = {
+  session: 'connect established',
+  'personal_sign:sent': 'sign requested',
+  'personal_sign:done': 'sign returned',
+  'session:reuse': 'session reuse'
+};
+
+function nativeLoginLog(label, delta) {
+  const text = NATIVE_LOGIN_LOG[label];
+  if (!text) return;
+  const line = text + ' +' + Math.round(delta) + 'ms';
+  try {
+    const Cap = globalThis.Capacitor;
+    if (!Cap || typeof Cap.isNativePlatform !== 'function' || !Cap.isNativePlatform()) return;
+    if (typeof Cap.registerPlugin !== 'function') return;
+    const pending = Cap.registerPlugin('WalletLink').log({ label: line });
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch {
+    /* the browser has no logcat */
+  }
 }
 
 export function resetLoginTiming() {
@@ -288,14 +311,14 @@ function defaultSignOpen(href) {
 }
 
 /** Opens the wallet even when document.hasFocus() is false. WalletConnect skips that case. */
-export function openSignDeepLink(provider, opener) {
+export function openSignDeepLink(provider, opener, requestId) {
   const choice = readWalletChoice() || {};
   const href = buildSignDeepLink({
     href: choice.href,
     name: choice.name,
     id: choice.id || choice.wcId,
     topic: (provider && provider.session && provider.session.topic) || '',
-    requestId: '',
+    requestId: requestId == null ? '' : String(requestId),
     userAgent: (globalThis.navigator && navigator.userAgent) || ''
   });
   if (!href) {
@@ -317,13 +340,15 @@ export function openSignDeepLink(provider, opener) {
  */
 export function scheduleSignDeepLink(provider, opener) {
   let opened = false;
-  const open = () => {
+  const open = (payload) => {
     if (opened) return;
     opened = true;
-    openSignDeepLink(provider, opener);
+    const id = payload && payload.id != null ? payload.id : '';
+    openSignDeepLink(provider, opener, id);
   };
   const events = provider && provider.client && provider.client.events;
   if (events && typeof events.once === 'function') events.once('session_request_sent', open);
+  else open();
   return open;
 }
 

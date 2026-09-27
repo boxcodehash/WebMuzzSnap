@@ -196,6 +196,9 @@ test('MetaMask skips the one-hour authenticate wait and signs as soon as the ses
   assert.match(login, /prefetchLoginNonce/);
   const walletSrc = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
   assert.match(walletSrc, /plainConnect/);
+  assert.match(walletSrc, /notifySession/);
+  assert.match(walletSrc, /setSIWX\(undefined\)/);
+  assert.match(readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8'), /void log\(PluginCall call\)/);
   assert.match(walletSrc, /releaseConnectLock/);
   assert.doesNotMatch(walletSrc, /authenticate\(/);
   assert.doesNotMatch(walletSrc, /await connectPromise/);
