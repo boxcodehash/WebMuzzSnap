@@ -17,6 +17,7 @@
             android:description="@string/app_description"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:enableOnBackInvokedCallback="true"
             android:exported="true">
 
             <intent-filter>

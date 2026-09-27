@@ -10,6 +10,7 @@ import android.os.SystemClock;
 import android.os.Build;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
@@ -21,11 +22,19 @@ public class MainActivity extends BridgeActivity {
     private int authAttempts = 0;
     private long lastWalletReturnAt = 0;
     private boolean probedOpen = false;
+    private boolean backHandlerLogged = false;
+    private final OnBackPressedCallback systemBackCallback = new OnBackPressedCallback(true) {
+        @Override
+        public void handleOnBackPressed() {
+            onSystemBack();
+        }
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(WalletLinkPlugin.class);
         super.onCreate(savedInstanceState);
+        installSystemBackHandler();
         if (getBridge() == null || getBridge().getWebView() == null) return;
         WebView webView = getBridge().getWebView();
         installWalletWebViewClient(webView);
@@ -38,6 +47,7 @@ public class MainActivity extends BridgeActivity {
             }
         });
         probeWebViewLoads(webView);
+        maybeOpenDebugPage(getIntent());
         getBridge().addWebViewListener(new WebViewListener() {
             @Override
             public void onPageStarted(WebView view) {
@@ -60,6 +70,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        installSystemBackHandler();
         if (WalletLinks.consumeReturn()) notifyWalletReturn();
     }
 
@@ -67,8 +78,95 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent != null) setIntent(intent);
+        maybeOpenDebugPage(intent);
         deliverAuth(intent);
         deliverWalletReturn(intent);
+    }
+
+    /**
+     * Last callback wins, including Android 13+ predictive back.
+     * Never finish the activity: close an overlay, go back inside the app, or minimize.
+     */
+    private void installSystemBackHandler() {
+        systemBackCallback.remove();
+        systemBackCallback.setEnabled(true);
+        getOnBackPressedDispatcher().addCallback(this, systemBackCallback);
+        if (!backHandlerLogged) {
+            backHandlerLogged = true;
+            android.util.Log.i(WalletLinks.TAG, "back handler installed");
+        }
+    }
+
+    private void onSystemBack() {
+        final WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) {
+            minimizeToBackground();
+            return;
+        }
+        final boolean[] settled = { false };
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final Runnable fallback = () -> {
+            if (settled[0]) return;
+            settled[0] = true;
+            android.util.Log.i(WalletLinks.TAG, "back timeout");
+            applyBackDecision(webView, "");
+        };
+        handler.postDelayed(fallback, 180);
+        webView.evaluateJavascript(
+            "(function(){try{if(window.muzzConsumeBack)return String(window.muzzConsumeBack());}catch(e){}return '';})()",
+            value -> {
+                if (settled[0]) return;
+                settled[0] = true;
+                handler.removeCallbacks(fallback);
+                applyBackDecision(webView, value);
+            }
+        );
+    }
+
+    private void applyBackDecision(WebView webView, String raw) {
+        String action = raw == null ? "" : raw.replace("\"", "").trim();
+        if ("null".equals(action) || "undefined".equals(action)) action = "";
+        if ("closed".equals(action)) {
+            android.util.Log.i(WalletLinks.TAG, "back closed");
+            return;
+        }
+        if ("back".equals(action) || (action.isEmpty() && isInAppHistoryPage(webView) && webView.canGoBack())) {
+            if (webView.canGoBack()) {
+                android.util.Log.i(WalletLinks.TAG, "back history");
+                webView.goBack();
+                return;
+            }
+        }
+        minimizeToBackground();
+    }
+
+    private void minimizeToBackground() {
+        android.util.Log.i(WalletLinks.TAG, "back minimize");
+        moveTaskToBack(true);
+    }
+
+    /** private.html may return to chat. Chat and login stay put and minimize. */
+    private boolean isInAppHistoryPage(WebView webView) {
+        String url = webView.getUrl();
+        if (url == null) return false;
+        int cut = url.indexOf('?');
+        if (cut >= 0) url = url.substring(0, cut);
+        cut = url.indexOf('#');
+        if (cut >= 0) url = url.substring(0, cut);
+        return url.endsWith("/private.html") || url.endsWith("/private");
+    }
+
+    /** Debug builds only: adb can open chat.html when the renderer is not running page scripts. */
+    private void maybeOpenDebugPage(Intent intent) {
+        if (!isDebuggable() || intent == null) return;
+        String page = intent.getStringExtra("muzz_page");
+        if (page == null || !page.matches("[A-Za-z0-9._-]+\\.html")) return;
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) return;
+        intent.removeExtra("muzz_page");
+        String url = "https://localhost/" + page;
+        android.util.Log.i(WalletLinks.TAG, "debug page " + url);
+        webView.post(() -> webView.loadUrl(url));
     }
 
     private void installWalletWebViewClient(WebView webView) {
