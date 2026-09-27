@@ -6,6 +6,7 @@
  */
 (function (global) {
   var PUBLIC_API = 'https://muzzsnap-app.vercel.app';
+  var PUBLIC_VAPID = 'BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew';
   var me = '';
   var arming = false;
   var armed = false;
@@ -168,14 +169,17 @@
       : Notification.requestPermission();
     return Promise.resolve(permit).then(function (permission) {
       if (permission !== 'granted') return null;
-      return fetch(apiBase() + '/api/push-config').then(function (res) { return res.json(); });
+      return fetch(apiBase() + '/api/push-config').then(function (res) {
+        return res.ok ? res.json() : {};
+      }).catch(function () { return {}; });
     }).then(function (cfg) {
-      if (!cfg || !cfg.vapidKey) return false;
+      if (cfg === null) return false;
+      var vapidKey = (cfg && cfg.vapidKey) || PUBLIC_VAPID;
       return loadMessaging().then(function () {
         return navigator.serviceWorker.register('sw.js');
       }).then(function (reg) {
         return firebase.messaging().getToken({
-          vapidKey: cfg.vapidKey,
+          vapidKey: vapidKey,
           serviceWorkerRegistration: reg
         });
       });

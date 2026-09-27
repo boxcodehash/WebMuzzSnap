@@ -12,6 +12,9 @@ import { proveLogin } from './login-proof.js';
 export const NOTIFICATION_TITLE = 'MuzzSnap';
 export const NOTIFICATION_BODY = 'New private message';
 export const PUBLIC_APP = 'https://muzzsnap-app.vercel.app';
+// Public Web Push key from Firebase → Project settings → Cloud Messaging → Web Push certificates.
+// Not a secret. FIREBASE_VAPID_KEY overrides it. The private key stays in Firebase.
+export const PUBLIC_VAPID_KEY = 'BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew';
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60 * 1000;
 
@@ -228,9 +231,14 @@ export async function handleRegisterToken(req, deps = {}) {
   }
 }
 
+export function vapidKey(env) {
+  const fromEnv = String((env && env.FIREBASE_VAPID_KEY) || '').trim();
+  return fromEnv || PUBLIC_VAPID_KEY;
+}
+
 export function handlePushConfig(req, deps = {}) {
   if (req.method === 'OPTIONS') return { status: 204, body: null };
   if (req.method !== 'GET') return fail(405, 'method');
   const env = deps.env || process.env;
-  return { status: 200, body: { vapidKey: String(env.FIREBASE_VAPID_KEY || '').trim() } };
+  return { status: 200, body: { vapidKey: vapidKey(env) } };
 }

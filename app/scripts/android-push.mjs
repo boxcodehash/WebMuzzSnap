@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +21,26 @@ export function stripPluginJson(text) {
   return JSON.stringify(list, null, '\t') + '\n';
 }
 
+export function installGoogleServices(dir = root) {
+  const dest = join(dir, 'android', 'app', 'google-services.json');
+  if (googleServicesPresent(dir)) return dest;
+  const candidates = [
+    join(dir, '..', 'uploads', 'google-services.json'),
+    join(dir, 'uploads', 'google-services.json')
+  ];
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    const text = readFileSync(file, 'utf8');
+    if (!text.trim().startsWith('{')) continue;
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, text.endsWith('\n') ? text : text + '\n');
+    return dest;
+  }
+  return '';
+}
+
 export function applyAndroidPush(dir = root) {
+  installGoogleServices(dir);
   if (googleServicesPresent(dir)) return 'fcm';
   for (const file of [
     join(dir, 'android', 'capacitor.settings.gradle'),

@@ -222,21 +222,25 @@ No firmes este APK de debug para Play Store. Para una release hace falta una key
 
 FCM es gratis en el plan Spark. **No** hace falta una Cloud Function ni el plan Blaze. El envío es una función de Vercel en el proyecto **muzzsnap-app** (Root Directory `app`): `POST /api/notify`. El cliente la llama después de guardar el privado. El cuerpo es solo `{ "to": "0x…" }`. El texto del aviso es siempre `New private message`. No se manda el mensaje.
 
-La función comprueba el ID token de Firebase (el uid es la wallet), que existan las dos entradas de `privateIndex`, un límite de 20 por minuto, los tokens en `fcmTokens/{destinatario}` y llama a FCM HTTP v1. La cuenta de servicio sale de la variable de Vercel `FIREBASE_SERVICE_ACCOUNT`. No va en el repo ni en el cliente.
+La función comprueba el ID token de Firebase (el uid es la wallet), que existan las dos entradas de `privateIndex`, un límite de 20 por minuto, los tokens en `fcmTokens/{destinatario}` y llama a FCM HTTP v1. `api/notify.js` le pasa `process.env`. La cuenta de servicio es **solo** `process.env.FIREBASE_SERVICE_ACCOUNT` (el JSON entero). Ya está como variable sensible en el proyecto de Vercel **muzzsnap-app** (Production y Preview). No va en git, ni en el cliente, ni en `www.zip`.
 
-Hasta que esa variable exista, `/api/session` responde 503 y el chat sigue con el acceso anónimo de ahora. Los avisos con la app abierta siguen. Con el proceso muerto no hay push hasta tener estas tres cosas.
+`/api` no usa Cloud Functions, `firebase-admin` ni `google-auth-library`. El `crypto` de Node firma el token de Google. La única dependencia npm de las funciones es `ethers`. La clave pública Web Push va en el cliente y en `GET /api/push-config`. `FIREBASE_VAPID_KEY` la sustituye si la defines. La clave privada se queda en Firebase.
 
 Pega `rtdb.fcm.rules.snippet.json` **dentro de las reglas que ya hay** (consola de Firebase → Realtime Database → Rules). Añade `fcmTokens`, `notifyRate` y `loginNonces`. No sustituyas el archivo entero ni lo pongas en `firebase.json`: desplegarlo como reglas completas cerraría el chat. Si la raíz ya tiene `.write: true`, un hijo no puede quitar ese permiso.
 
-`npm run android:debug` incluye `@capacitor/push-notifications` solo si existe `android/app/google-services.json`. Sin ese archivo el APK sigue con las notificaciones locales y arranca igual. Sirven con la app viva, no con el proceso cerrado.
+`npm run android:debug` incluye `@capacitor/push-notifications` cuando existe `android/app/google-services.json` (paquete `app.muzzsnap.chat`, proyecto `pulsari`). Ese archivo es la config del cliente Android, no la cuenta de servicio. Sin él el APK sigue con notificaciones locales y arranca igual. Con el proceso cerrado, FCM solo llega en un APK compilado con ese archivo. Hay que abrir la app una vez para guardar el token del dispositivo.
 
-### Qué hay que descargar
+### Desplegar el zip (lo haces tú)
 
-1. **JSON de la cuenta de servicio** → consola de Firebase → proyecto **pulsari** → engranaje **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. El JSON entero va en Vercel → **muzzsnap-app** → Settings → Environment Variables → `FIREBASE_SERVICE_ACCOUNT` (Production). No lo subas a git. Si FCM dice que la API está apagada, en Google Cloud → APIs y servicios activa **Firebase Cloud Messaging API** en `pulsari`.
-2. **Clave pública Web Push** → Configuración del proyecto → **Cloud Messaging** → **Certificados de Web Push** → **Generar par de claves**. Copia el **par de claves** público a Vercel como `FIREBASE_VAPID_KEY`. La clave privada se queda en Firebase. La página la pide a `GET /api/push-config`.
-3. **google-services.json** → Configuración del proyecto → **Tus apps** → **Añadir app** → Android → paquete `app.muzzsnap.chat` → descarga `google-services.json` → guárdalo en `app/android/app/google-services.json` (está en gitignore). Vuelve a ejecutar `npm run android:debug`. Ese APK nuevo es el que recibe FCM con la app cerrada.
+`www.zip` es un proyecto de Vercel, no una carpeta estática. Descomprímelo y, en esa carpeta:
 
-Activa también **Authentication** en `pulsari` (Authentication → Comenzar). La sesión firma un custom token; no crea una Cloud Function.
+```bash
+vercel deploy --prod
+```
+
+Lleva `api/`, `server/`, `www/`, `vercel.json` y un `package.json` cuya única dependencia es `ethers`. Vercel ejecuta `npm install`. El sitio sale de `www`. No metas la cuenta de servicio en la carpeta: Vercel ya tiene `FIREBASE_SERVICE_ACCOUNT`.
+
+Activa **Authentication** en `pulsari` si aún no está. La sesión firma un custom token; no crea una Cloud Function.
 
 ## 8. Qué revisar después del primer despliegue
 

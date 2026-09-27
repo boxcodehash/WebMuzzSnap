@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -10,6 +10,7 @@ import { resetGoogleCaches, signJwt, tokenId } from '../server/google.js';
 import { proveLogin } from '../server/login-proof.js';
 import {
   NOTIFICATION_BODY,
+  PUBLIC_VAPID_KEY,
   buildFcmMessage,
   handleNotify,
   handlePushConfig,
@@ -17,7 +18,8 @@ import {
   handleSession,
   nextRate
 } from '../server/push.js';
-import { applyAndroidPush, googleServicesPresent, stripGradlePush, stripPluginJson } from '../scripts/android-push.mjs';
+import { applyAndroidPush, googleServicesPresent, installGoogleServices, stripGradlePush, stripPluginJson } from '../scripts/android-push.mjs';
+import { SLIM_PACKAGE, stageVercelProject } from '../scripts/pack-vercel.mjs';
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const privatePem = privateKey.export({ type: 'pkcs8', format: 'pem' });
@@ -262,6 +264,9 @@ test('session proof, notify, register, and push config', async () => {
   assert.deepEqual(Object.keys(config.body), ['vapidKey']);
   assert.equal(config.body.vapidKey, 'public-vapid-key');
   assert.equal(JSON.stringify(config.body).includes('PRIVATE'), false);
+  const fallback = handlePushConfig({ method: 'GET', headers: {} }, { env: {} });
+  assert.equal(fallback.body.vapidKey, PUBLIC_VAPID_KEY);
+  assert.equal(fallback.body.vapidKey.startsWith('BD4Waq9'), true);
 });
 
 test('clients, rules, and the Android fallback do not ship the service account', () => {
@@ -272,7 +277,11 @@ test('clients, rules, and the Android fallback do not ship the service account',
     assert.doesNotMatch(source, /FIREBASE_SERVICE_ACCOUNT|BEGIN PRIVATE KEY|text:/);
     assert.match(source, /\/api\/notify/);
     assert.match(source, /muzzsnap-app\.vercel\.app/);
+    assert.match(source, /BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew/);
   }
+  const notifyFn = readFileSync(new URL('../api/notify.js', import.meta.url), 'utf8');
+  assert.match(notifyFn, /process\.env\.FIREBASE_SERVICE_ACCOUNT/);
+  assert.match(notifyFn, /env: process\.env/);
   for (const file of ['www/private.html', 'www/chat.html']) {
     const html = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.match(html, /fcm-client\.js/);
@@ -317,4 +326,26 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.equal(readFileSync(join(dir, 'android', 'capacitor.settings.gradle'), 'utf8').includes('push-notifications'), false);
   writeFileSync(join(dir, 'android', 'app', 'google-services.json'), '{ "project_id": "pulsari" }\n');
   assert.equal(applyAndroidPush(dir), 'fcm');
+  const uploaded = mkdtempSync(join(tmpdir(), 'muzz-up-'));
+  mkdirSync(join(uploaded, 'uploads'), { recursive: true });
+  const services = JSON.stringify({
+    project_info: { project_id: 'pulsari' },
+    client: [{ client_info: { android_client_info: { package_name: 'app.muzzsnap.chat' } } }]
+  });
+  writeFileSync(join(uploaded, 'uploads', 'google-services.json'), services);
+  const appDir = join(uploaded, 'app');
+  mkdirSync(join(appDir, 'android', 'app'), { recursive: true });
+  assert.equal(installGoogleServices(appDir).endsWith('google-services.json'), true);
+  const saved = JSON.parse(readFileSync(join(appDir, 'android', 'app', 'google-services.json'), 'utf8'));
+  assert.equal(saved.project_info.project_id, 'pulsari');
+  assert.equal(saved.client[0].client_info.android_client_info.package_name, 'app.muzzsnap.chat');
+  const staged = stageVercelProject(join(uploaded, 'stage'));
+  const slim = JSON.parse(readFileSync(join(staged, 'package.json'), 'utf8'));
+  assert.equal(slim.dependencies.ethers, SLIM_PACKAGE.dependencies.ethers);
+  assert.equal(slim.type, 'module');
+  assert.equal(readFileSync(join(staged, 'api', 'notify.js'), 'utf8').includes('process.env.FIREBASE_SERVICE_ACCOUNT'), true);
+  assert.equal(readFileSync(join(staged, 'www', 'js', 'fcm-client.js'), 'utf8').includes(PUBLIC_VAPID_KEY), true);
+  assert.equal(existsSync(join(staged, 'www', 'config.local.json')), false);
+  assert.equal(existsSync(join(staged, 'www', 'js', 'app.js')), false);
+  assert.equal(readFileSync(join(staged, 'vercel.json'), 'utf8').includes('"outputDirectory": "www"'), true);
 });
