@@ -71,6 +71,13 @@ test('iPhone home screen tags, 16px inputs, and WalletConnect return links', () 
   const sw = readFileSync(new URL('../www/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /addEventListener\('push'/);
   assert.match(sw, /New private message/);
+  assert.match(sw, /skipWaiting/);
+  assert.match(sw, /clients\.claim/);
+  assert.match(sw, /muzz-sw-update/);
+  assert.match(ios, /New version, tap to reload/);
+  assert.match(ios, /removeChild/);
+  assert.match(ios, /nativeApp\(\)/);
+  assert.match(readFileSync(new URL('../www/css/ios-pwa.css', import.meta.url), 'utf8'), /#muzzUpdateBar\[hidden\]/);
   const gate = loadGate();
   const links = gate.walletConnectDeepLinks('wc:abc');
   const names = Array.from(links, (item) => String(item.name)).sort();

@@ -35,6 +35,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WalletLinkPlugin.class);
         super.onCreate(savedInstanceState);
         installSystemBackHandler();
+        UpdateChecker.onForeground(this);
         if (getBridge() == null || getBridge().getWebView() == null) return;
         WebView webView = getBridge().getWebView();
         installWalletWebViewClient(webView);
@@ -72,6 +73,13 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         installSystemBackHandler();
         if (WalletLinks.consumeReturn()) notifyWalletReturn();
+        UpdateChecker.onForeground(this);
+    }
+
+    @Override
+    public void onPause() {
+        UpdateChecker.onPause();
+        super.onPause();
     }
 
     @Override
@@ -81,6 +89,7 @@ public class MainActivity extends BridgeActivity {
         maybeOpenDebugPage(intent);
         deliverAuth(intent);
         deliverWalletReturn(intent);
+        UpdateChecker.onForeground(this);
     }
 
     /**

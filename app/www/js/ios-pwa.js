@@ -259,7 +259,46 @@
   }
 
   if ('serviceWorker' in navigator && !nativeApp()) {
+    var hadWorker = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadWorker) {
+        hadWorker = true;
+        return;
+      }
+      showWebUpdateBar();
+    });
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      var data = event.data || {};
+      if (data.type === 'muzz-sw-update' && hadWorker) showWebUpdateBar();
+    });
     navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+
+  function showWebUpdateBar() {
+    if (nativeApp() || document.getElementById('muzzUpdateBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'muzzUpdateBar';
+    bar.setAttribute('role', 'status');
+    var reload = document.createElement('button');
+    reload.type = 'button';
+    reload.textContent = 'New version, tap to reload';
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '\u00d7';
+    function dismiss(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      bar.hidden = true;
+      if (bar.parentNode) bar.parentNode.removeChild(bar);
+    }
+    close.addEventListener('click', dismiss);
+    reload.addEventListener('click', function () { location.reload(); });
+    bar.appendChild(reload);
+    bar.appendChild(close);
+    (document.body || document.documentElement).appendChild(bar);
   }
 
   global.MuzzIos = {

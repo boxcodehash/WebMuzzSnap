@@ -1,4 +1,4 @@
-const CACHE = 'muzzsnap-app-v9';
+const CACHE = 'muzzsnap-app-v10';
 const SHELL = [
   './',
   './index.html',
@@ -21,6 +21,10 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: 'muzz-sw-update' }));
+      })
   );
 });
 
