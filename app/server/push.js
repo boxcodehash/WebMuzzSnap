@@ -46,8 +46,10 @@ export function nextRate(prev, now, limit = RATE_LIMIT, windowMs = RATE_WINDOW_M
 export function buildFcmMessage({ token, peer, platform }) {
   const body = NOTIFICATION_BODY;
   const title = NOTIFICATION_TITLE;
+  const wallet = String(peer || '').toLowerCase();
   const data = {
-    peer: String(peer || '').toLowerCase(),
+    peer: /^0x[a-f0-9]{40}$/.test(wallet) ? wallet : '',
+    open: 'private.html',
     title,
     body
   };
@@ -59,12 +61,19 @@ export function buildFcmMessage({ token, peer, platform }) {
         data,
         android: {
           priority: 'HIGH',
-          notification: { channel_id: 'private' }
+          notification: {
+            channel_id: 'private',
+            icon: 'ic_stat_muzzsnap',
+            notification_priority: 'PRIORITY_HIGH',
+            visibility: 'PRIVATE'
+          }
         }
       }
     };
   }
-  const link = PUBLIC_APP + '/private.html?peer=' + encodeURIComponent(data.peer);
+  const link = data.peer
+    ? PUBLIC_APP + '/private.html?peer=' + encodeURIComponent(data.peer)
+    : PUBLIC_APP + '/private.html';
   return {
     message: {
       token,
@@ -148,28 +157,49 @@ export async function handleNotify(req, deps = {}) {
     const mine = await rtdb(fetchImpl, 'GET', env, 'privateIndex/' + sender + '/' + recipient, access, undefined, { shallow: 'true' });
     const theirs = await rtdb(fetchImpl, 'GET', env, 'privateIndex/' + recipient + '/' + sender, access, undefined, { shallow: 'true' });
     if (!indexExists(mine) || !indexExists(theirs)) return fail(403, 'not_a_conversation');
-    const prev = await rtdb(fetchImpl, 'GET', env, 'notifyRate/' + sender, access);
-    const rate = nextRate(prev, req.now || Date.now());
-    if (!rate.allowed) return fail(429, 'rate_limited');
-    await rtdb(fetchImpl, 'PUT', env, 'notifyRate/' + sender, access, {
-      windowStart: rate.windowStart,
-      count: rate.count
-    });
-    const stored = await rtdb(fetchImpl, 'GET', env, 'fcmTokens/' + recipient, access);
-    const rows = stored && typeof stored === 'object' ? Object.entries(stored) : [];
-    let sent = 0;
-    for (const [id, row] of rows) {
-      if (!row || typeof row.token !== 'string' || !row.token) continue;
-      const platform = row.platform === 'android' ? 'android' : 'web';
-      const payload = buildFcmMessage({ token: row.token, peer: sender, platform });
-      const result = await sendFcm(account.project_id, access, payload, fetchImpl);
-      if (result.unregistered && /^[a-f0-9]{32}$/.test(id)) {
-        await rtdb(fetchImpl, 'DELETE', env, 'fcmTokens/' + recipient + '/' + id, access);
-      } else if (result.ok) {
-        sent += 1;
-      }
+    return await deliver(fetchImpl, env, access, account, sender, recipient, sender, req.now);
+  } catch {
+    return fail(502, 'push_failed');
+  }
+}
+
+async function deliver(fetchImpl, env, access, account, rateWallet, tokenWallet, peer, now) {
+  const prev = await rtdb(fetchImpl, 'GET', env, 'notifyRate/' + rateWallet, access);
+  const rate = nextRate(prev, now || Date.now());
+  if (!rate.allowed) return fail(429, 'rate_limited');
+  await rtdb(fetchImpl, 'PUT', env, 'notifyRate/' + rateWallet, access, {
+    windowStart: rate.windowStart,
+    count: rate.count
+  });
+  const stored = await rtdb(fetchImpl, 'GET', env, 'fcmTokens/' + tokenWallet, access);
+  const rows = stored && typeof stored === 'object' ? Object.entries(stored) : [];
+  let sent = 0;
+  for (const [id, row] of rows) {
+    if (!row || typeof row.token !== 'string' || !row.token) continue;
+    const platform = row.platform === 'android' ? 'android' : 'web';
+    const payload = buildFcmMessage({ token: row.token, peer, platform });
+    const result = await sendFcm(account.project_id, access, payload, fetchImpl);
+    if (result.unregistered && /^[a-f0-9]{32}$/.test(id)) {
+      await rtdb(fetchImpl, 'DELETE', env, 'fcmTokens/' + tokenWallet + '/' + id, access);
+    } else if (result.ok) {
+      sent += 1;
     }
-    return { status: 200, body: { ok: true, sent } };
+  }
+  return { status: 200, body: { ok: true, sent } };
+}
+
+export async function handleNotifySelf(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const env = deps.env || process.env;
+  const fetchImpl = deps.fetchImpl || fetch;
+  const account = loadServiceAccount(env);
+  if (!account) return fail(503, 'push_not_configured');
+  const sender = await senderWallet(req, account, fetchImpl);
+  if (!sender) return fail(401, 'unauthorized');
+  try {
+    const access = await getGoogleAccessToken(account, fetchImpl, req.now);
+    return await deliver(fetchImpl, env, access, account, sender, sender, '', req.now);
   } catch {
     return fail(502, 'push_failed');
   }

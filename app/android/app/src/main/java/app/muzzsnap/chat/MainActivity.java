@@ -32,10 +32,13 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        PushAlerts.ensureChannel(this);
         registerPlugin(WalletLinkPlugin.class);
         super.onCreate(savedInstanceState);
         installSystemBackHandler();
         UpdateChecker.onForeground(this);
+        PushAlerts.askPermission(this);
+        PushAlerts.fetchToken(this);
         if (getBridge() == null || getBridge().getWebView() == null) return;
         WebView webView = getBridge().getWebView();
         installWalletWebViewClient(webView);
@@ -49,6 +52,7 @@ public class MainActivity extends BridgeActivity {
         });
         probeWebViewLoads(webView);
         maybeOpenDebugPage(getIntent());
+        PushAlerts.openFromTap(this, getIntent());
         getBridge().addWebViewListener(new WebViewListener() {
             @Override
             public void onPageStarted(WebView view) {
@@ -59,6 +63,7 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onPageLoaded(WebView view) {
                 view.evaluateJavascript(WalletLinks.OPEN_HOOK, null);
+                PushAlerts.inject(MainActivity.this);
             }
 
             @Override
@@ -74,6 +79,7 @@ public class MainActivity extends BridgeActivity {
         installSystemBackHandler();
         if (WalletLinks.consumeReturn()) notifyWalletReturn();
         UpdateChecker.onForeground(this);
+        PushAlerts.refresh(this);
     }
 
     @Override
@@ -90,6 +96,7 @@ public class MainActivity extends BridgeActivity {
         deliverAuth(intent);
         deliverWalletReturn(intent);
         UpdateChecker.onForeground(this);
+        PushAlerts.openFromTap(this, intent);
     }
 
     /**

@@ -475,6 +475,8 @@
       const [mutePanel, setMutePanel] = useState(false);
       const [notice, setNotice] = useState({show:false,title:"",desc:"",tone:"red"});
       const [nowTick, setNowTick] = useState(Date.now());
+      const [pushStatus, setPushStatus] = useState('Notifications not granted · no token');
+      const [pushNote, setPushNote] = useState('');
       const bottomRef = useRef(null);
       const presenceRawRef = useRef({});
 
@@ -513,6 +515,26 @@
           return false;
         }
         return true;
+      };
+
+      useEffect(() => {
+        const apply = () => {
+          if (window.MuzzPush && MuzzPush.statusLine) setPushStatus(MuzzPush.statusLine());
+        };
+        apply();
+        window.addEventListener('muzz-push-status', apply);
+        return () => window.removeEventListener('muzz-push-status', apply);
+      }, []);
+
+      const sendTestNotification = () => {
+        if (!window.MuzzPush || !MuzzPush.notifySelf) {
+          setPushNote("Couldn't send the test notification.");
+          return;
+        }
+        MuzzPush.notifySelf().then((ok) => {
+          if (window.MuzzPush && MuzzPush.statusLine) setPushStatus(MuzzPush.statusLine());
+          setPushNote(ok ? 'Test notification sent.' : "Couldn't send the test notification.");
+        });
       };
 
       useEffect(() => {
@@ -962,6 +984,11 @@
               </div>
             </div>
 
+            <p id="muzzPushStatus" data-react="1" role="status" className="text-[11px] text-gray-500 px-1 mt-4 leading-snug">{pushStatus}</p>
+            <button type="button" data-react="1" onClick={sendTestNotification} className="nav-btn">
+              Send test notification
+            </button>
+            {pushNote ? <p className="text-[11px] text-gray-500 px-1">{pushNote}</p> : null}
             <button
               onClick={() => {
                 try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}

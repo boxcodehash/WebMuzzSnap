@@ -13,6 +13,7 @@ import {
   PUBLIC_VAPID_KEY,
   buildFcmMessage,
   handleNotify,
+  handleNotifySelf,
   handlePushConfig,
   handleRegisterToken,
   handleSession,
@@ -109,7 +110,13 @@ test('notification text is fixed and message text is ignored', () => {
   const web = buildFcmMessage({ token: 'abc', peer: '0x' + 'a'.repeat(40), platform: 'web', text: SECRET });
   const android = buildFcmMessage({ token: 'abc', peer: '0x' + 'b'.repeat(40), platform: 'android', text: SECRET });
   assert.equal(web.message.data.body, NOTIFICATION_BODY);
+  assert.equal(android.message.notification.title, 'MuzzSnap');
   assert.equal(android.message.notification.body, NOTIFICATION_BODY);
+  assert.equal(android.message.android.priority, 'HIGH');
+  assert.equal(android.message.android.notification.channel_id, 'private');
+  assert.equal(android.message.android.notification.icon, 'ic_stat_muzzsnap');
+  assert.equal(android.message.android.notification.notification_priority, 'PRIORITY_HIGH');
+  assert.equal(android.message.data.open, 'private.html');
   assert.equal(web.message.notification, undefined);
   assert.equal(JSON.stringify(web).includes(SECRET), false);
   assert.equal(JSON.stringify(android).includes(SECRET), false);
@@ -260,6 +267,43 @@ test('session proof, notify, register, and push config', async () => {
   assert.equal(db['fcmTokens/' + recipientWallet + '/' + tokenId(webToken)].platform, 'web');
   assert.equal(db['fcmTokens/' + senderWallet + '/' + tokenId(webToken)], undefined);
 
+  const selfDenied = await handleNotifySelf(
+    {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + token },
+      body: { to: recipientWallet, text: SECRET },
+      now
+    },
+    { env, fetchImpl }
+  );
+  assert.equal(selfDenied.status, 200);
+  assert.equal(selfDenied.body.sent, 0);
+  const ownToken = 'android-self-token-1234567890';
+  db['fcmTokens/' + senderWallet] = {
+    [tokenId(ownToken)]: { token: ownToken, platform: 'android', updatedAt: 1 }
+  };
+  const before = calls.filter((call) => call.url.startsWith('https://fcm.googleapis.com/')).length;
+  const selfSent = await handleNotifySelf(
+    {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + token },
+      body: { to: recipientWallet, text: SECRET },
+      now: now + 60_000
+    },
+    { env, fetchImpl }
+  );
+  assert.equal(selfSent.status, 200);
+  assert.equal(selfSent.body.sent, 1);
+  const selfCalls = calls.filter((call) => call.url.startsWith('https://fcm.googleapis.com/')).slice(before);
+  assert.equal(selfCalls.length, 1);
+  const selfBody = JSON.parse(selfCalls[0].body);
+  assert.equal(selfBody.message.token, ownToken);
+  assert.equal(selfBody.message.notification.body, NOTIFICATION_BODY);
+  assert.equal(selfBody.message.android.priority, 'HIGH');
+  assert.equal(selfBody.message.android.notification.channel_id, 'private');
+  assert.equal(JSON.stringify(selfBody).includes(SECRET), false);
+  assert.equal(JSON.stringify(selfBody).includes(recipientWallet), false);
+
   const config = handlePushConfig({ method: 'GET', headers: {} }, { env });
   assert.deepEqual(Object.keys(config.body), ['vapidKey']);
   assert.equal(config.body.vapidKey, 'public-vapid-key');
@@ -276,6 +320,10 @@ test('clients, rules, and the Android fallback do not ship the service account',
     assert.match(source, /JSON\.stringify\(\{ to: peer \}\)/);
     assert.doesNotMatch(source, /FIREBASE_SERVICE_ACCOUNT|BEGIN PRIVATE KEY|text:/);
     assert.match(source, /\/api\/notify/);
+    assert.match(source, /\/api\/notify-self/);
+    assert.match(source, /\/api\/register-token/);
+    assert.match(source, /statusLine/);
+    assert.match(source, /__muzzNativeFcmToken/);
     assert.match(source, /muzzsnap-app\.vercel\.app/);
     assert.match(source, /BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew/);
   }
@@ -291,6 +339,23 @@ test('clients, rules, and the Android fallback do not ship the service account',
   const rootPrivate = readFileSync(new URL('../../private.html', import.meta.url), 'utf8');
   assert.match(appPrivate, /MuzzPush\.notify\(activeWallet\)/);
   assert.match(rootPrivate, /MuzzPush\.notify\(activeWallet\)/);
+  assert.match(appPrivate, /Send test notification/);
+  assert.match(appPrivate, /id="muzzPushStatus"/);
+  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Send test notification/);
+  const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+  assert.match(manifest, /POST_NOTIFICATIONS/);
+  assert.match(manifest, /default_notification_icon/);
+  assert.match(manifest, /ic_stat_muzzsnap/);
+  assert.match(manifest, /default_notification_channel_id/);
+  assert.match(manifest, /android:name="\.MuzzApp"/);
+  const icon = readFileSync(new URL('../android/app/src/main/res/drawable/ic_stat_muzzsnap.xml', import.meta.url), 'utf8');
+  assert.match(icon, /#FFFFFF/);
+  const alerts = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/PushAlerts.java', import.meta.url), 'utf8');
+  assert.match(alerts, /IMPORTANCE_HIGH/);
+  assert.match(alerts, /POST_NOTIFICATIONS/);
+  assert.match(alerts, /fcm token obtained/);
+  assert.match(alerts, /https:\/\/localhost\/private\.html/);
+  assert.match(readFileSync(new URL('../api/notify-self.js', import.meta.url), 'utf8'), /handleNotifySelf/);
   for (const file of ['www/sw.js', '../sw.js']) {
     const sw = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.match(sw, /body: 'New private message'/);

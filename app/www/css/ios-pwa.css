@@ -293,6 +293,8 @@ html.muzz-fs-on .muzz-fs { display: inline-flex; align-items: center; }
   font: 700 14px/1.3 system-ui, -apple-system, Segoe UI, sans-serif;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
+#muzzPushStatus { margin: 8px 2px 0; line-height: 1.35; }
+#muzzPushTestResult[hidden] { display: none !important; }
 #muzzTranslateError[hidden] {
   display: none !important;
 }
