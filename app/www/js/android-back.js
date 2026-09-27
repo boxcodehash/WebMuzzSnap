@@ -72,6 +72,13 @@
     return click(document.querySelector('.people-btn'));
   }
 
+  window.muzzCheckUpdates = function () {
+    var Cap = window.Capacitor;
+    if (!Cap || typeof Cap.isNativePlatform !== 'function' || !Cap.isNativePlatform()) return;
+    if (typeof Cap.registerPlugin !== 'function') return;
+    try { Cap.registerPlugin('WalletLink').checkUpdate(); } catch (err) { /* plugin not ready */ }
+  };
+
   window.muzzConsumeBack = function muzzConsumeBack() {
     try {
       if (walletModalOpen()) {

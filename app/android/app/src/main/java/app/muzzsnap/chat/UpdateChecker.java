@@ -2,12 +2,12 @@ package app.muzzsnap.chat;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.pm.PackageInfoCompat;
 import java.io.ByteArrayOutputStream;
@@ -18,39 +18,75 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 
-/** Asks Android users to install a newer APK. Offline failures stay quiet. */
+/**
+ * Asks Android users to install a newer APK. The dialog is on the activity,
+ * so it shows on the login screen as well as chat. Offline failures stay quiet
+ * unless the user tapped Check for updates.
+ */
 public final class UpdateChecker {
     public static final String VERSION_URL = "https://muzzsnap-apk-dl.vercel.app/version.json";
-    private static final long INTERVAL_MS = 4L * 60L * 60L * 1000L;
+    private static final long DEBOUNCE_MS = 30_000L;
     private static final int MAX_BODY = 65536;
     private static final AtomicBoolean inFlight = new AtomicBoolean(false);
     private static AlertDialog dialog;
     private static boolean laterDismissed = false;
     private static boolean resumeAfterLater = false;
+    private static final int MAX_FOCUS_WAITS = 24;
+    private static long lastFetchAt = 0L;
+    private static JSONObject pending = null;
+    private static boolean announceCurrent = false;
+    private static int focusWaits = 0;
 
     private UpdateChecker() {}
 
     public static void onForeground(Activity activity) {
+        check(activity, false);
+    }
+
+    /** Menu item. Always hits the network and says so when this build is current. */
+    public static void checkNow(Activity activity) {
+        check(activity, true);
+    }
+
+    private static void check(Activity activity, boolean manual) {
         if (activity == null || activity.isFinishing()) return;
-        if (laterDismissed && !resumeAfterLater) return;
-        if (resumeAfterLater) {
+        if (manual) {
+            laterDismissed = false;
+            resumeAfterLater = false;
+            announceCurrent = true;
+            android.util.Log.i(WalletLinks.TAG, "update manual");
+        } else if (laterDismissed && !resumeAfterLater) {
+            return;
+        } else if (resumeAfterLater) {
             laterDismissed = false;
             resumeAfterLater = false;
         }
         String url = resolveUrl(activity);
         boolean debugUrl = !VERSION_URL.equals(url);
-        if (!debugUrl && cacheIsFresh(activity)) {
-            present(activity, cachedManifest(activity));
+        long now = SystemClock.elapsedRealtime();
+        boolean debounced = !manual && !debugUrl && lastFetchAt > 0L && now - lastFetchAt < DEBOUNCE_MS;
+        if (debounced) {
+            android.util.Log.i(WalletLinks.TAG, "update debounce");
+            if (pending != null) present(activity, pending, announceCurrent);
             return;
         }
-        if (!inFlight.compareAndSet(false, true)) return;
+        if (!inFlight.compareAndSet(false, true)) {
+            if (manual) announceCurrent = true;
+            return;
+        }
+        lastFetchAt = now;
+        focusWaits = 0;
+        android.util.Log.i(WalletLinks.TAG, "update check");
         new Thread(() -> {
             try {
                 JSONObject json = new JSONObject(httpGet(url));
-                if (!debugUrl) remember(activity, json);
-                new Handler(Looper.getMainLooper()).postDelayed(() -> present(activity, json), 400);
+                pending = json;
+                new Handler(Looper.getMainLooper()).post(() -> present(activity, json, announceCurrent));
             } catch (Exception err) {
                 android.util.Log.i(WalletLinks.TAG, "update skip");
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (announceCurrent) showNote(activity, "Couldn't check for updates.");
+                });
             } finally {
                 inFlight.set(false);
             }
@@ -59,6 +95,14 @@ public final class UpdateChecker {
 
     public static void onPause() {
         if (laterDismissed) resumeAfterLater = true;
+    }
+
+    /** Cold start often finishes the fetch before the window is focused. */
+    public static void onWindowReady(Activity activity) {
+        if (activity == null || !activity.hasWindowFocus() || pending == null) return;
+        if (dialog != null && dialog.isShowing()) return;
+        focusWaits = 0;
+        present(activity, pending, announceCurrent);
     }
 
     private static String resolveUrl(Activity activity) {
@@ -70,50 +114,33 @@ public final class UpdateChecker {
         return VERSION_URL;
     }
 
-    private static SharedPreferences prefs(Activity activity) {
-        return activity.getSharedPreferences("muzz_update", Activity.MODE_PRIVATE);
-    }
-
-    private static boolean cacheIsFresh(Activity activity) {
-        long checkedAt = prefs(activity).getLong("checkedAt", 0L);
-        return checkedAt > 0 && System.currentTimeMillis() - checkedAt < INTERVAL_MS
-            && prefs(activity).contains("versionCode");
-    }
-
-    private static JSONObject cachedManifest(Activity activity) {
-        SharedPreferences prefs = prefs(activity);
-        JSONObject json = new JSONObject();
-        try {
-            json.put("versionCode", prefs.getInt("versionCode", 0));
-            json.put("versionName", prefs.getString("versionName", ""));
-            json.put("apkUrl", prefs.getString("apkUrl", ""));
-            json.put("notes", prefs.getString("notes", ""));
-            json.put("force", prefs.getBoolean("force", false));
-        } catch (Exception ignored) {
-            /* present() treats a bad cache as no update */
-        }
-        return json;
-    }
-
-    private static void remember(Activity activity, JSONObject json) {
-        prefs(activity).edit()
-            .putLong("checkedAt", System.currentTimeMillis())
-            .putInt("versionCode", json.optInt("versionCode", 0))
-            .putString("versionName", json.optString("versionName", ""))
-            .putString("apkUrl", json.optString("apkUrl", ""))
-            .putString("notes", json.optString("notes", ""))
-            .putBoolean("force", json.optBoolean("force", false))
-            .apply();
-    }
-
-    private static void present(Activity activity, JSONObject json) {
+    private static void present(Activity activity, JSONObject json, boolean announce) {
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        if (!activity.hasWindowFocus()) {
+            pending = json;
+            if (announce) announceCurrent = true;
+            if (focusWaits == 0) android.util.Log.i(WalletLinks.TAG, "update wait");
+            if (focusWaits < MAX_FOCUS_WAITS) {
+                focusWaits++;
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (activity.isFinishing() || activity.isDestroyed() || pending == null) return;
+                    if (dialog != null && dialog.isShowing()) return;
+                    present(activity, pending, announceCurrent);
+                }, 500);
+            }
+            return;
+        }
+        if (dialog != null && dialog.isShowing()) return;
+        focusWaits = 0;
+        announceCurrent = false;
         int remote = json == null ? 0 : json.optInt("versionCode", 0);
         long installed = installedCode(activity);
         android.util.Log.i(WalletLinks.TAG, "update remote=" + remote + " installed=" + installed);
         if (remote <= installed) {
+            pending = null;
             dismissDialog();
             android.util.Log.i(WalletLinks.TAG, "update current");
+            if (announce) showNote(activity, "You're up to date (v" + installedName(activity, json) + ")");
             return;
         }
         String name = json.optString("versionName", "").trim();
@@ -122,6 +149,7 @@ public final class UpdateChecker {
         if (notes.length() > 400) notes = notes.substring(0, 400);
         String apk = json.optString("apkUrl", "").trim();
         if (!apk.startsWith("https://") && !apk.startsWith("http://")) {
+            pending = null;
             android.util.Log.i(WalletLinks.TAG, "update skip");
             return;
         }
@@ -146,6 +174,7 @@ public final class UpdateChecker {
                 dialog.setCancelable(false);
                 dialog.setCanceledOnTouchOutside(false);
             }
+            pending = null;
             dialog.show();
             if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setAllCaps(false);
@@ -157,6 +186,41 @@ public final class UpdateChecker {
         } catch (Exception err) {
             android.util.Log.i(WalletLinks.TAG, "update skip");
         }
+    }
+
+    private static void showNote(Activity activity, String message) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed() || message == null) return;
+        announceCurrent = false;
+        pending = null;
+        dismissDialog();
+        try {
+            dialog = new AlertDialog.Builder(activity)
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .create();
+            dialog.show();
+            if (dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setAllCaps(false);
+            }
+            android.util.Log.i(WalletLinks.TAG, "update note");
+        } catch (Exception err) {
+            android.util.Log.i(WalletLinks.TAG, "update skip");
+        }
+    }
+
+    private static String installedName(Activity activity, JSONObject json) {
+        try {
+            PackageInfo info = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0);
+            String name = info.versionName == null ? "" : info.versionName.trim();
+            if (name.startsWith("v") || name.startsWith("V")) name = name.substring(1);
+            if (!name.isEmpty()) return name;
+        } catch (Exception ignored) {
+            /* fall through to the remote name */
+        }
+        String remote = json == null ? "" : json.optString("versionName", "").trim();
+        if (remote.startsWith("v") || remote.startsWith("V")) remote = remote.substring(1);
+        if (!remote.isEmpty()) return remote;
+        return String.valueOf(installedCode(activity));
     }
 
     private static void dismissDialog() {

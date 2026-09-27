@@ -36,6 +36,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WalletLinkPlugin.class);
         super.onCreate(savedInstanceState);
         installSystemBackHandler();
+        maybeManualUpdate(getIntent());
         UpdateChecker.onForeground(this);
         PushAlerts.askPermission(this);
         PushAlerts.fetchToken(this);
@@ -83,6 +84,12 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) UpdateChecker.onWindowReady(this);
+    }
+
+    @Override
     public void onPause() {
         UpdateChecker.onPause();
         super.onPause();
@@ -95,6 +102,7 @@ public class MainActivity extends BridgeActivity {
         maybeOpenDebugPage(intent);
         deliverAuth(intent);
         deliverWalletReturn(intent);
+        maybeManualUpdate(intent);
         UpdateChecker.onForeground(this);
         PushAlerts.openFromTap(this, intent);
     }
@@ -170,6 +178,15 @@ public class MainActivity extends BridgeActivity {
         cut = url.indexOf('#');
         if (cut >= 0) url = url.substring(0, cut);
         return url.endsWith("/private.html") || url.endsWith("/private");
+    }
+
+    /** Debug builds only: adb can ask for the "You're up to date" result. */
+    private void maybeManualUpdate(Intent intent) {
+        if (!isDebuggable() || intent == null) return;
+        String flag = intent.getStringExtra("muzz_update_manual");
+        if (!"1".equals(flag)) return;
+        intent.removeExtra("muzz_update_manual");
+        UpdateChecker.checkNow(this);
     }
 
     /** Debug builds only: adb can open chat.html when the renderer is not running page scripts. */

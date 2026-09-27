@@ -22,6 +22,12 @@ public class WalletLinkPlugin extends Plugin {
         call.resolve();
     }
 
+    @PluginMethod
+    public void checkUpdate(PluginCall call) {
+        UpdateChecker.checkNow(getActivity());
+        call.resolve();
+    }
+
     @Override
     public Boolean shouldOverrideLoad(Uri url) {
         if (url == null) return null;

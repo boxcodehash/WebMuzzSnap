@@ -988,6 +988,9 @@
             <button type="button" data-react="1" onClick={sendTestNotification} className="nav-btn">
               Send test notification
             </button>
+            <button type="button" className="nav-btn" onClick={() => { if (window.muzzCheckUpdates) window.muzzCheckUpdates(); }}>
+              Check for updates
+            </button>
             {pushNote ? <p className="text-[11px] text-gray-500 px-1">{pushNote}</p> : null}
             <button
               onClick={() => {
