@@ -188,3 +188,7 @@ html.muzz-fs-on .muzz-fs { display: inline-flex; align-items: center; }
 .muzz-install.is-pill .muzz-install-card,
 .muzz-install.is-pill .muzz-install-arrow { display: none; }
 .muzz-install.is-pill .muzz-install-pill { display: inline-flex; }
+#muzzPmToast,
+.muzz-pm-toast {
+  display: none !important;
+}

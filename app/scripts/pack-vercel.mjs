@@ -8,7 +8,7 @@ const appRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const SLIM_PACKAGE = {
   name: 'muzzsnap-app',
   private: true,
-  version: '1.0.8',
+  version: '1.0.9',
   description: 'MuzzSnap site and /api/notify. FIREBASE_SERVICE_ACCOUNT is read from process.env and is not in this folder.',
   type: 'module',
   engines: { node: '>=20' },

@@ -1,6 +1,7 @@
 /**
- * In-app toast, sound, unread badge, and a device notification for new
- * private messages. Plaintext is shown only when the message is not sealed.
+ * Unread badge, sound, and a device notification for new private messages.
+ * There is no in-app banner. Background delivery is the FCM notification.
+ * Plaintext is shown only when the message is not sealed.
  */
 (function (global) {
   var started = false;
@@ -16,55 +17,6 @@
     if (!text) return 'New private message';
     if (/^[A-Za-z0-9+/=_-]{48,}$/.test(text)) return 'New private message';
     return text.length > 80 ? text.slice(0, 77) + '…' : text;
-  }
-
-  function ensureUi() {
-    if (document.getElementById('muzzPmToast')) return;
-    var style = document.createElement('style');
-    style.textContent = ''
-      + '.muzz-pm-toast{position:fixed;z-index:80;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top,0px));'
-      + 'display:flex;gap:8px;align-items:stretch;max-width:420px;margin:0 auto;'
-      + 'background:#14181e;color:#f4f7fb;border:1px solid rgba(255,42,42,.45);border-radius:16px;'
-      + 'box-shadow:0 12px 32px rgba(0,0,0,.35);padding:10px 10px 10px 14px}'
-      + '.muzz-pm-toast button.open{flex:1;background:transparent;border:0;color:inherit;text-align:left;cursor:pointer;padding:0}'
-      + '.muzz-pm-toast strong{display:block;font-size:13px;letter-spacing:.04em}'
-      + '.muzz-pm-toast span{display:block;font-size:12px;color:#c5ced8;margin-top:2px}'
-      + '.muzz-pm-toast button.x{border:0;background:transparent;color:#fff;font-size:18px;cursor:pointer;padding:0 6px}';
-    document.head.appendChild(style);
-    var box = document.createElement('div');
-    box.id = 'muzzPmToast';
-    box.className = 'muzz-pm-toast';
-    box.hidden = true;
-    box.innerHTML = '<button type="button" class="open"><strong id="muzzPmName"></strong><span id="muzzPmText"></span></button><button type="button" class="x" aria-label="Dismiss">×</button>';
-    document.body.appendChild(box);
-    var dismissStamp = 0;
-    function dismissToast(event) {
-      var now = Date.now();
-      if (now - dismissStamp < 450) {
-        if (event) event.preventDefault();
-        return;
-      }
-      dismissStamp = now;
-      if (event) event.preventDefault();
-      box.hidden = true;
-    }
-    var closeBtn = box.querySelector('.x');
-    closeBtn.addEventListener('click', dismissToast);
-    closeBtn.addEventListener('touchend', dismissToast, { passive: false });
-  }
-
-  function showToast(name, text, peer, open) {
-    ensureUi();
-    var box = document.getElementById('muzzPmToast');
-    document.getElementById('muzzPmName').textContent = name;
-    document.getElementById('muzzPmText').textContent = text;
-    box.hidden = false;
-    box.querySelector('.open').onclick = function () {
-      box.hidden = true;
-      if (typeof open === 'function') open(peer);
-    };
-    clearTimeout(box._hide);
-    box._hide = setTimeout(function () { box.hidden = true; }, 7000);
   }
 
   function beep() {
@@ -169,7 +121,6 @@
     if (!/^0x[a-f0-9]{40}$/.test(me) || !opts || !opts.db) return;
     started = true;
     startedAt = Date.now();
-    ensureUi();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function () {});
       navigator.serviceWorker.addEventListener('message', function (event) {
@@ -210,7 +161,6 @@
         emitUnread();
         var body = previewOf(msg);
         var name = nameOf(from);
-        showToast(name, body, from, opts.open);
         beep();
         deviceNotify(name, body, from);
       });
@@ -228,9 +178,8 @@
     emitUnread();
   }
 
-  function demo(sample) {
-    ensureUi();
-    showToast(sample.name || 'RYASHU', sample.text || 'New private message', sample.peer || '', sample.open);
+  function demo() {
+    /* No in-app banner. Shot pages must not leave an empty toast on screen. */
   }
 
   global.MuzzNotify = {

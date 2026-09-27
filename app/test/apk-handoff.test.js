@@ -129,7 +129,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.8/);
+  assert.match(login, /v1\.0\.9/);
   assert.match(login, /Connecting…/);
   assert.match(login, /Check your wallet to sign/);
   assert.match(login, /Verifying…/);
@@ -140,7 +140,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(wallet, /eip155:56/);
   assert.match(wallet, /ignoreChainSwitch/);
   assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.8"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.9"/);
   const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(capacitor.server.url, undefined);
   assert.equal(capacitor.server.androidScheme, 'https');
