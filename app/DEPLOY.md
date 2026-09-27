@@ -227,7 +227,27 @@ Publish `app/www` as its own Vercel project (Root Directory `app`, output `www`)
 
 Do not ship this debug APK to the Play Store. A release needs your own keystore, and that keystore must not be committed.
 
-## 8. What to check after the first deploy
+## 8. Closed-app private alerts (no Blaze)
+
+FCM itself is free on the Spark plan. Do **not** add a Cloud Function for this. The sender is a Vercel function in the **muzzsnap-app** project (Root Directory `app`): `POST /api/notify`. The sender's browser calls it after the private message is already in Realtime Database. The body is only `{ "to": "0x…" }`. The notification text is always `New private message`. Message text is not sent.
+
+The function checks a Firebase ID token whose uid is the sender wallet, checks that both `privateIndex` entries exist, rate-limits (20 per minute), reads `fcmTokens/{recipient}`, and calls FCM HTTP v1. The service account comes from the Vercel env var `FIREBASE_SERVICE_ACCOUNT`. It is not in the repo and not in the client.
+
+Until that env var is set, `/api/session` returns 503 and the app keeps today's anonymous login. Chat still works. Alerts while the app is open still work. A killed app does not get a push until the three items below are in place.
+
+Paste `rtdb.fcm.rules.snippet.json` **into the existing** Realtime Database rules (Firebase console → Build → Realtime Database → Rules). Add the `fcmTokens`, `notifyRate`, and `loginNonces` keys next to the current ones. Do not replace the whole rules file with the snippet, and do not point `firebase.json` at it: a partial file deployed as the full ruleset would lock the live chat. If the live root already has `.write: true`, a child cannot take that write away. Narrow the root write before the `fcmTokens` block can limit writes to `auth.uid == $wallet`.
+
+`npm run android:debug` links `@capacitor/push-notifications` only when `android/app/google-services.json` is present. Without that file the debug APK keeps `@capacitor/local-notifications` and still launches. Local alerts work while the process is alive. They do not arrive after the process is killed.
+
+### What to download
+
+1. **Service account JSON** → [Firebase console](https://console.firebase.google.com) → project **pulsari** → gear **Project settings** → **Service accounts** → **Generate new private key**. Put the entire JSON in Vercel → project **muzzsnap-app** → Settings → Environment Variables → `FIREBASE_SERVICE_ACCOUNT` (Production). Do not commit it. If FCM replies that the API is disabled, Google Cloud console → APIs & Services → enable **Firebase Cloud Messaging API** for `pulsari`.
+2. **Web Push public key** → Project settings → **Cloud Messaging** → **Web Push certificates** → **Generate key pair**. Copy the public **Key pair** into Vercel as `FIREBASE_VAPID_KEY`. Leave the private key in Firebase. The page reads the public key from `GET /api/push-config`.
+3. **google-services.json** → Project settings → **Your apps** → **Add app** → Android → package name `app.muzzsnap.chat` → download `google-services.json` → save it as `app/android/app/google-services.json` (gitignored). Then `npm run android:debug` again. That rebuild is what makes a killed Android app receive FCM.
+
+Also enable **Authentication** on `pulsari` (Authentication → Get started). The session function signs a custom token; it does not add a Cloud Function.
+
+## 9. What to check after the first deploy
 
 - Auth → Sign-in method: a custom token does not need an extra provider, but Authentication has to be enabled.
 - Firestore and Storage created (production mode; the rules in this repo already close access).

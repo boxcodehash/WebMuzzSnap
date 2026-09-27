@@ -102,6 +102,7 @@
   }
 
   async function deviceNotify(title, body, peer) {
+    if (global.__muzzFcmReady) return;
     var LocalNotifications = nativeNotifications();
     if (LocalNotifications) {
       try {
@@ -136,6 +137,7 @@
   }
 
   function requestPermission() {
+    if (global.MuzzPush && MuzzPush.enable) MuzzPush.enable();
     var LocalNotifications = nativeNotifications();
     if (LocalNotifications) {
       LocalNotifications.requestPermissions().then(function (perm) {

@@ -1,6 +1,11 @@
 {
   "framework": null,
-  "installCommand": "echo skip",
+  "installCommand": "npm install --omit=dev",
   "buildCommand": "echo static",
-  "outputDirectory": "www"
+  "outputDirectory": "www",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 10
+    }
+  }
 }

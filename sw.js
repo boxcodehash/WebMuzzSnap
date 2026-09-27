@@ -1,4 +1,16 @@
 /* Notification-only worker for the live site. It does not cache pages. */
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const data = payload.data || payload;
+  const peer = data.peer || '';
+  event.waitUntil(self.registration.showNotification('MuzzSnap', {
+    body: 'New private message',
+    tag: peer ? 'pm-' + peer : 'pm',
+    data: { peer }
+  }));
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const peer = event.notification.data && event.notification.data.peer;

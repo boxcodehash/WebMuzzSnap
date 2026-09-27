@@ -36,6 +36,7 @@
   <script src="js/muzz-names.js"></script>
   <script src="js/muzz-gate.js"></script>
   <script src="js/private-notify.js"></script>
+  <script src="js/fcm-client.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -543,7 +544,10 @@
           }
           if (cancelled) return;
 
-        firebase.auth().signInAnonymously().then(({ user }) => {
+        const authReady = window.MuzzPush
+          ? MuzzPush.signInForChat(sessionWallet)
+          : firebase.auth().signInAnonymously().then(function (cred) { return cred.user; });
+        authReady.then((user) => {
           const isWallet = !sessionWallet.startsWith('guest_');
           const wallet = isWallet ? sessionWallet.toLowerCase() : '';
           let username = '';

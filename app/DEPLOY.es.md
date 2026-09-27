@@ -218,7 +218,27 @@ Publica `app/www` como un proyecto de Vercel aparte (Root Directory `app`, salid
 
 No firmes este APK de debug para Play Store. Para una release hace falta una keystore tuya, que no debe subirse al repo.
 
-## 7. Qué revisar después del primer despliegue
+## 7. Avisos con la app cerrada (sin Blaze)
+
+FCM es gratis en el plan Spark. **No** hace falta una Cloud Function ni el plan Blaze. El envío es una función de Vercel en el proyecto **muzzsnap-app** (Root Directory `app`): `POST /api/notify`. El cliente la llama después de guardar el privado. El cuerpo es solo `{ "to": "0x…" }`. El texto del aviso es siempre `New private message`. No se manda el mensaje.
+
+La función comprueba el ID token de Firebase (el uid es la wallet), que existan las dos entradas de `privateIndex`, un límite de 20 por minuto, los tokens en `fcmTokens/{destinatario}` y llama a FCM HTTP v1. La cuenta de servicio sale de la variable de Vercel `FIREBASE_SERVICE_ACCOUNT`. No va en el repo ni en el cliente.
+
+Hasta que esa variable exista, `/api/session` responde 503 y el chat sigue con el acceso anónimo de ahora. Los avisos con la app abierta siguen. Con el proceso muerto no hay push hasta tener estas tres cosas.
+
+Pega `rtdb.fcm.rules.snippet.json` **dentro de las reglas que ya hay** (consola de Firebase → Realtime Database → Rules). Añade `fcmTokens`, `notifyRate` y `loginNonces`. No sustituyas el archivo entero ni lo pongas en `firebase.json`: desplegarlo como reglas completas cerraría el chat. Si la raíz ya tiene `.write: true`, un hijo no puede quitar ese permiso.
+
+`npm run android:debug` incluye `@capacitor/push-notifications` solo si existe `android/app/google-services.json`. Sin ese archivo el APK sigue con las notificaciones locales y arranca igual. Sirven con la app viva, no con el proceso cerrado.
+
+### Qué hay que descargar
+
+1. **JSON de la cuenta de servicio** → consola de Firebase → proyecto **pulsari** → engranaje **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. El JSON entero va en Vercel → **muzzsnap-app** → Settings → Environment Variables → `FIREBASE_SERVICE_ACCOUNT` (Production). No lo subas a git. Si FCM dice que la API está apagada, en Google Cloud → APIs y servicios activa **Firebase Cloud Messaging API** en `pulsari`.
+2. **Clave pública Web Push** → Configuración del proyecto → **Cloud Messaging** → **Certificados de Web Push** → **Generar par de claves**. Copia el **par de claves** público a Vercel como `FIREBASE_VAPID_KEY`. La clave privada se queda en Firebase. La página la pide a `GET /api/push-config`.
+3. **google-services.json** → Configuración del proyecto → **Tus apps** → **Añadir app** → Android → paquete `app.muzzsnap.chat` → descarga `google-services.json` → guárdalo en `app/android/app/google-services.json` (está en gitignore). Vuelve a ejecutar `npm run android:debug`. Ese APK nuevo es el que recibe FCM con la app cerrada.
+
+Activa también **Authentication** en `pulsari` (Authentication → Comenzar). La sesión firma un custom token; no crea una Cloud Function.
+
+## 8. Qué revisar después del primer despliegue
 
 - Auth → Sign-in method: el custom token no pide un proveedor extra, pero el proyecto tiene que tener Authentication activado.
 - Firestore y Storage creados (modo producción; las reglas de este repo ya cierran el acceso).

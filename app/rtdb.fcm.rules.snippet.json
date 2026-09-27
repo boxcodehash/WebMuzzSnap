@@ -1,0 +1,19 @@
+{
+  "fcmTokens": {
+    "$wallet": {
+      ".read": "auth != null && auth.uid == $wallet",
+      ".write": "auth != null && auth.uid == $wallet",
+      "$tokenId": {
+        ".validate": "newData.hasChildren(['token', 'platform', 'updatedAt']) && newData.child('token').isString() && newData.child('token').val().length > 20 && newData.child('token').val().length < 4096 && (newData.child('platform').val() == 'web' || newData.child('platform').val() == 'android')"
+      }
+    }
+  },
+  "notifyRate": {
+    ".read": false,
+    ".write": false
+  },
+  "loginNonces": {
+    ".read": false,
+    ".write": false
+  }
+}

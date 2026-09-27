@@ -32,6 +32,7 @@
   <script src="js/muzz-names.js"></script>
   <script src="js/muzz-gate.js"></script>
   <script src="js/private-notify.js"></script>
+  <script src="js/fcm-client.js"></script>
   <style>
     :root{
       --bg:#181d23;
@@ -400,6 +401,7 @@
         const preview = { lastText: text, lastAt: Date.now() };
         await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
         await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
+        if (window.MuzzPush) MuzzPush.notify(activeWallet);
         input.value = '';
         autoResizeInput();
       }catch(err){
@@ -543,7 +545,10 @@
       }
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
-      try { await firebase.auth().signInAnonymously(); } catch (err) { console.error(err); }
+      try {
+        if (window.MuzzPush) await MuzzPush.signInForChat(meWallet);
+        else await firebase.auth().signInAnonymously();
+      } catch (err) { console.error(err); }
       autoResizeInput();
       markWalletPresence();
       startLiveData();
