@@ -18,7 +18,8 @@ import {
   createSingleFlight,
   hasLiveSession,
   muzzMark,
-  proofFromSession
+  proofFromSession,
+  releaseStorageWait
 } from './wc-auth.js';
 
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
@@ -171,6 +172,7 @@ async function buildModal() {
   }
   wcProvider = universalProvider;
   muzzMark('relay');
+  releaseStorageWait(universalProvider);
   if (typeof universalProvider.on === 'function') universalProvider.on('display_uri', noteUri);
   ignoreChainSwitch(universalProvider);
   if (typeof window !== 'undefined') {
@@ -384,7 +386,10 @@ async function connectModalInner(hooks = {}) {
       fn();
     };
     const connected = () => {
-      closeModal(modal).finally(() => finish(() => resolve(sessionAddress() || modal.getAddress?.() || '')));
+      // The signature has to be requested in this turn. Waiting for the modal
+      // animation is what leaves MetaMask on the connect screen.
+      finish(() => resolve(sessionAddress() || modal.getAddress?.() || ''));
+      closeModal(modal);
     };
     const lockTimer = setTimeout(() => {
       if (settled || opened || hasLiveSession(wcProvider)) return;
@@ -400,6 +405,14 @@ async function connectModalInner(hooks = {}) {
       else if (opened && !closingModal) {
         setTimeout(() => {
           if (settled || closingModal || hasLiveSession(wcProvider) || modal.getIsConnectedState?.()) return;
+          // iOS suspends the page while MetaMask is in front. That must not
+          // count as the user closing the list.
+          try {
+            if (globalThis.__muzzClosingModal) return;
+            if (globalThis.document && document.visibilityState === 'hidden') return;
+          } catch {
+            /* no document */
+          }
           releaseConnectLock();
           finish(() => reject(walletError('rejected')));
         }, 400);
@@ -412,8 +425,13 @@ async function connectModalInner(hooks = {}) {
     });
   });
   if (generation !== connectGeneration && !hasLiveSession(wcProvider)) throw walletError('rejected');
-  await closeModal(modal);
+  closeModal(modal);
   return finishConnect(modal, hooks);
+}
+
+export function closeWalletModal() {
+  if (!modalPromise) return Promise.resolve();
+  return modalPromise.then((modal) => closeModal(modal)).catch(() => {});
 }
 
 export function connectModal(hooks = {}) {

@@ -19,6 +19,19 @@
   const HANDOFF_MS = 3 * 60 * 1000;
   const NONCE_KEY = 'muzz_used_nonces_v1';
 
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), ms);
+      Promise.resolve(promise).then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      }, (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
   function formatWhole(raw, decimals) {
     const text = ethers.utils.formatUnits(raw, decimals);
     const whole = text.split('.')[0] || '0';
@@ -45,7 +58,7 @@
       try {
         const provider = new ethers.providers.JsonRpcProvider(url);
         const token = new ethers.Contract(TOKEN, ABI, provider);
-        const [raw, decimals] = await Promise.all([token.balanceOf(wallet), token.decimals()]);
+        const [raw, decimals] = await withTimeout(Promise.all([token.balanceOf(wallet), token.decimals()]), 3000);
         const min = ethers.utils.parseUnits(MIN_WHOLE, decimals);
         return {
           ok: raw.gte(min),

@@ -80,6 +80,22 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="rainbow" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="phantom" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="cbwallet" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="okx" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
             <data android:scheme="intent" />
         </intent>
         <intent>

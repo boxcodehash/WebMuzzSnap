@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
@@ -16,6 +17,8 @@ import java.util.Locale;
 public final class WalletLinks {
     public static final String TAG = "MuzzSnapWallet";
     private static volatile boolean awaitingReturn = false;
+    private static String lastStarted = "";
+    private static long lastStartedAt = 0;
 
     private WalletLinks() {}
 
@@ -60,7 +63,7 @@ public final class WalletLinks {
     public static boolean shouldLeaveWebView(Uri url) {
         if (url == null) return false;
         String scheme = scheme(url);
-        if (scheme.isEmpty() || isDocumentScheme(scheme) || "muzzsnap".equals(scheme)) return false;
+        if (scheme.isEmpty() || "muzzsnap".equals(scheme) || isInlineScheme(scheme)) return false;
         if (!"http".equals(scheme) && !"https".equals(scheme)) return true;
         return isWalletUniversalLink(url);
     }
@@ -83,6 +86,11 @@ public final class WalletLinks {
 
     public static boolean start(Context context, Uri url) {
         if (context == null || url == null) return false;
+        String key = url.toString();
+        long now = SystemClock.uptimeMillis();
+        if (key.equals(lastStarted) && now - lastStartedAt < 800) return true;
+        lastStarted = key;
+        lastStartedAt = now;
         try {
             Intent intent = externalView(url);
             Log.i(TAG, "ACTION_VIEW " + intent.getAction() + " data=" + intent.getDataString());
@@ -137,9 +145,8 @@ public final class WalletLinks {
         }
     }
 
-    private static boolean isDocumentScheme(String scheme) {
-        return "http".equals(scheme) || "https".equals(scheme) || "about".equals(scheme)
-            || "data".equals(scheme) || "blob".equals(scheme) || "javascript".equals(scheme);
+    private static boolean isInlineScheme(String scheme) {
+        return "about".equals(scheme) || "data".equals(scheme) || "blob".equals(scheme) || "javascript".equals(scheme);
     }
 
     private static boolean isWalletUniversalLink(Uri url) {

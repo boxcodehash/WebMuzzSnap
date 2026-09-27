@@ -650,10 +650,11 @@
 
         function runLogin(task) {
             if (loginTask) return loginTask;
-            loginTask = Promise.resolve().then(task).finally(() => {
-                loginTask = null;
+            const run = Promise.resolve().then(task).finally(() => {
+                if (loginTask === run) loginTask = null;
             });
-            return loginTask;
+            loginTask = run;
+            return run;
         }
 
         function releasePageLock() {
@@ -664,6 +665,7 @@
 
         function armLoginLock() {
             const timer = setTimeout(() => {
+                if (document.visibilityState === 'hidden') return;
                 const modal = document.querySelector('w3m-modal');
                 if (modal && modal.open) return;
                 releasePageLock();
@@ -934,9 +936,8 @@
                     if (known) return Promise.resolve(known);
                 }
                 if (method === 'personal_sign') {
-                    const pending = original.apply(provider, [payload].concat(rest));
                     if (window.muzzOpenSign) window.muzzOpenSign(provider);
-                    return pending;
+                    return original.apply(provider, [payload].concat(rest));
                 }
                 return original.apply(provider, [payload].concat(rest));
             };
@@ -1127,21 +1128,25 @@
             let signature = opts.signature || '';
             let balancePromise = null;
             if (!signature || !message || !signatureMatches(message, signature, address)) {
-                message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
+                message = (opts.message && !opts.signature) ? opts.message : muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
                 window.muzzMark('message');
+                try {
+                    sessionStorage.setItem('muzz_sign_req', JSON.stringify({ address: address, message: message }));
+                } catch (err) { /* private mode */ }
                 window.muzzMark('balance:start');
                 balancePromise = muzzGate.readMuzzBalance(address);
                 setStep('Check your wallet to sign');
                 window.muzzMark('api:none');
                 window.muzzMark('personal_sign:sent');
                 try {
+                    if (window.muzzOpenSign) window.muzzOpenSign(rawProvider);
                     const signPromise = rawProvider.request({
                         method: 'personal_sign',
                         params: [ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)), address]
                     });
-                    if (window.muzzOpenSign) window.muzzOpenSign(rawProvider);
                     signature = await signPromise;
                     window.muzzMark('personal_sign:done');
+                    closeWalletList();
                 } catch (err) {
                     if (rejectedRequest(err)) {
                         const rejected = new Error('Signature rejected.');
@@ -1159,6 +1164,7 @@
                 throw bad;
             }
             rememberProof({ address, signature, message });
+            try { sessionStorage.removeItem('muzz_sign_req'); } catch (err) { /* private mode */ }
             if (!balancePromise) {
                 window.muzzMark('balance:start');
                 balancePromise = muzzGate.readMuzzBalance(address);
@@ -1272,7 +1278,7 @@
                     message: signed ? session.message : ''
                 });
             } catch (err) {
-                clearWalletAttempt();
+                if (document.visibilityState !== 'hidden') clearWalletAttempt();
                 showSignError(err, session && session.provider, session);
             } finally {
                 stopLockWatch();
@@ -1280,23 +1286,62 @@
             }
         }
 
+        function walletAttemptPending() {
+            return sessionStorage.getItem('muzz_wc_pending') === '1'
+                || sessionStorage.getItem('muzz_ios_wc') === '1';
+        }
+
+        function readSavedSignRequest() {
+            try {
+                const data = JSON.parse(sessionStorage.getItem('muzz_sign_req') || 'null');
+                if (!data || !data.address || !data.message) return null;
+                return { address: normalizeAddress(data.address), message: data.message };
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function closeWalletList() {
+            window.__muzzClosingModal = true;
+            const modal = document.querySelector('w3m-modal');
+            if (modal) modal.open = false;
+            import('./js/wc-login.js').then((mod) => {
+                if (mod.closeWalletModal) return mod.closeWalletModal();
+                return null;
+            }).catch(() => {}).finally(() => {
+                window.__muzzClosingModal = false;
+            });
+        }
+
         function resumeWalletLogin() {
             if (shotStatus) return;
             if (document.visibilityState === 'hidden') return;
-            if (loginTask) return loginTask;
-            const pending = sessionStorage.getItem('muzz_wc_pending') === '1'
-                || sessionStorage.getItem('muzz_ios_wc') === '1';
-            if (!pending) return;
+            if (!walletAttemptPending()) return;
+            closeWalletList();
             const stored = readStoredLogin();
             if (stored) {
                 clearWalletAttempt();
                 window.location.href = 'chat.html';
                 return;
             }
+            if (loginTask) {
+                const task = loginTask;
+                setTimeout(() => {
+                    if (!walletAttemptPending() || loginTask !== task) return;
+                    if (document.visibilityState === 'hidden') return;
+                    loginTask = null;
+                    accessWithWalletConnectBody.running = false;
+                    loginDepth = 0;
+                    resumeWalletLogin();
+                }, 1500);
+                return;
+            }
             const proof = readPendingProof();
+            const savedSign = readSavedSignRequest();
             return runLogin(async () => {
                 loginDepth += 1;
                 try {
+                    closeWalletList();
                     if (proof) {
                         showSigning(true);
                         setStep('Verifying…');
@@ -1314,18 +1359,19 @@
                         return;
                     }
                     showSigning(true);
-                    setStep('Connecting…');
+                    setStep('Check your wallet to sign');
                     const projectId = muzzGate.walletConnectProjectId();
                     if (!projectId) return;
                     window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                     window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
                     const mod = await import('./js/wc-login.js');
+                    if (mod.closeWalletModal) await mod.closeWalletModal();
                     const session = await mod.restoreWalletConnect();
                     if (!session) {
                         showSigning(false);
                         return;
                     }
-                    const knownAddress = session.address;
+                    const knownAddress = session.address || (savedSign && savedSign.address);
                     const signed = session.signature && session.message
                         && signatureMatches(session.message, session.signature, knownAddress);
                     if (signed) setStep('Verifying…');
@@ -1333,10 +1379,10 @@
                     await signInWithProvider(session.provider, false, session, {
                         knownAddress: knownAddress,
                         signature: signed ? session.signature : '',
-                        message: signed ? session.message : ''
+                        message: signed ? session.message : (savedSign && savedSign.message) || ''
                     });
                 } catch (err) {
-                    clearWalletAttempt();
+                    if (document.visibilityState !== 'hidden') clearWalletAttempt();
                     showSignError(err);
                 } finally {
                     loginDepth -= 1;

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { matchWalletId, walletById } from './walletCatalog.js';
 import { mapWalletError, walletError } from './walletErrors.js';
-import { muzzMark, openSignDeepLink } from './wc-auth.js';
+import { muzzMark, scheduleSignDeepLink } from './wc-auth.js';
 
 export function isMobile(userAgent = globalThis.navigator?.userAgent || '') {
   return /Android|iPhone|iPad|iPod/i.test(userAgent);
@@ -115,9 +115,8 @@ export function ignoreChainSwitch(provider) {
     }
     if (method === 'personal_sign') {
       muzzMark('personal_sign:sent');
-      const pending = original(payload, ...rest);
-      openSignDeepLink(provider);
-      return pending;
+      scheduleSignDeepLink(provider);
+      return original(payload, ...rest);
     }
     return original(payload, ...rest);
   };

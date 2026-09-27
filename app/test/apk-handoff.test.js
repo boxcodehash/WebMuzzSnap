@@ -164,6 +164,16 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(activity, /"auth"/);
   assert.match(activity, /muzz-wc-return/);
   assert.match(activity, /onCreateWindow/);
+  assert.match(activity, /WalletWebViewClient/);
+  assert.match(activity, /client-override/);
+  const client = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletWebViewClient.java', import.meta.url), 'utf8');
+  assert.match(client, /shouldOverrideUrlLoading/);
+  assert.match(client, /webview-handoff/);
+  assert.match(client, /WalletLinks\.start/);
+  assert.match(manifest, /android:scheme="rainbow"/);
+  assert.match(manifest, /android:scheme="phantom"/);
+  assert.match(manifest, /android:scheme="cbwallet"/);
+  assert.match(manifest, /android:scheme="okx"/);
   const links = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinks.java', import.meta.url), 'utf8');
   const plugin = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8');
   assert.match(links, /Intent\.ACTION_VIEW/);

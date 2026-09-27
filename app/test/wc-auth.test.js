@@ -16,7 +16,10 @@ import {
   cacaoProof,
   createSingleFlight,
   hasLiveSession,
+  noteWalletChoice,
   resetLoginTiming,
+  releaseStorageWait,
+  scheduleSignDeepLink,
   settleLoginConnection,
   shouldUsePlainConnect
 } from '../src/wc-auth.js';
@@ -199,8 +202,44 @@ test('MetaMask skips the one-hour authenticate wait and signs as soon as the ses
   assert.match(walletSrc, /modal\.open\(\)/);
   assert.match(walletSrc, /Math\.min\(hooks\.waitMs == null \? 800/);
   assert.doesNotMatch(walletSrc, /setInterval/);
+  assert.match(walletSrc, /releaseStorageWait/);
+  assert.match(walletSrc, /closeModal\(modal\);\n  return finishConnect/);
   const signClient = readFileSync(new URL('../node_modules/@walletconnect/sign-client/dist/index.js', import.meta.url), 'utf8');
   assert.match(signClient, /methods:\["wc_sessionAuthenticate"\]/);
+});
+
+test('storage and the signature deep link do not wait', async () => {
+  let release;
+  const blocked = new Promise((resolve) => {
+    release = resolve;
+  });
+  const provider = { persist: () => blocked };
+  releaseStorageWait(provider);
+  const storageStarted = performance.now();
+  await provider.persist('namespaces', { eip155: { accounts: ['eip155:1:0xabc'] } });
+  const storageMs = performance.now() - storageStarted;
+  assert.ok(storageMs < 30, `storage ${storageMs}ms`);
+  release();
+  await blocked;
+
+  noteWalletChoice({ name: 'MetaMask', href: 'metamask:///' });
+  let opened = '';
+  const listeners = [];
+  const wcProvider = {
+    session: { topic: 'topic-1' },
+    client: { events: { once(name, fn) { listeners.push({ name, fn }); } } }
+  };
+  const linkStarted = performance.now();
+  scheduleSignDeepLink(wcProvider, (href) => {
+    opened = href;
+  });
+  assert.equal(opened, '');
+  assert.equal(listeners[0].name, 'session_request_sent');
+  listeners[0].fn();
+  const linkMs = performance.now() - linkStarted;
+  assert.match(opened, /^metamask:\/\/wc\?/);
+  assert.ok(linkMs < 50, `deeplink ${linkMs}ms`);
+  console.log(`muzz-login storage=${storageMs.toFixed(3)}ms deeplink=${linkMs.toFixed(3)}ms`);
 });
 
 test('a stuck login lock can be reset and the next tap runs', async () => {

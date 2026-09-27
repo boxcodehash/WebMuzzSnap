@@ -307,14 +307,45 @@ export function openSignDeepLink(provider, opener) {
   lastSignHrefAt = now;
   muzzMark('deeplink');
   const open = opener || defaultSignOpen;
-  setTimeout(() => {
-    try { open(href); } catch { /* the request is already on the relay */ }
-  }, 0);
+  try { open(href); } catch { /* the request is already on the relay */ }
   return href;
+}
+
+/**
+ * Open the wallet in the same turn the signature request is published.
+ * A setTimeout here is clamped to ~30s while iOS Safari is in MetaMask.
+ */
+export function scheduleSignDeepLink(provider, opener) {
+  let opened = false;
+  const open = () => {
+    if (opened) return;
+    opened = true;
+    openSignDeepLink(provider, opener);
+  };
+  const events = provider && provider.client && provider.client.events;
+  if (events && typeof events.once === 'function') events.once('session_request_sent', open);
+  return open;
+}
+
+/** IndexedDB persist must not sit in front of personal_sign. Safari defers it while MetaMask is open. */
+export function releaseStorageWait(provider) {
+  if (!provider || typeof provider.persist !== 'function' || provider.__muzzPersist) return provider;
+  const original = provider.persist.bind(provider);
+  provider.persist = (key, value) => {
+    try {
+      const write = original(key, value);
+      if (write && typeof write.catch === 'function') write.catch(() => {});
+    } catch {
+      /* the signature request cannot wait for storage */
+    }
+    return Promise.resolve();
+  };
+  provider.__muzzPersist = true;
+  return provider;
 }
 
 if (typeof globalThis !== 'undefined') {
   globalThis.muzzMark = muzzMark;
-  globalThis.muzzOpenSign = openSignDeepLink;
+  globalThis.muzzOpenSign = scheduleSignDeepLink;
   globalThis.muzzNoteWallet = noteWalletChoice;
 }

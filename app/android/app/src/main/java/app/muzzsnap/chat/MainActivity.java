@@ -7,7 +7,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.os.Build;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
@@ -26,6 +28,7 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         if (getBridge() == null || getBridge().getWebView() == null) return;
         WebView webView = getBridge().getWebView();
+        installWalletWebViewClient(webView);
         webView.getSettings().setSupportMultipleWindows(true);
         webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
@@ -68,6 +71,14 @@ public class MainActivity extends BridgeActivity {
         deliverWalletReturn(intent);
     }
 
+    private void installWalletWebViewClient(WebView webView) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        WebViewClient current = webView.getWebViewClient();
+        if (current instanceof WalletWebViewClient) return;
+        webView.setWebViewClient(new WalletWebViewClient(current));
+        android.util.Log.i(WalletLinks.TAG, "WalletWebViewClient installed");
+    }
+
     /** Debug builds only: adb asks the WebView itself to navigate to wallet URLs. */
     private void probeWebViewLoads(WebView webView) {
         String extra = getIntent() == null ? null : getIntent().getStringExtra("muzz_probe");
@@ -81,6 +92,20 @@ public class MainActivity extends BridgeActivity {
             "https://metamask.app.link/wc?uri=wc:from-webview"
         };
         for (String url : direct) WalletLinks.start(this, Uri.parse(url));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WebViewClient client = webView.getWebViewClient();
+            String[] viaClient = new String[] {
+                "metamask://wc?uri=wc:from-client",
+                "wc:from-client@2?relay-protocol=irn&symKey=abc",
+                "intent://wc#Intent;scheme=trust;package=com.wallet.crypto.trustapp;end",
+                "https://metamask.app.link/wc?uri=wc:from-client",
+                "https://link.trustwallet.com/wc?uri=wc:from-client"
+            };
+            for (String url : viaClient) {
+                android.util.Log.i(WalletLinks.TAG, "client-override " + url);
+                if (client != null) client.shouldOverrideUrlLoading(webView, url);
+            }
+        }
         String[] scripts = new String[] {
             "location.assign(" + JSONObject.quote("metamask://wc?uri=wc:from-js") + ")",
             "window.open(" + JSONObject.quote("wc:from-js@2?relay-protocol=irn&symKey=abc") + ")",

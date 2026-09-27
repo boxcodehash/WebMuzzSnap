@@ -1,4 +1,5 @@
 export {
+  closeWalletModal,
   connectModal as connectWalletConnect,
   peekWalletConnect,
   preloadWalletConnect,
