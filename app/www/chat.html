@@ -38,6 +38,7 @@
   <script src="js/muzz-gate.js"></script>
   <script src="js/private-notify.js"></script>
   <script src="js/fcm-client.js"></script>
+  <script src="js/translate.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -463,6 +464,9 @@
       const [messageText, setMessageText] = useState("");
       const [darkMode, setDarkMode] = useState(true);
       const [showEmoji, setShowEmoji] = useState(false);
+      const [showTranslate, setShowTranslate] = useState(false);
+      const [undoText, setUndoText] = useState(null);
+      const [translating, setTranslating] = useState(false);
       const [emojiTab, setEmojiTab] = useState("FACES");
       const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
       const [mobileMenu, setMobileMenu] = useState(false);
@@ -772,6 +776,7 @@
             await db.ref(pinPathForChannel(activeChannel.id)).set(messageText);
             setPinMode(false);
             setMessageText('');
+            setUndoText(null);
             alert('Pinned message updated.');
             return;
           }
@@ -787,7 +792,9 @@
           });
 
           setMessageText('');
+          setUndoText(null);
           setShowEmoji(false);
+          setShowTranslate(false);
         } catch (err) {
           console.error('send message failed:', err);
           alert(`Operation failed: ${err.message || err}`);
@@ -1096,6 +1103,37 @@
                 </div>
               )}
 
+              {showTranslate && (
+                <div className="muzz-translate-picker" role="listbox" aria-label="Translate to">
+                  <p className="muzz-translate-label">Translate to</p>
+                  {(window.MuzzTranslate ? window.MuzzTranslate.langs : []).map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      className={window.MuzzTranslate && window.MuzzTranslate.lastTarget() === lang.id ? 'is-on' : ''}
+                      disabled={translating}
+                      onClick={async () => {
+                        const source = messageText;
+                        if (!window.MuzzTranslate) return;
+                        setTranslating(true);
+                        try {
+                          const out = await window.MuzzTranslate.translate(source, lang.id);
+                          setUndoText((prev) => (prev == null ? source : prev));
+                          setMessageText(out);
+                          setShowTranslate(false);
+                        } catch (err) {
+                          window.MuzzTranslate.showError(err && err.message);
+                        } finally {
+                          setTranslating(false);
+                        }
+                      }}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {showEmoji && (
                 <div className="mb-3 rounded-xl overflow-hidden" style={{boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.2)'}}>
                   <div className="flex overflow-x-auto custom-scroll">
@@ -1114,9 +1152,15 @@
               )}
 
               <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{background:'rgba(0,0,0,0.28)', boxShadow:'inset 0 0 0 1px rgba(255,255,255,0.08)'}}>
-                <button type="button" onClick={() => setShowEmoji((prev) => !prev)} className="text-gray-400 hover:text-red-500 px-1" aria-label="Emoji">
+                <button type="button" onClick={() => { setShowEmoji((prev) => !prev); setShowTranslate(false); }} className="text-gray-400 hover:text-red-500 px-1" aria-label="Emoji">
                   <i className="far fa-laugh-beam text-xl"></i>
                 </button>
+                <button type="button" onClick={() => { setShowTranslate((prev) => !prev); setShowEmoji(false); }} className="muzz-translate-btn" aria-label="Translate" aria-pressed={showTranslate}>
+                  <span aria-hidden="true">文A</span>
+                </button>
+                {undoText != null && (
+                  <button type="button" className="muzz-translate-undo" onClick={() => { setMessageText(undoText); setUndoText(null); }}>Undo</button>
+                )}
                 <input
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}

@@ -34,6 +34,7 @@
   <script src="js/muzz-gate.js"></script>
   <script src="js/private-notify.js"></script>
   <script src="js/fcm-client.js"></script>
+  <script src="js/translate.js"></script>
   <style>
     :root{
       --bg:#181d23;
@@ -148,8 +149,17 @@
       <div class="topbar" id="chatHeader"></div>
       <div class="messages" id="messages"></div>
       <div class="composer">
+        <div class="muzz-translate-picker" id="translatePicker" hidden>
+          <p class="muzz-translate-label">Translate to</p>
+          <button type="button" data-lang="en">English</button>
+          <button type="button" data-lang="es">Español</button>
+          <button type="button" data-lang="zh-CN">中文</button>
+          <button type="button" data-lang="ja">日本語</button>
+        </div>
         <div class="composer-box">
+          <button type="button" id="translateBtn" class="muzz-translate-btn" aria-label="Translate"><span aria-hidden="true">文A</span></button>
           <textarea id="messageInput" placeholder="Write a private message..."></textarea>
+          <button type="button" id="translateUndo" class="muzz-translate-undo" hidden>Undo</button>
           <button class="send" id="sendBtn">➤</button>
         </div>
       </div>
@@ -406,6 +416,7 @@
         if (window.MuzzPush) MuzzPush.notify(activeWallet);
         input.value = '';
         autoResizeInput();
+        if (window.MuzzTranslate) MuzzTranslate.forgetDraft();
       }catch(err){
         console.error(err);
         alert('Could not send private message.');

@@ -34,6 +34,10 @@
       if (click(menu.querySelector('[aria-label="Close menu"]'))) return true;
       if (click(document.querySelector('.drawer-backdrop'))) return true;
     }
+    const translatePicker = document.querySelector('.muzz-translate-picker');
+    if (translatePicker && !translatePicker.hidden) {
+      if (click(document.querySelector('[aria-label="Translate"]'))) return true;
+    }
     if (document.querySelector('.emoji-window')) {
       if (click(document.querySelector('[aria-label="Emoji"]'))) return true;
     }
