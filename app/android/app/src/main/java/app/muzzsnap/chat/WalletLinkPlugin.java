@@ -1,7 +1,5 @@
 package app.muzzsnap.chat;
 
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
 import android.net.Uri;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -17,7 +15,7 @@ public class WalletLinkPlugin extends Plugin {
             call.reject("Wallet app not found. Install it or choose another wallet.");
             return;
         }
-        if (!startView(Uri.parse(url))) {
+        if (!WalletLinks.start(getContext(), Uri.parse(url))) {
             call.reject("Wallet app not found. Install it or choose another wallet.");
             return;
         }
@@ -26,27 +24,16 @@ public class WalletLinkPlugin extends Plugin {
 
     @Override
     public Boolean shouldOverrideLoad(Uri url) {
-        if (url == null || url.getScheme() == null) return null;
-        String scheme = url.getScheme().toLowerCase();
-        if ("http".equals(scheme) || "https".equals(scheme) || "about".equals(scheme)
-            || "data".equals(scheme) || "blob".equals(scheme) || "muzzsnap".equals(scheme)
-            || "javascript".equals(scheme)) {
-            return null;
+        if (url == null) return null;
+        android.util.Log.i(WalletLinks.TAG, "override " + url.getScheme() + " " + url);
+        if (WalletLinks.isAppReturn(url)) {
+            WalletLinks.start(getContext(), url);
+            return true;
         }
-        if (!startView(url) && bridge != null) {
+        if (!WalletLinks.shouldLeaveWebView(url)) return null;
+        if (!WalletLinks.start(getContext(), url) && bridge != null) {
             bridge.eval("try{if(window.muzzWalletMissing)window.muzzWalletMissing();}catch(e){}", null);
         }
         return true;
-    }
-
-    private boolean startView(Uri url) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, url);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
-            return true;
-        } catch (ActivityNotFoundException ex) {
-            return false;
-        }
     }
 }
