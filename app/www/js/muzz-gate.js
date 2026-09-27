@@ -185,6 +185,19 @@
     return /^[a-f0-9]{32}$/i.test(value) ? value : '';
   }
 
+  function walletConnectDeepLinks(uri) {
+    const enc = encodeURIComponent(String(uri || ''));
+    const back = encodeURIComponent(appPublicUrl() + '/login.html');
+    return [
+      { name: 'MetaMask', href: 'https://metamask.app.link/wc?uri=' + enc },
+      { name: 'Trust Wallet', href: 'https://link.trustwallet.com/wc?uri=' + enc },
+      { name: 'Coinbase Wallet', href: 'https://go.cb-w.com/wc?uri=' + enc },
+      { name: 'Rainbow', href: 'https://rnbwapp.com/wc?uri=' + enc },
+      { name: 'OKX', href: 'https://www.okx.com/download?deeplink=' + encodeURIComponent('okx://wc?uri=' + enc) },
+      { name: 'Phantom', href: 'https://phantom.app/ul/v1/connect?uri=' + enc + '&redirect_link=' + back }
+    ];
+  }
+
   function walletDeepLinks(pageUrl) {
     const page = String(pageUrl || '');
     const bare = page.replace(/^https?:\/\//, '').replace(/#/g, '%23');
@@ -476,6 +489,7 @@
     loginPageForWallets,
     walletConnectProjectId,
     walletDeepLinks,
+    walletConnectDeepLinks,
     randomNonce,
     buildLoginMessage,
     encodeHandoff,

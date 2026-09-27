@@ -1,15 +1,15 @@
-const CACHE = 'muzzsnap-app-v4';
+const CACHE = 'muzzsnap-app-v5';
 const SHELL = [
   './',
   './index.html',
-  './css/app.css',
-  './js/app.js',
-  './config.runtime.js',
+  './login.html',
   './manifest.webmanifest',
   './muzzsnap.jpg',
+  './css/ios-pwa.css',
+  './js/ios-pwa.js',
+  './icons/apple-touch-icon.png',
   './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -21,6 +21,19 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const title = payload.title || 'MuzzSnap';
+  const body = payload.body || 'New private message';
+  const peer = payload.peer || '';
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    tag: peer ? 'pm-' + peer : 'pm',
+    data: { peer }
+  }));
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -15,6 +15,29 @@ import {
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
 
 let modalPromise = null;
+let wcProvider = null;
+let latestUri = '';
+let connectStarted = false;
+const uriWaiters = [];
+
+function noteUri(uri) {
+  if (!uri) return;
+  latestUri = String(uri);
+  const pending = uriWaiters.splice(0);
+  pending.forEach((fn) => fn(latestUri));
+}
+
+function nativeReturnUrl(url) {
+  try {
+    const cap = globalThis.Capacitor;
+    if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return NATIVE_RETURN;
+  } catch {
+    /* browser */
+  }
+  const ua = (globalThis.navigator && navigator.userAgent) || '';
+  if (/iPad|iPhone|iPod/i.test(ua)) return `${url.replace(/\/$/, '')}/login.html`;
+  return NATIVE_RETURN;
+}
 
 const DEFAULT_PUBLIC_URL = 'https://muzzsnap-app.vercel.app';
 
@@ -67,8 +90,8 @@ async function buildModal() {
     url,
     icons: [icon],
     redirect: {
-      native: NATIVE_RETURN,
-      universal: url
+      native: nativeReturnUrl(url),
+      universal: `${url.replace(/\/$/, '')}/login.html`
     }
   };
   let universalProvider;
@@ -78,6 +101,8 @@ async function buildModal() {
     console.error(err);
     throw walletError('wc_load');
   }
+  wcProvider = universalProvider;
+  if (typeof universalProvider.on === 'function') universalProvider.on('display_uri', noteUri);
   ignoreChainSwitch(universalProvider);
   if (typeof window !== 'undefined') {
     ignoreChainSwitch(window.ethereum);
@@ -177,6 +202,35 @@ async function finishConnect(modal, hooks) {
     ...hint,
     namespaces: provider.session?.namespaces || null
   };
+}
+
+export async function walletConnectUri() {
+  if (latestUri) return latestUri;
+  await getModal();
+  if (!wcProvider) throw walletError('wc_load');
+  if (!connectStarted) {
+    connectStarted = true;
+    wcProvider.connect({
+      namespaces: {},
+      optionalNamespaces: {
+        eip155: {
+          chains: ['eip155:1', 'eip155:56'],
+          methods: ['personal_sign', 'eth_sign', 'eth_requestAccounts', 'eth_accounts'],
+          events: ['chainChanged', 'accountsChanged']
+        }
+      }
+    }).catch(() => {
+      connectStarted = false;
+    });
+  }
+  if (latestUri) return latestUri;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(walletError('NO_WALLET')), 20000);
+    uriWaiters.push((uri) => {
+      clearTimeout(timer);
+      resolve(uri);
+    });
+  });
 }
 
 export async function connectModal(hooks = {}) {

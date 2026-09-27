@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#070708">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MuzzSnap">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-320x568@2.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-375x667@2.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-375x812@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-390x844@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-393x852@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-402x874@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-414x896@2.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-414x896@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-428x926@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-430x932@3.png">
+    <link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-440x956@3.png">
+    <link rel="stylesheet" href="css/ios-pwa.css">
+    <script src="js/ios-pwa.js"></script>
     <title>MuzzSnap | Login</title>
-    <meta name="theme-color" content="#050505">
     <link rel="icon" href="muzzsnap.jpg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -36,10 +55,12 @@
             background: var(--bg);
             color: #fff;
             font-family: 'Rajdhani', sans-serif;
+            overscroll-behavior: none;
         }
 
         body {
-            min-height: 100vh;
+            min-height: 100dvh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -656,22 +677,50 @@
             showError(text.title, text.desc, muzzGate.debugLine(err, debugInfo(provider, hint)));
         }
 
+        function isIosBrowser() {
+            return window.MuzzIos ? MuzzIos.isIos() : /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+        }
+
+        async function openIosWallet(name) {
+            showSigning(true);
+            setStep('Opening ' + name + '...');
+            sessionStorage.setItem('muzz_ios_wc', '1');
+            const mod = await import('./js/wc-login.js');
+            const uri = await mod.walletConnectUri();
+            const target = muzzGate.walletConnectDeepLinks(uri).find((item) => item.name === name);
+            if (!target) throw new Error('Wallet app not found.');
+            window.location.assign(target.href);
+        }
+
         function paintLinks() {
             const page = muzzGate.loginPageForWallets(runningInApk() || wantsApkReturn());
             const box = document.getElementById('walletLinks');
             while (box.firstChild) box.removeChild(box.firstChild);
+            const ios = isIosBrowser();
             muzzGate.walletDeepLinks(page).forEach((item) => {
                 const link = document.createElement('a');
                 link.href = item.href;
                 link.textContent = item.name;
                 link.rel = 'noopener';
                 link.addEventListener('click', (event) => {
+                    if (ios) {
+                        event.preventDefault();
+                        openIosWallet(item.name).catch((err) => showSignError(err));
+                        return;
+                    }
                     if (!runningInApk()) return;
                     event.preventDefault();
                     openWalletApp(item.href);
                 });
                 box.appendChild(link);
             });
+            if (ios && !document.getElementById('iosWalletNote')) {
+                const note = document.createElement('p');
+                note.id = 'iosWalletNote';
+                note.className = 'fine';
+                note.textContent = 'On iPhone these open the wallet app and return to MuzzSnap.';
+                box.parentNode.insertBefore(note, box);
+            }
             const projectId = muzzGate.walletConnectProjectId();
             document.getElementById('btnWc').classList.toggle('hidden', !projectId);
             if (projectId) {
@@ -1060,6 +1109,13 @@
         });
         document.getElementById('stayBtn').addEventListener('click', () => {
             window.location.href = 'chat.html';
+        });
+
+        window.addEventListener('pageshow', () => {
+            if (!isIosBrowser()) return;
+            if (sessionStorage.getItem('muzz_ios_wc') !== '1') return;
+            sessionStorage.removeItem('muzz_ios_wc');
+            accessWithWalletConnect();
         });
 
         loadLocalConfig().then(() => {

@@ -1,1 +1,1 @@
-export { connectModal as connectWalletConnect } from './wallet.js';
+export { connectModal as connectWalletConnect, peekWalletConnect, walletConnectUri } from './wallet.js';
