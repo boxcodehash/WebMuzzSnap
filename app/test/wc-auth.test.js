@@ -40,7 +40,7 @@ test('one-click auth puts SIWE and ReCap in one proposal and never asks to switc
   assert.match(auth.resources[0], /^urn:recap:/);
   const source = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
   assert.match(source, /if \(hasLiveSession\(universalProvider\)\) return Promise\.resolve\(universalProvider\.session\)/);
-  assert.match(source, /if \(connectPromise\) return connectPromise/);
+  assert.match(source, /if \(connectPromise && latestUri\) return connectPromise/);
 });
 
 test('a one-click SIWE signature is a valid login proof on chain 1 or 56', async () => {
@@ -166,11 +166,11 @@ test('MetaMask skips the one-hour authenticate wait and signs as soon as the ses
       return { topic: 'trust' };
     }
   });
-  assert.equal(trustPlan.plain, false);
-  assert.equal(trustPlan.authentication, true);
+  assert.equal(trustPlan.plain, true);
+  assert.equal(trustPlan.authentication, undefined);
   assert.equal(shouldUsePlainConnect(null), true);
-  assert.equal(shouldUsePlainConnect({}), true);
-  assert.equal(shouldUsePlainConnect({ href: 'https://metamask.app.link/wc' }), true);
+  assert.equal(shouldUsePlainConnect({ name: 'Trust Wallet' }), true);
+  assert.equal(shouldUsePlainConnect({ name: 'MetaMask' }), true);
   assert.equal(
     buildSignDeepLink({ name: 'MetaMask', href: 'metamask:///', topic: 'abc', requestId: '9', userAgent: 'Mozilla Android' }),
     'metamask://wc?requestId=9&sessionTopic=abc'
@@ -192,8 +192,32 @@ test('MetaMask skips the one-hour authenticate wait and signs as soon as the ses
   assert.match(login, /preloadWalletConnect/);
   assert.match(login, /prefetchLoginNonce/);
   const walletSrc = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
-  assert.match(walletSrc, /settleLoginConnection/);
-  assert.doesNotMatch(walletSrc, /await originalAuthenticate/);
+  assert.match(walletSrc, /plainConnect/);
+  assert.match(walletSrc, /releaseConnectLock/);
+  assert.doesNotMatch(walletSrc, /authenticate\(/);
+  assert.doesNotMatch(walletSrc, /await connectPromise/);
+  assert.match(walletSrc, /modal\.open\(\)/);
   assert.match(walletSrc, /Math\.min\(hooks\.waitMs == null \? 800/);
   assert.doesNotMatch(walletSrc, /setInterval/);
+  const signClient = readFileSync(new URL('../node_modules/@walletconnect/sign-client/dist/index.js', import.meta.url), 'utf8');
+  assert.match(signClient, /methods:\["wc_sessionAuthenticate"\]/);
+});
+
+test('a stuck login lock can be reset and the next tap runs', async () => {
+  const flight = createSingleFlight();
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const first = flight(async () => {
+    await gate;
+    return 'stuck';
+  });
+  assert.equal(flight(async () => 'no'), first);
+  flight.reset();
+  const next = flight(async () => 'next');
+  assert.notEqual(next, first);
+  assert.equal(await next, 'next');
+  release();
+  assert.equal(await first, 'stuck');
 });

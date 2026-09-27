@@ -15,14 +15,10 @@ import {
 import {
   AUTH_CHAINS,
   AUTH_METHODS,
-  authConnectParams,
-  buildOneClickAuth,
   createSingleFlight,
   hasLiveSession,
   muzzMark,
-  proofFromSession,
-  readWalletChoice,
-  settleLoginConnection
+  proofFromSession
 } from './wc-auth.js';
 
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
@@ -32,11 +28,20 @@ let wcProvider = null;
 let latestUri = '';
 let connectStarted = false;
 let connectPromise = null;
-let pendingAuth = null;
+let connectGeneration = 0;
 let closingModal = false;
 let statusHook = () => {};
 const uriWaiters = [];
 const connectFlight = createSingleFlight();
+const CONNECT_LOCK_MS = 12000;
+
+function releaseConnectLock() {
+  connectGeneration += 1;
+  connectPromise = null;
+  connectStarted = false;
+  latestUri = '';
+  if (typeof connectFlight.reset === 'function') connectFlight.reset();
+}
 
 function noteUri(uri) {
   if (!uri) return;
@@ -45,22 +50,6 @@ function noteUri(uri) {
   statusHook('Check your wallet to sign');
   const pending = uriWaiters.splice(0);
   pending.forEach((fn) => fn(latestUri));
-}
-
-function authContext() {
-  const url = dappUrl();
-  let domain = 'muzzsnap-app.vercel.app';
-  try {
-    domain = new URL(url).host;
-  } catch {
-    /* the public host is the fallback */
-  }
-  return { domain, uri: `${url.replace(/\/$/, '')}/login.html` };
-}
-
-function nextAuth() {
-  if (!pendingAuth) pendingAuth = buildOneClickAuth(authContext());
-  return pendingAuth;
 }
 
 async function closeModal(modal) {
@@ -93,28 +82,16 @@ function optionalNamespaces(params) {
   };
 }
 
-async function runWalletConnect(originalAuthenticate, originalConnect, params) {
-  // originalAuthenticate waits at least one hour (wc_sessionAuthenticate ttl floor).
-  // MetaMask approves the session long before that promise settles, so personal_sign never starts.
-  void originalAuthenticate;
-  if (hasLiveSession(wcProvider)) return wcProvider.session;
-  const settled = await settleLoginConnection({
-    choice: readWalletChoice(),
-    connect: (plan) => {
-      wcProvider.namespaces = {};
-      const request = {
-        ...params,
-        namespaces: {},
-        optionalNamespaces: optionalNamespaces(params),
-        authentication: plan.plain ? undefined : [authConnectParams(nextAuth())]
-      };
-      if (plan.plain) delete request.authentication;
-      return originalConnect(request);
-    }
+function plainConnect(originalConnect, params) {
+  // A normal session proposal. One-click auth advertises only wc_sessionAuthenticate,
+  // and AppKit will not open the wallet until display_uri has set wcUri.
+  muzzMark('wc:proposal:plain');
+  wcProvider.namespaces = {};
+  return originalConnect({
+    ...params,
+    namespaces: {},
+    optionalNamespaces: optionalNamespaces(params)
   });
-  const session = settled.session || wcProvider.session;
-  if (hasLiveSession(wcProvider) || session) return session || wcProvider.session;
-  return session;
 }
 
 function nativeReturnUrl(url) {
@@ -203,17 +180,23 @@ async function buildModal() {
     });
   }
   const originalConnect = universalProvider.connect.bind(universalProvider);
-  const originalAuthenticate = typeof universalProvider.authenticate === 'function'
-    ? universalProvider.authenticate.bind(universalProvider)
-    : null;
   universalProvider.connect = (params = {}) => {
     if (hasLiveSession(universalProvider)) return Promise.resolve(universalProvider.session);
-    if (connectPromise) return connectPromise;
-    const run = runWalletConnect(originalAuthenticate, originalConnect, params).finally(() => {
+    // Reuse a pairing that already has a URI. A hung attempt with no URI must not be reused:
+    // AppKit opens the wallet only after display_uri.
+    if (connectPromise && latestUri) return connectPromise;
+    connectPromise = null;
+    const run = plainConnect(originalConnect, params).finally(() => {
       if (connectPromise === run) connectPromise = null;
-      pendingAuth = null;
     });
     connectPromise = run;
+    const stuck = setTimeout(() => {
+      if (connectPromise === run && !latestUri && !hasLiveSession(universalProvider)) {
+        connectPromise = null;
+        connectStarted = false;
+      }
+    }, CONNECT_LOCK_MS);
+    run.finally(() => clearTimeout(stuck));
     return run;
   };
   return createAppKit({
@@ -281,18 +264,13 @@ async function providerOf(modal) {
 }
 
 async function finishConnect(modal) {
-  if (hasLiveSession(wcProvider)) {
-    muzzMark('session');
-  } else if (connectPromise) {
-    try {
-      await connectPromise;
-    } catch {
-      /* the session may still be on the provider after a late approval */
-    }
-    muzzMark('session');
-  } else {
-    muzzMark('session');
+  if (!hasLiveSession(wcProvider) && connectPromise) {
+    await Promise.race([
+      connectPromise.catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 800))
+    ]);
   }
+  muzzMark('session');
   const provider = wcProvider && typeof wcProvider.request === 'function'
     ? wcProvider
     : await providerOf(modal);
@@ -379,19 +357,12 @@ async function connectModalInner(hooks = {}) {
   const modal = await getModal();
   if (hooks.onStatus) statusHook = hooks.onStatus;
   statusHook('Connecting…');
-  if (connectPromise && !hasLiveSession(wcProvider)) {
-    statusHook('Check your wallet to sign');
-    try {
-      await connectPromise;
-    } catch {
-      /* a rejected in-flight attempt still reports below if no session landed */
-    }
-  }
   const restored = sessionAddress();
   if (restored || hasLiveSession(wcProvider)) {
     await closeModal(modal);
     return finishConnect(modal, hooks);
   }
+  const generation = connectGeneration;
   await new Promise((resolve, reject) => {
     let opened = false;
     let settled = false;
@@ -404,6 +375,7 @@ async function connectModalInner(hooks = {}) {
     const finish = (fn) => {
       if (settled) return;
       settled = true;
+      clearTimeout(lockTimer);
       unsubAccount();
       unsubState();
       if (wcProvider && typeof wcProvider.removeListener === 'function') {
@@ -414,6 +386,11 @@ async function connectModalInner(hooks = {}) {
     const connected = () => {
       closeModal(modal).finally(() => finish(() => resolve(sessionAddress() || modal.getAddress?.() || '')));
     };
+    const lockTimer = setTimeout(() => {
+      if (settled || opened || hasLiveSession(wcProvider)) return;
+      releaseConnectLock();
+      finish(() => reject(walletError('wc_load')));
+    }, CONNECT_LOCK_MS);
     unsubAccount = modal.subscribeAccount((account) => {
       if (!account?.isConnected || !account.address) return;
       connected();
@@ -423,15 +400,18 @@ async function connectModalInner(hooks = {}) {
       else if (opened && !closingModal) {
         setTimeout(() => {
           if (settled || closingModal || hasLiveSession(wcProvider) || modal.getIsConnectedState?.()) return;
-          connectPromise = null;
-          pendingAuth = null;
+          releaseConnectLock();
           finish(() => reject(walletError('rejected')));
         }, 400);
       }
     });
     if (connectPromise) connectPromise.then(onProviderConnect, () => {});
-    modal.open().catch((err) => finish(() => reject(err)));
+    modal.open().catch((err) => {
+      releaseConnectLock();
+      finish(() => reject(err));
+    });
   });
+  if (generation !== connectGeneration && !hasLiveSession(wcProvider)) throw walletError('rejected');
   await closeModal(modal);
   return finishConnect(modal, hooks);
 }
@@ -445,11 +425,10 @@ export async function restoreWalletConnect(hooks = {}) {
   try {
     const modal = await getModal();
     if (connectPromise && !hasLiveSession(wcProvider)) {
-      try {
-        await connectPromise;
-      } catch {
-        /* resume still inspects whatever session survived */
-      }
+      await Promise.race([
+        connectPromise.catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 800))
+      ]);
     }
     const address = sessionAddress() || await waitForAddress(modal, Math.min(hooks.waitMs == null ? 800 : Number(hooks.waitMs) || 800, 800));
     if (!address && !hasLiveSession(wcProvider)) return null;

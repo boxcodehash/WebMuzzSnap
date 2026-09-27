@@ -656,6 +656,21 @@
             return loginTask;
         }
 
+        function releasePageLock() {
+            accessWithWalletConnectBody.running = false;
+            loginTask = null;
+            loginDepth = 0;
+        }
+
+        function armLoginLock() {
+            const timer = setTimeout(() => {
+                const modal = document.querySelector('w3m-modal');
+                if (modal && modal.open) return;
+                releasePageLock();
+            }, 12000);
+            return function () { clearTimeout(timer); };
+        }
+
         const inApp = /MetaMask|Trust|CoinbaseWallet|CBWallet|Rainbow|OKApp|OKX|Phantom/i.test(navigator.userAgent);
 
         function runningInApk() {
@@ -1238,6 +1253,7 @@
             showSigning(true);
             setStep('Connecting…');
             let session = null;
+            const stopLockWatch = armLoginLock();
             try {
                 window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
@@ -1259,6 +1275,7 @@
                 clearWalletAttempt();
                 showSignError(err, session && session.provider, session);
             } finally {
+                stopLockWatch();
                 accessWithWalletConnectBody.running = false;
             }
         }

@@ -111,7 +111,7 @@ export function proofFromSession(session) {
 
 export function createSingleFlight() {
   let current = null;
-  return function singleFlight(task) {
+  function singleFlight(task) {
     if (current) return current;
     let run;
     run = Promise.resolve().then(task).finally(() => {
@@ -119,7 +119,11 @@ export function createSingleFlight() {
     });
     current = run;
     return run;
+  }
+  singleFlight.reset = () => {
+    current = null;
   };
+  return singleFlight;
 }
 
 /** sign-client floors wc_sessionAuthenticate at ONE_HOUR. A shorter expiry cannot reduce it. */
@@ -169,14 +173,9 @@ export function isMetaMaskChoice(choice) {
   return href.startsWith('metamask:') || href.includes('metamask.app.link');
 }
 
-/** Unknown at proposal time, and MetaMask, get a plain session. One-click stays off that path. */
-export function shouldUsePlainConnect(choice) {
-  if (!choice) return true;
-  const id = String(choice.id || choice.wcId || '').trim();
-  const name = String(choice.name || '').trim();
-  const href = String(choice.href || '').trim();
-  if (!id && !name && !href) return true;
-  return isMetaMaskChoice(choice);
+/** One-click auth is off for every wallet. AppKit opens the wallet from a normal pairing URI. */
+export function shouldUsePlainConnect() {
+  return true;
 }
 
 export function noteWalletChoice(choice) {
