@@ -144,7 +144,15 @@ test('wallet_switchEthereumChain no se reenvía y la firma rechazada se explica'
   assert.equal(await provider.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x1' }] }), null);
   assert.equal(provider.calls.includes('wallet_switchEthereumChain'), false);
   assert.equal(await provider.request({ method: 'eth_chainId' }), 1);
-  assert.equal(provider.__muzzRealChain, '0x89');
+  assert.equal(provider.calls.includes('eth_chainId'), false);
+  assert.equal(provider.__muzzRealChain, undefined);
+  const onPolygon = approve(mockProvider(wallet, { chainId: '0x89' }), wallet, ['eip155:137']);
+  ignoreChainSwitch(onPolygon);
+  assert.equal(await onPolygon.request({ method: 'eth_chainId' }), 1);
+  assert.equal(onPolygon.__muzzRealChain, '0x89');
+  assert.equal(onPolygon.calls.includes('eth_chainId'), false);
+  assert.equal((await onPolygon.request({ method: 'eth_accounts' }))[0].toLowerCase(), wallet.address.toLowerCase());
+  assert.equal(onPolygon.calls.includes('eth_accounts'), false);
   const switched = mapWalletError(new Error('EthersAdapter:connect - Switch network failed'));
   assert.notEqual(switched.code, 'chain');
   assert.doesNotMatch(String(switched.message || ''), /Wrong network/);
@@ -182,7 +190,9 @@ test('los deep links de móvil apuntan a la página y el APK vuelve por muzzsnap
   assert.match(ignore, /config\.local\.json/);
   assert.match(ignore, /^\.env$/m);
   const source = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
-  assert.match(source, /originalAuthenticate\(/);
+  assert.match(source, /originalAuthenticate/);
+  assert.doesNotMatch(source, /await originalAuthenticate/);
+  assert.match(source, /settleLoginConnection/);
   assert.match(source, /hasLiveSession/);
   assert.match(source, /modal\.close/);
   assert.match(source, /authentication:/);

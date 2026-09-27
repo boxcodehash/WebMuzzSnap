@@ -2,16 +2,23 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { Wallet } from 'ethers';
+import { ONE_HOUR, toMiliseconds } from '@walletconnect/time';
 import { formatMessage } from '@walletconnect/utils';
 import { proveLogin } from '../server/login-proof.js';
 import {
   AUTH_CHAINS,
   AUTH_METHODS,
+  AUTHENTICATE_WAIT_FLOOR_MS,
+  METAMASK_WC_ID,
   buildAuthStatement,
   buildOneClickAuth,
+  buildSignDeepLink,
   cacaoProof,
   createSingleFlight,
-  hasLiveSession
+  hasLiveSession,
+  resetLoginTiming,
+  settleLoginConnection,
+  shouldUsePlainConnect
 } from '../src/wc-auth.js';
 
 test('one-click auth puts SIWE and ReCap in one proposal and never asks to switch chain', () => {
@@ -111,4 +118,82 @@ test('hasLiveSession and the login lock ignore a second call', async () => {
   });
   assert.equal(await third, 'next');
   assert.equal(calls, 2);
+});
+
+test('MetaMask skips the one-hour authenticate wait and signs as soon as the session exists', async () => {
+  const beforeMs = toMiliseconds(ONE_HOUR);
+  assert.equal(ONE_HOUR, 3600);
+  assert.equal(beforeMs, 3_600_000);
+  assert.equal(AUTHENTICATE_WAIT_FLOOR_MS, beforeMs);
+  const signSrc = readFileSync(new URL('../node_modules/@walletconnect/sign-client/dist/index.js', import.meta.url), 'utf8');
+  assert.match(signSrc, /g>N\.wc_sessionAuthenticate\.req\.ttl\?g:N\.wc_sessionAuthenticate\.req\.ttl/);
+  let oldSigned = false;
+  const hung = new Promise(() => {});
+  const raced = await Promise.race([
+    hung.then(() => {
+      oldSigned = true;
+      return 'signed';
+    }),
+    new Promise((resolve) => setTimeout(() => resolve('blocked'), 40))
+  ]);
+  assert.equal(raced, 'blocked');
+  assert.equal(oldSigned, false);
+
+  resetLoginTiming();
+  const started = performance.now();
+  const calls = [];
+  await settleLoginConnection({
+    choice: { id: METAMASK_WC_ID, name: 'MetaMask', href: 'metamask:///' },
+    connect: async (plan) => {
+      calls.push(plan.plain ? 'plain' : 'one-click');
+      assert.equal(plan.authentication, undefined);
+      return { topic: 'topic-1' };
+    },
+    onSession: async () => {
+      calls.push('personal_sign');
+    }
+  });
+  const afterMs = performance.now() - started;
+  assert.deepEqual(calls, ['plain', 'personal_sign']);
+  assert.ok(afterMs < 100, `after ${afterMs}ms before-floor ${beforeMs}ms`);
+  console.log(`muzz-login measured before=${beforeMs}ms after=${afterMs.toFixed(3)}ms`);
+
+  let trustPlan = null;
+  await settleLoginConnection({
+    choice: { name: 'Trust Wallet', id: 'trust' },
+    connect: async (plan) => {
+      trustPlan = plan;
+      return { topic: 'trust' };
+    }
+  });
+  assert.equal(trustPlan.plain, false);
+  assert.equal(trustPlan.authentication, true);
+  assert.equal(shouldUsePlainConnect(null), true);
+  assert.equal(shouldUsePlainConnect({}), true);
+  assert.equal(shouldUsePlainConnect({ href: 'https://metamask.app.link/wc' }), true);
+  assert.equal(
+    buildSignDeepLink({ name: 'MetaMask', href: 'metamask:///', topic: 'abc', requestId: '9', userAgent: 'Mozilla Android' }),
+    'metamask://wc?requestId=9&sessionTopic=abc'
+  );
+  assert.equal(
+    buildSignDeepLink({ name: 'MetaMask', href: 'metamask:///', topic: 'abc', requestId: '', userAgent: 'Mozilla iPhone' }),
+    'https://metamask.app.link/wc?requestId=&sessionTopic=abc'
+  );
+  const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
+  const body = login.slice(login.indexOf('async function signInWithProvider'), login.indexOf('async function accessWithWallet'));
+  const sent = body.indexOf("window.muzzMark('personal_sign:sent')");
+  const balanceStart = body.indexOf("window.muzzMark('balance:start')");
+  const balanceAwait = body.indexOf('await balancePromise');
+  const api = body.indexOf("window.muzzMark('api:none')");
+  assert.ok(balanceStart > 0 && balanceStart < sent);
+  assert.ok(api > 0 && sent > api);
+  assert.ok(balanceAwait > sent);
+  assert.doesNotMatch(body, /fetch\(\s*['"]\/api/);
+  assert.match(login, /preloadWalletConnect/);
+  assert.match(login, /prefetchLoginNonce/);
+  const walletSrc = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
+  assert.match(walletSrc, /settleLoginConnection/);
+  assert.doesNotMatch(walletSrc, /await originalAuthenticate/);
+  assert.match(walletSrc, /Math\.min\(hooks\.waitMs == null \? 800/);
+  assert.doesNotMatch(walletSrc, /setInterval/);
 });

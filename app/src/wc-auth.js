@@ -121,3 +121,201 @@ export function createSingleFlight() {
     return run;
   };
 }
+
+/** sign-client floors wc_sessionAuthenticate at ONE_HOUR. A shorter expiry cannot reduce it. */
+export const AUTHENTICATE_WAIT_FLOOR_MS = 3_600_000;
+/** WalletConnect rejects a session proposal expiry under FIVE_MINUTES. */
+export const PROPOSE_TTL_FLOOR_S = 300;
+export const METAMASK_WC_ID = 'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96';
+export const DEEPLINK_KEY = 'WALLETCONNECT_DEEPLINK_CHOICE';
+
+let pendingChoice = null;
+let lastTimed = '';
+let lastSignHrefAt = 0;
+
+export function muzzMark(label) {
+  const rows = globalThis.__muzzTimes || (globalThis.__muzzTimes = []);
+  if (!globalThis.__muzzTimer) {
+    try { console.time('muzz-login'); } catch { /* the page timer is already running */ }
+    globalThis.__muzzTimer = true;
+  }
+  if (lastTimed) {
+    try { console.timeEnd(`muzz:${lastTimed}`); } catch { /* step timer already closed */ }
+  }
+  const step = `${label}#${rows.length}`;
+  try { console.time(`muzz:${step}`); } catch { /* duplicate step name */ }
+  lastTimed = step;
+  try { console.timeLog('muzz-login', label); } catch { /* overall timer missing */ }
+  const at = globalThis.performance && typeof performance.now === 'function' ? performance.now() : Date.now();
+  const first = rows.length ? rows[0].at : at;
+  const row = { label, at, delta: at - first };
+  rows.push(row);
+  return row;
+}
+
+export function resetLoginTiming() {
+  globalThis.__muzzTimes = [];
+  globalThis.__muzzTimer = false;
+  lastTimed = '';
+}
+
+export function isMetaMaskChoice(choice) {
+  if (!choice) return false;
+  const id = String(choice.id || choice.wcId || '').toLowerCase();
+  if (id === METAMASK_WC_ID || id === 'metamask') return true;
+  const name = String(choice.name || '').toLowerCase();
+  if (name.includes('metamask')) return true;
+  const href = String(choice.href || '').toLowerCase();
+  return href.startsWith('metamask:') || href.includes('metamask.app.link');
+}
+
+/** Unknown at proposal time, and MetaMask, get a plain session. One-click stays off that path. */
+export function shouldUsePlainConnect(choice) {
+  if (!choice) return true;
+  const id = String(choice.id || choice.wcId || '').trim();
+  const name = String(choice.name || '').trim();
+  const href = String(choice.href || '').trim();
+  if (!id && !name && !href) return true;
+  return isMetaMaskChoice(choice);
+}
+
+export function noteWalletChoice(choice) {
+  if (!choice) return null;
+  pendingChoice = {
+    id: choice.id || choice.wcId || '',
+    name: choice.name || '',
+    href: choice.href || ''
+  };
+  if (!pendingChoice.href && isMetaMaskChoice(pendingChoice)) {
+    const ua = (globalThis.navigator && navigator.userAgent) || '';
+    pendingChoice.href = /iPad|iPhone|iPod/i.test(ua) ? 'https://metamask.app.link/' : 'metamask:///';
+  }
+  try {
+    if (pendingChoice.href || pendingChoice.name) {
+      globalThis.localStorage?.setItem(DEEPLINK_KEY, JSON.stringify({
+        href: pendingChoice.href,
+        name: pendingChoice.name
+      }));
+    }
+    if (pendingChoice.name || pendingChoice.id) {
+      globalThis.sessionStorage?.setItem('muzz_wc_wallet', pendingChoice.name || pendingChoice.id);
+    }
+  } catch {
+    /* private mode */
+  }
+  return pendingChoice;
+}
+
+export function readWalletChoice() {
+  if (pendingChoice && (pendingChoice.name || pendingChoice.id || pendingChoice.href)) return pendingChoice;
+  try {
+    const raw = globalThis.localStorage?.getItem(DEEPLINK_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && (parsed.href || parsed.name || parsed.id)) return parsed;
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  try {
+    const name = globalThis.sessionStorage?.getItem('muzz_wc_wallet') || '';
+    if (name) return noteWalletChoice({ name });
+  } catch {
+    /* storage unavailable */
+  }
+  return null;
+}
+
+export function authConnectParams(auth) {
+  const params = authRequestParams(auth);
+  if (!params.ttl || params.ttl < PROPOSE_TTL_FLOOR_S) params.ttl = PROPOSE_TTL_FLOOR_S;
+  return params;
+}
+
+/**
+ * Plain connect for MetaMask and for an unknown wallet. Never calls authenticate():
+ * that promise waits at least AUTHENTICATE_WAIT_FLOOR_MS even after the session is approved.
+ * onSession runs in the same turn the session promise resolves.
+ */
+export async function settleLoginConnection({ choice, connect, onSession, mark = muzzMark } = {}) {
+  const plain = shouldUsePlainConnect(choice);
+  mark(plain ? 'wc:proposal:plain' : 'wc:proposal:one-click');
+  mark('wc:authenticate:skipped');
+  const session = await connect({ plain, authentication: plain ? undefined : true });
+  mark('session');
+  if (onSession) await onSession(session, { plain });
+  return { session, plain };
+}
+
+export function buildSignDeepLink({ href, name, id, topic, requestId, userAgent } = {}) {
+  const query = `requestId=${encodeURIComponent(requestId || '')}&sessionTopic=${encodeURIComponent(topic || '')}`;
+  const choice = { href, name, id };
+  const ios = /iPad|iPhone|iPod/i.test(userAgent || '');
+  if (isMetaMaskChoice(choice)) {
+    if (ios || /metamask\.app\.link/i.test(String(href || ''))) return `https://metamask.app.link/wc?${query}`;
+    return `metamask://wc?${query}`;
+  }
+  let base = String(href || '');
+  if (!base) return '';
+  if (base.endsWith('/')) base = base.slice(0, -1);
+  return `${base}/wc?${query}`;
+}
+
+function fallbackOpen(href) {
+  const target = /^https?:/i.test(href) ? '_blank' : '_self';
+  let opened = null;
+  try {
+    opened = typeof globalThis.open === 'function' ? globalThis.open(href, target, 'noreferrer noopener') : null;
+  } catch {
+    opened = null;
+  }
+  if (!opened && globalThis.location && typeof globalThis.location.assign === 'function') {
+    globalThis.location.assign(href);
+  }
+}
+
+function defaultSignOpen(href) {
+  const Cap = globalThis.Capacitor;
+  if (Cap && typeof Cap.isNativePlatform === 'function' && Cap.isNativePlatform() && typeof Cap.registerPlugin === 'function') {
+    try {
+      const WalletLink = Cap.registerPlugin('WalletLink');
+      Promise.resolve(WalletLink.open({ url: href })).catch(() => fallbackOpen(href));
+      return;
+    } catch {
+      /* the WebView can still open the scheme */
+    }
+  }
+  fallbackOpen(href);
+}
+
+/** Opens the wallet even when document.hasFocus() is false. WalletConnect skips that case. */
+export function openSignDeepLink(provider, opener) {
+  const choice = readWalletChoice() || {};
+  const href = buildSignDeepLink({
+    href: choice.href,
+    name: choice.name,
+    id: choice.id || choice.wcId,
+    topic: (provider && provider.session && provider.session.topic) || '',
+    requestId: '',
+    userAgent: (globalThis.navigator && navigator.userAgent) || ''
+  });
+  if (!href) {
+    muzzMark('deeplink:skip');
+    return '';
+  }
+  const now = Date.now();
+  if (!opener && now - lastSignHrefAt < 800) return href;
+  lastSignHrefAt = now;
+  muzzMark('deeplink');
+  const open = opener || defaultSignOpen;
+  setTimeout(() => {
+    try { open(href); } catch { /* the request is already on the relay */ }
+  }, 0);
+  return href;
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.muzzMark = muzzMark;
+  globalThis.muzzOpenSign = openSignDeepLink;
+  globalThis.muzzNoteWallet = noteWalletChoice;
+}

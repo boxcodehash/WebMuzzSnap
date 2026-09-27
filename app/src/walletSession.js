@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { matchWalletId, walletById } from './walletCatalog.js';
 import { mapWalletError, walletError } from './walletErrors.js';
+import { muzzMark, openSignDeepLink } from './wc-auth.js';
 
 export function isMobile(userAgent = globalThis.navigator?.userAgent || '') {
   return /Android|iPhone|iPad|iPod/i.test(userAgent);
@@ -70,7 +71,33 @@ function rpcMethod(payload) {
   return '';
 }
 
-/** Login never asks the wallet to change chain. AppKit still calls these methods. */
+function sessionChainHex(provider) {
+  const namespaces = provider?.session?.namespaces;
+  if (!namespaces || typeof namespaces !== 'object') return '';
+  for (const [key, ns] of Object.entries(namespaces)) {
+    const bag = [key, ...(ns?.chains || []), ...(ns?.accounts || [])];
+    for (const item of bag) {
+      const match = String(item || '').match(/eip155:(\d+)/);
+      if (match) return `0x${Number(match[1]).toString(16)}`;
+    }
+  }
+  return '';
+}
+
+function sessionAccounts(provider) {
+  const namespaces = provider?.session?.namespaces;
+  if (!namespaces || typeof namespaces !== 'object') return null;
+  const out = [];
+  for (const ns of Object.values(namespaces)) {
+    for (const account of ns?.accounts || []) {
+      const match = String(account || '').match(/0x[a-fA-F0-9]{40}/);
+      if (match && !out.includes(match[0])) out.push(match[0]);
+    }
+  }
+  return out.length ? out : null;
+}
+
+/** Login never asks the wallet to change chain, and it does not spend a WalletConnect round-trip on eth_chainId. */
 export function ignoreChainSwitch(provider) {
   if (!provider || typeof provider.request !== 'function' || provider.__muzzNoSwitch) return provider;
   const original = provider.request.bind(provider);
@@ -78,13 +105,19 @@ export function ignoreChainSwitch(provider) {
     const method = rpcMethod(payload);
     if (SWITCH_METHODS.has(method)) return null;
     if (method === 'eth_chainId') {
-      try {
-        const real = await original(payload, ...rest);
-        if (provider.__muzzRealChain == null || provider.__muzzRealChain === '') provider.__muzzRealChain = real;
-      } catch {
-        if (provider.__muzzRealChain == null) provider.__muzzRealChain = 'unreadable';
-      }
+      const local = sessionChainHex(provider);
+      if (local && (provider.__muzzRealChain == null || provider.__muzzRealChain === '')) provider.__muzzRealChain = local;
       return 1;
+    }
+    if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+      const known = sessionAccounts(provider);
+      if (known) return known;
+    }
+    if (method === 'personal_sign') {
+      muzzMark('personal_sign:sent');
+      const pending = original(payload, ...rest);
+      openSignDeepLink(provider);
+      return pending;
     }
     return original(payload, ...rest);
   };
@@ -186,12 +219,16 @@ export function discoverInjected(root = globalThis, timeoutMs = 300) {
   });
 }
 
-export async function openSession(provider) {
+export async function openSession(provider, options = {}) {
   if (!provider || typeof provider.request !== 'function') throw walletError('NO_WALLET');
   ignoreChainSwitch(provider);
+  const known = firstEvmAddress(provider, []);
+  if (options.silent && known) {
+    return { provider, address: known, chainId: provider.__muzzRealChain };
+  }
   let accounts = [];
   try {
-    accounts = await provider.request({ method: 'eth_requestAccounts' });
+    accounts = await provider.request({ method: options.silent ? 'eth_accounts' : 'eth_requestAccounts' });
   } catch (err) {
     const mapped = mapWalletError(err);
     if (mapped.code === 'rejected' || mapped.code === 'pending') throw mapped;

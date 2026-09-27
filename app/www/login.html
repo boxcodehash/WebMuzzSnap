@@ -587,7 +587,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build">v1.0.7</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build">v1.0.8</small></footer>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -614,6 +614,39 @@
             }
             return '';
         })();
+
+        window.muzzMark = function (label) {
+            const rows = window.__muzzTimes || (window.__muzzTimes = []);
+            if (!window.__muzzTimer) {
+                console.time('muzz-login');
+                window.__muzzTimer = true;
+            }
+            console.timeLog('muzz-login', label);
+            const at = (window.performance && performance.now) ? performance.now() : Date.now();
+            const first = rows.length ? rows[0].at : at;
+            rows.push({ label: label, at: at, delta: at - first });
+        };
+
+        function prefetchLoginNonce() {
+            try {
+                const existing = sessionStorage.getItem('muzz_login_nonce') || '';
+                if (/^[a-f0-9]{32}$/.test(existing)) return existing;
+                const nonce = muzzGate.randomNonce();
+                sessionStorage.setItem('muzz_login_nonce', nonce);
+                return nonce;
+            } catch (err) {
+                return '';
+            }
+        }
+
+        function takeLoginNonce() {
+            let nonce = '';
+            try { nonce = sessionStorage.getItem('muzz_login_nonce') || ''; } catch (err) { nonce = ''; }
+            if (!/^[a-f0-9]{32}$/.test(nonce)) nonce = muzzGate.randomNonce();
+            try { sessionStorage.removeItem('muzz_login_nonce'); } catch (err) { /* private mode */ }
+            prefetchLoginNonce();
+            return nonce;
+        }
 
         function runLogin(task) {
             if (loginTask) return loginTask;
@@ -712,11 +745,14 @@
         }
 
         async function openIosWallet(name) {
+            window.muzzMark('tap');
             showSigning(true);
             setStep('Connecting…');
             sessionStorage.setItem('muzz_ios_wc', '1');
             sessionStorage.setItem('muzz_wc_pending', '1');
+            sessionStorage.setItem('muzz_wc_wallet', name);
             const mod = await import('./js/wc-login.js');
+            if (mod.noteWalletChoice) mod.noteWalletChoice({ name: name });
             const uri = await mod.walletConnectUri();
             setStep('Check your wallet to sign');
             const target = muzzGate.walletConnectDeepLinks(uri).find((item) => item.name === name);
@@ -834,6 +870,36 @@
             return mmSdk.getProvider() || window.ethereum || null;
         }
 
+        function sessionChainHex(provider) {
+            const namespaces = provider && provider.session && provider.session.namespaces;
+            if (!namespaces) return '';
+            const keys = Object.keys(namespaces);
+            for (let i = 0; i < keys.length; i += 1) {
+                const ns = namespaces[keys[i]] || {};
+                const bag = [keys[i]].concat(ns.chains || []).concat(ns.accounts || []);
+                for (let j = 0; j < bag.length; j += 1) {
+                    const match = String(bag[j] || '').match(/eip155:(\d+)/);
+                    if (match) return '0x' + Number(match[1]).toString(16);
+                }
+            }
+            return '';
+        }
+
+        function sessionAccounts(provider) {
+            const namespaces = provider && provider.session && provider.session.namespaces;
+            if (!namespaces) return null;
+            const out = [];
+            const keys = Object.keys(namespaces);
+            for (let i = 0; i < keys.length; i += 1) {
+                const accounts = (namespaces[keys[i]] && namespaces[keys[i]].accounts) || [];
+                for (let j = 0; j < accounts.length; j += 1) {
+                    const match = String(accounts[j] || '').match(/0x[a-fA-F0-9]{40}/);
+                    if (match && out.indexOf(match[0]) === -1) out.push(match[0]);
+                }
+            }
+            return out.length ? out : null;
+        }
+
         function ignoreChainSwitch(provider) {
             if (!provider || typeof provider.request !== 'function' || provider.__muzzNoSwitch) return provider;
             const original = provider.request.bind(provider);
@@ -844,13 +910,18 @@
                     return Promise.resolve(null);
                 }
                 if (method === 'eth_chainId') {
-                    return original.apply(provider, [payload].concat(rest)).then(function (real) {
-                        if (provider.__muzzRealChain == null || provider.__muzzRealChain === '') provider.__muzzRealChain = real;
-                        return 1;
-                    }, function () {
-                        if (provider.__muzzRealChain == null) provider.__muzzRealChain = 'unreadable';
-                        return 1;
-                    });
+                    const local = sessionChainHex(provider);
+                    if (local && (provider.__muzzRealChain == null || provider.__muzzRealChain === '')) provider.__muzzRealChain = local;
+                    return Promise.resolve(1);
+                }
+                if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+                    const known = sessionAccounts(provider);
+                    if (known) return Promise.resolve(known);
+                }
+                if (method === 'personal_sign') {
+                    const pending = original.apply(provider, [payload].concat(rest));
+                    if (window.muzzOpenSign) window.muzzOpenSign(provider);
+                    return pending;
                 }
                 return original.apply(provider, [payload].concat(rest));
             };
@@ -1034,18 +1105,28 @@
                 throw missing;
             }
 
-            const nonce = muzzGate.randomNonce();
+            const nonce = takeLoginNonce();
+            window.muzzMark('nonce');
             const exp = Date.now() + muzzGate.HANDOFF_MS;
             let message = opts.message || '';
             let signature = opts.signature || '';
+            let balancePromise = null;
             if (!signature || !message || !signatureMatches(message, signature, address)) {
                 message = muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
+                window.muzzMark('message');
+                window.muzzMark('balance:start');
+                balancePromise = muzzGate.readMuzzBalance(address);
                 setStep('Check your wallet to sign');
+                window.muzzMark('api:none');
+                window.muzzMark('personal_sign:sent');
                 try {
-                    signature = await rawProvider.request({
+                    const signPromise = rawProvider.request({
                         method: 'personal_sign',
                         params: [ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message)), address]
                     });
+                    if (window.muzzOpenSign) window.muzzOpenSign(rawProvider);
+                    signature = await signPromise;
+                    window.muzzMark('personal_sign:done');
                 } catch (err) {
                     if (rejectedRequest(err)) {
                         const rejected = new Error('Signature rejected.');
@@ -1063,8 +1144,12 @@
                 throw bad;
             }
             rememberProof({ address, signature, message });
-
-            const holding = await muzzGate.readMuzzBalance(address);
+            if (!balancePromise) {
+                window.muzzMark('balance:start');
+                balancePromise = muzzGate.readMuzzBalance(address);
+            }
+            const holding = await balancePromise;
+            window.muzzMark('balance:done');
             if (!holding.ok) {
                 sessionStorage.removeItem('muzz_wc_proof');
                 const denied = new Error('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is ' + holding.minimum + ' MUZZ.');
@@ -1077,6 +1162,7 @@
         }
 
         async function accessWithWallet() {
+            window.muzzMark('tap');
             if (loginDepth > 0) return accessWithWalletBody();
             return runLogin(async () => {
                 loginDepth += 1;
@@ -1306,6 +1392,7 @@
             document.getElementById('debugLine').classList.add('hidden');
         });
         document.getElementById('btnWc').addEventListener('click', () => {
+            window.muzzMark('tap');
             accessWithWalletConnect();
         });
         document.getElementById('openWalletLink').addEventListener('click', () => {
@@ -1320,9 +1407,24 @@
         window.addEventListener('visibilitychange', () => resumeWalletLogin());
         window.addEventListener('muzz-wc-return', () => resumeWalletLogin());
 
+        function preloadWalletStack() {
+            if (shotStatus) return;
+            if (!muzzGate.walletConnectProjectId()) return;
+            window.muzzMark('preload:start');
+            import('./js/wc-login.js').then((mod) => {
+                const chosen = sessionStorage.getItem('muzz_wc_wallet');
+                if (chosen && mod.noteWalletChoice) mod.noteWalletChoice({ name: chosen });
+                if (mod.preloadWalletConnect) return mod.preloadWalletConnect();
+                return null;
+            }).catch(() => {});
+        }
+
         loadLocalConfig().then(() => {
+            prefetchLoginNonce();
+            window.muzzMark('nonce');
             paintLinks();
             listenForApkReturn();
+            preloadWalletStack();
             resumeWalletLogin();
         });
     </script>
