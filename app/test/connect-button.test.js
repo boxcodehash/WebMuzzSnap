@@ -30,7 +30,14 @@ test('Connect Wallet still opens the 1.0.12 picker and only one personal_sign ca
   assert.match(login, /await sessionSign/);
   assert.doesNotMatch(login, /setTimeout\([\s\S]{0,600}signFlight = null/);
   const resume = login.slice(login.indexOf('function resumeWalletLogin'), login.indexOf('async function acceptAuthToken'));
-  assert.match(resume, /if \(signFlight\) return/);
+  assert.match(resume, /if \(signFlight\) \{/);
+  assert.match(resume, /resume:wait/);
+  assert.match(login, /personal_sign:suppressed/);
+  assert.match(login, /function allowAnotherSign\(\)/);
+  assert.match(login, /allowAnotherSign\(\);\s*if \(signFlight \|\| loginTask\) await cancelStuckLogin/);
+  assert.match(login, /allowAnotherSign\(\);\s*const start = \(\) => accessWithWalletConnect/);
+  assert.match(login, /siwe:reused/);
+  assert.match(login, /muzzDebug/);
   const timer = resume.slice(resume.indexOf('setTimeout'), resume.indexOf('}, 1500)'));
   assert.match(timer, /if \(signFlight\) return/);
   assert.ok(timer.indexOf('if (signFlight) return') < timer.indexOf('loginTask = null'));

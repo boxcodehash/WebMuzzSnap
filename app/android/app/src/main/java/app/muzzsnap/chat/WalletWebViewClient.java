@@ -33,14 +33,23 @@ public class WalletWebViewClient extends WebViewClient {
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         if (request != null && handoff(view, request.getUrl())) return true;
+        if (request != null && sameLoginNavigation(view, request.getUrl())) return true;
         if (delegate != null) return delegate.shouldOverrideUrlLoading(view, request);
         return false;
+    }
+
+    /** Returning from the wallet must not load login.html again. That drops the signature request. */
+    private boolean sameLoginNavigation(WebView view, Uri target) {
+        if (view == null || !WalletLinks.isLoginPage(target)) return false;
+        String current = view.getUrl();
+        return current != null && current.contains("login.html");
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
         if (url != null && handoff(view, Uri.parse(url))) return true;
+        if (url != null && sameLoginNavigation(view, Uri.parse(url))) return true;
         if (delegate != null) return delegate.shouldOverrideUrlLoading(view, url);
         return false;
     }

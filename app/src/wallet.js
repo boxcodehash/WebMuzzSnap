@@ -15,6 +15,8 @@ import {
 import {
   AUTH_CHAINS,
   AUTH_METHODS,
+  authConnectParams,
+  buildOneClickAuth,
   createSingleFlight,
   hasLiveSession,
   muzzMark,
@@ -32,6 +34,7 @@ let connectPromise = null;
 let connectGeneration = 0;
 let closingModal = false;
 let statusHook = () => {};
+let loginAuth = null;
 const uriWaiters = [];
 const connectFlight = createSingleFlight();
 const CONNECT_LOCK_MS = 12000;
@@ -41,7 +44,24 @@ function releaseConnectLock() {
   connectPromise = null;
   connectStarted = false;
   latestUri = '';
+  loginAuth = null;
   if (typeof connectFlight.reset === 'function') connectFlight.reset();
+}
+
+function authContext() {
+  const url = dappUrl();
+  let domain = 'muzzsnap-app.vercel.app';
+  try {
+    domain = new URL(url).host;
+  } catch {
+    /* the public host is the fallback */
+  }
+  return { domain, uri: `${url.replace(/\/$/, '')}/login.html` };
+}
+
+function currentLoginAuth() {
+  if (!loginAuth) loginAuth = buildOneClickAuth(authContext());
+  return loginAuth;
 }
 
 function noteUri(uri) {
@@ -84,14 +104,18 @@ function optionalNamespaces(params) {
 }
 
 function plainConnect(originalConnect, params) {
-  // A normal session proposal. One-click auth advertises only wc_sessionAuthenticate,
-  // and AppKit will not open the wallet until display_uri has set wcUri.
+  // A normal session proposal still emits display_uri, so the wallet opens.
+  // The login SIWE rides inside that proposal. Wallets that sign it do not
+  // need a second personal_sign. provider.authenticate is not used: that
+  // pairing advertises only the one-hour auth method and the list never opens.
   muzzMark('wc:proposal:plain');
+  muzzMark('wc:siwe-in-proposal');
   wcProvider.namespaces = {};
   return originalConnect({
     ...params,
     namespaces: {},
-    optionalNamespaces: optionalNamespaces(params)
+    optionalNamespaces: optionalNamespaces(params),
+    authentication: [authConnectParams(currentLoginAuth())]
   });
 }
 
@@ -391,10 +415,12 @@ async function connectModalInner(hooks = {}) {
       const address = sessionAddress();
       if (!address) return;
       sessionSent = true;
+      const proof = proofFromSession(wcProvider && wcProvider.session) || null;
+      if (proof) muzzMark('siwe:on-session');
       try {
-        hooks.onSession({ provider: wcProvider, address });
+        hooks.onSession({ provider: wcProvider, address, ...(proof || {}) });
       } catch {
-        /* the page starts the one personal_sign */
+        /* the page starts the one personal_sign only when no session proof exists */
       }
     };
     const connected = () => {

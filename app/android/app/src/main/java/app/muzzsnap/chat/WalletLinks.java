@@ -60,6 +60,13 @@ public final class WalletLinks {
         return url != null && "muzzsnap".equals(scheme(url));
     }
 
+    /** A popup that lands on login.html must not reload the page or the in-flight sign is lost. */
+    public static boolean isLoginPage(Uri url) {
+        if (url == null) return false;
+        String path = url.getPath() == null ? "" : url.getPath();
+        return path.endsWith("/login.html") || path.equals("login.html") || path.endsWith("/login");
+    }
+
     public static boolean shouldLeaveWebView(Uri url) {
         if (url == null) return false;
         String scheme = scheme(url);
@@ -122,7 +129,7 @@ public final class WalletLinks {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri target = request.getUrl();
                 if (shouldLeaveWebView(target) || isAppReturn(target)) start(context, target);
-                else if (target != null) parent.loadUrl(target.toString());
+                else if (target != null && !isLoginPage(target)) parent.loadUrl(target.toString());
                 return true;
             }
         });

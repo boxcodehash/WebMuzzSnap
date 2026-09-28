@@ -1,7 +1,7 @@
 {
-  "versionCode": 14,
-  "versionName": "1.0.14",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=114",
-  "notes": "Fix: one signature, stay signed in, and private-message alerts.",
+  "versionCode": 15,
+  "versionName": "1.0.15",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=115",
+  "notes": "One wallet approval, and encrypted private photos.",
   "force": false
 }

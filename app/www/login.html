@@ -446,6 +446,27 @@
             color: rgba(255, 255, 255, 0.28);
         }
 
+        .muzz-debug {
+            position: fixed;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            z-index: 10001;
+            max-height: 38vh;
+            overflow: auto;
+            margin: 0;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #c8f7c8;
+            font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            letter-spacing: 0;
+            text-transform: none;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .fallback {
             margin: 2px 0 0;
             padding: 0;
@@ -588,7 +609,8 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build">v1.0.14</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.15</small></footer>
+    <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -619,17 +641,60 @@
             return '';
         })();
 
+        const debugBox = document.getElementById('muzzDebug');
+        function debugEnabled() {
+            try { return localStorage.getItem('muzz_debug') === '1'; } catch (err) { return false; }
+        }
+        function paintDebug() {
+            if (!debugBox) return;
+            debugBox.hidden = !debugEnabled();
+        }
+        window.muzzDebugLog = function (wall, label) {
+            const line = String(wall || new Date().toISOString()) + '  ' + String(label || '');
+            const rows = window.__muzzDebugLines || (window.__muzzDebugLines = []);
+            rows.push(line);
+            if (rows.length > 40) rows.shift();
+            if (debugBox && debugEnabled()) {
+                debugBox.hidden = false;
+                debugBox.textContent = rows.join('\n');
+                debugBox.scrollTop = debugBox.scrollHeight;
+            }
+        };
         window.muzzMark = function (label) {
             const rows = window.__muzzTimes || (window.__muzzTimes = []);
             if (!window.__muzzTimer) {
                 console.time('muzz-login');
                 window.__muzzTimer = true;
             }
+            const wall = new Date().toISOString();
+            console.log('[muzz]', wall, label);
             console.timeLog('muzz-login', label);
             const at = (window.performance && performance.now) ? performance.now() : Date.now();
             const first = rows.length ? rows[0].at : at;
-            rows.push({ label: label, at: at, delta: at - first });
+            rows.push({ label: label, at: at, delta: at - first, wall: wall });
+            window.muzzDebugLog(wall, label);
         };
+        paintDebug();
+        (function () {
+            const tag = document.getElementById('buildTag');
+            if (!tag) return;
+            let taps = 0;
+            let last = 0;
+            tag.addEventListener('click', () => {
+                const now = Date.now();
+                taps = now - last < 2500 ? taps + 1 : 1;
+                last = now;
+                if (taps < 5) return;
+                taps = 0;
+                const next = debugEnabled() ? '0' : '1';
+                try { localStorage.setItem('muzz_debug', next); } catch (err) { /* private mode */ }
+                paintDebug();
+                if (next === '1' && debugBox) {
+                    debugBox.hidden = false;
+                    debugBox.textContent = (window.__muzzDebugLines || []).join('\n') || 'Login debug on';
+                }
+            });
+        })();
 
         function prefetchLoginNonce() {
             try {
@@ -1087,6 +1152,7 @@
         function clearWalletAttempt() {
             sessionStorage.removeItem('muzz_wc_pending');
             sessionStorage.removeItem('muzz_ios_wc');
+            sessionStorage.removeItem('muzz_sign_req');
         }
 
         async function signInWithProvider(rawProvider, returnApk, hint, options) {
@@ -1161,11 +1227,24 @@
             let signature = opts.signature || '';
             let balancePromise = null;
             if (!signature || !message || !signatureMatches(message, signature, address)) {
+                const fromSession = sessionProofFor(rawProvider, address);
+                if (fromSession) {
+                    message = fromSession.message;
+                    signature = fromSession.signature;
+                    window.muzzMark('siwe:reused');
+                }
+            }
+            if (!signature || !message || !signatureMatches(message, signature, address)) {
+                const saved = readSavedSignRequest();
+                if (saved && saved.sent && normalizeAddress(saved.address) === normalizeAddress(address)) {
+                    window.muzzMark('personal_sign:suppressed');
+                    const pendingErr = new Error('pending');
+                    pendingErr.code = 'pending';
+                    throw pendingErr;
+                }
                 message = (opts.message && !opts.signature) ? opts.message : muzzGate.buildLoginMessage(address, { nonce, exp, returnApk });
                 window.muzzMark('message');
-                try {
-                    sessionStorage.setItem('muzz_sign_req', JSON.stringify({ address: address, message: message }));
-                } catch (err) { /* private mode */ }
+                rememberSignRequest(address, message, true);
                 window.muzzMark('balance:start');
                 balancePromise = muzzGate.readMuzzBalance(address);
                 setStep('Check your wallet to sign');
@@ -1182,6 +1261,7 @@
                     closeWalletList();
                 } catch (err) {
                     if (rejectedRequest(err)) {
+                        try { sessionStorage.removeItem('muzz_sign_req'); } catch (ignore) { /* private mode */ }
                         const rejected = new Error('Signature rejected.');
                         rejected.code = 'rejected';
                         throw rejected;
@@ -1233,7 +1313,12 @@
         }
 
         function ignoredRetry(err) {
-            return !!(err && err.code === 'retry');
+            return !!(err && (err.code === 'retry' || err.code === 'pending'));
+        }
+
+        // A tap is an explicit retry. Automatic resume must not clear this flag.
+        function allowAnotherSign() {
+            try { sessionStorage.removeItem('muzz_sign_req'); } catch (err) { /* private mode */ }
         }
 
         async function cancelStuckLogin() {
@@ -1271,6 +1356,7 @@
             window.muzzMark('tap');
             if (enterDurableSession()) return;
             if (retryHeldSession()) return;
+            allowAnotherSign();
             if (signFlight || loginTask) await cancelStuckLogin();
             if (loginDepth > 0) return accessWithWalletBody();
             return runLogin(async () => {
@@ -1358,8 +1444,17 @@
                 const onSession = (info) => {
                     const address = info && info.address;
                     if (!address || sessionSign) return;
-                    sessionSign = signInWithProvider(info.provider, false, info, { knownAddress: address });
-                    sessionSign.catch(() => {});
+                    const signed = info.signature && info.message
+                        && signatureMatches(info.message, info.signature, address);
+                    if (signed) window.muzzMark('siwe:reused');
+                    sessionSign = signInWithProvider(info.provider, false, info, {
+                        knownAddress: address,
+                        signature: signed ? info.signature : '',
+                        message: signed ? info.message : ''
+                    });
+                    sessionSign.catch((err) => {
+                        if (err && err.code === 'pending') window.muzzMark('personal_sign:suppressed');
+                    });
                 };
                 session = await mod.connectWalletConnect({
                     onStatus: (text) => setStep(text),
@@ -1397,10 +1492,28 @@
             try {
                 const data = JSON.parse(sessionStorage.getItem('muzz_sign_req') || 'null');
                 if (!data || !data.address || !data.message) return null;
-                return { address: normalizeAddress(data.address), message: data.message };
+                return { address: normalizeAddress(data.address), message: data.message, sent: data.sent === true };
             } catch (err) {
                 return null;
             }
+        }
+
+        function rememberSignRequest(address, message, sent) {
+            try {
+                sessionStorage.setItem('muzz_sign_req', JSON.stringify({
+                    address: address,
+                    message: message,
+                    sent: sent === true,
+                    at: Date.now()
+                }));
+            } catch (err) { /* private mode */ }
+        }
+
+        function sessionProofFor(rawProvider, address) {
+            if (!rawProvider || typeof window.muzzProofFromSession !== 'function') return null;
+            const found = window.muzzProofFromSession(rawProvider.session);
+            if (!found || !signatureMatches(found.message, found.signature, address)) return null;
+            return found;
         }
 
         function closeWalletList() {
@@ -1471,7 +1584,6 @@
                         return;
                     }
                     showSigning(true);
-                    setStep('Check your wallet to sign');
                     const projectId = muzzGate.walletConnectProjectId();
                     if (!projectId) return;
                     window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
@@ -1479,19 +1591,34 @@
                     const mod = await import('./js/wc-login.js');
                     if (mod.closeWalletModal) await mod.closeWalletModal();
                     const session = await mod.restoreWalletConnect();
+                    const knownAddress = (session && session.address) || (savedSign && savedSign.address);
+                    const signed = session && session.signature && session.message
+                        && signatureMatches(session.message, session.signature, knownAddress);
+                    if (signed) {
+                        window.muzzMark('siwe:reused');
+                        setStep('Verifying…');
+                        await signInWithProvider(session.provider, false, session, {
+                            knownAddress: knownAddress,
+                            signature: session.signature,
+                            message: session.message
+                        });
+                        return;
+                    }
+                    if (savedSign && savedSign.sent) {
+                        window.muzzMark('resume:wait');
+                        setStep('Check your wallet to sign');
+                        if (mod.reconnectWalletConnect) await mod.reconnectWalletConnect();
+                        return;
+                    }
                     if (!session) {
                         showSigning(false);
                         return;
                     }
-                    const knownAddress = session.address || (savedSign && savedSign.address);
-                    const signed = session.signature && session.message
-                        && signatureMatches(session.message, session.signature, knownAddress);
-                    if (signed) setStep('Verifying…');
-                    else setStep('Check your wallet to sign');
+                    setStep('Check your wallet to sign');
                     await signInWithProvider(session.provider, false, session, {
                         knownAddress: knownAddress,
-                        signature: signed ? session.signature : '',
-                        message: signed ? session.message : (savedSign && savedSign.message) || ''
+                        signature: '',
+                        message: (savedSign && savedSign.message) || ''
                     });
                 } catch (err) {
                     if (ignoredRetry(err)) return;
@@ -1571,6 +1698,7 @@
             window.muzzMark('tap');
             if (enterDurableSession()) return;
             if (retryHeldSession()) return;
+            allowAnotherSign();
             const start = () => accessWithWalletConnect();
             if (signFlight || loginTask) {
                 cancelStuckLogin().then(start, start);

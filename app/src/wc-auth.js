@@ -102,7 +102,8 @@ export function cacaoProof(cacao) {
 export function proofFromSession(session) {
   const list = session && session.authentication;
   if (!Array.isArray(list)) return null;
-  for (const cacao of list) {
+  for (const item of list) {
+    const cacao = item && item.p ? item : (item && item.cacao);
     const proof = cacaoProof(cacao);
     if (proof) return proof;
   }
@@ -152,8 +153,13 @@ export function muzzMark(label) {
   try { console.timeLog('muzz-login', label); } catch { /* overall timer missing */ }
   const at = globalThis.performance && typeof performance.now === 'function' ? performance.now() : Date.now();
   const first = rows.length ? rows[0].at : at;
-  const row = { label, at, delta: at - first };
+  const wall = new Date().toISOString();
+  const row = { label, at, delta: at - first, wall };
   rows.push(row);
+  try { console.log('[muzz]', wall, label); } catch { /* console closed */ }
+  try {
+    if (typeof globalThis.muzzDebugLog === 'function') globalThis.muzzDebugLog(wall, label);
+  } catch { /* overlay missing */ }
   return row;
 }
 
@@ -349,4 +355,5 @@ if (typeof globalThis !== 'undefined') {
   globalThis.muzzMark = muzzMark;
   globalThis.muzzOpenSign = scheduleSignDeepLink;
   globalThis.muzzNoteWallet = noteWalletChoice;
+  globalThis.muzzProofFromSession = proofFromSession;
 }
