@@ -62,6 +62,12 @@ public class WalletWebViewClient extends WebViewClient {
     public void onPageFinished(WebView view, String url) {
         if (delegate != null) delegate.onPageFinished(view, url);
         else super.onPageFinished(view, url);
+        android.content.Context context = view == null ? null : view.getContext();
+        while (context instanceof android.content.ContextWrapper
+            && !(context instanceof android.app.Activity)) {
+            context = ((android.content.ContextWrapper) context).getBaseContext();
+        }
+        if (context instanceof android.app.Activity) PushAlerts.inject((android.app.Activity) context);
     }
 
     @Override

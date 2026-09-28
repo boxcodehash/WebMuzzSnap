@@ -324,6 +324,7 @@ test('clients, rules, and the Android fallback do not ship the service account',
     assert.match(source, /\/api\/register-token/);
     assert.match(source, /statusLine/);
     assert.match(source, /__muzzNativeFcmToken/);
+    if (source === appClient) assert.match(source, /authStateReady/);
     assert.match(source, /muzzsnap-app\.vercel\.app/);
     assert.match(source, /BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew/);
   }
@@ -382,6 +383,9 @@ test('clients, rules, and the Android fallback do not ship the service account',
   const capBuild = readFileSync(new URL('../android/app/capacitor.build.gradle', import.meta.url), 'utf8');
   assert.match(settings, /capacitor-push-notifications/);
   assert.match(capBuild, /capacitor-push-notifications/);
+  const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
+  assert.deepEqual(capacitor.plugins.PushNotifications.presentationOptions, ['badge', 'sound', 'alert']);
+  assert.equal(capacitor.server.url, undefined);
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.ok(pkg.dependencies['@capacitor/push-notifications']);
   const sample = "include ':capacitor-push-notifications'\nproject(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')\n";

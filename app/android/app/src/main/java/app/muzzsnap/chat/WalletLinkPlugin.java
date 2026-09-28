@@ -23,16 +23,6 @@ public class WalletLinkPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void log(PluginCall call) {
-        String label = call.getString("label");
-        if (label == null) label = "";
-        label = label.replaceAll("[\\p{Cntrl}]", " ").trim();
-        if (label.length() > 180) label = label.substring(0, 180);
-        android.util.Log.i(WalletLinks.TAG, label);
-        call.resolve();
-    }
-
-    @PluginMethod
     public void checkUpdate(PluginCall call) {
         UpdateChecker.checkNow(getActivity());
         call.resolve();

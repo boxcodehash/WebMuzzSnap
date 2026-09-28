@@ -563,9 +563,11 @@
               window.location.href = 'login.html';
               return;
             }
+            try { sessionStorage.removeItem('muzz_balance_hold'); } catch (err) { /* private mode */ }
           } catch (err) {
             console.error(err);
             if (!cancelled) {
+              try { sessionStorage.setItem('muzz_balance_hold', '1'); } catch (e) { /* private mode */ }
               alert('Could not verify the MUZZ balance. The chat was not opened, so nothing was written.');
               window.location.href = 'login.html';
             }

@@ -1,4 +1,3 @@
-import { OptionsController } from '@reown/appkit-controllers';
 import { mainnet } from 'viem/chains';
 import { getConfig } from './config.js';
 import { NATIVE_RETURN, SUPPORTED_WALLETS } from './walletCatalog.js';
@@ -32,7 +31,6 @@ let connectStarted = false;
 let connectPromise = null;
 let connectGeneration = 0;
 let closingModal = false;
-let sessionNotified = false;
 let statusHook = () => {};
 const uriWaiters = [];
 const connectFlight = createSingleFlight();
@@ -43,29 +41,7 @@ function releaseConnectLock() {
   connectPromise = null;
   connectStarted = false;
   latestUri = '';
-  sessionNotified = false;
   if (typeof connectFlight.reset === 'function') connectFlight.reset();
-}
-
-/** One personal_sign, started in the same turn the session has an address. */
-function notifySession(hooks) {
-  if (sessionNotified) return sessionAddress();
-  const address = sessionAddress();
-  if (!address) return '';
-  sessionNotified = true;
-  muzzMark('session');
-  if (hooks && typeof hooks.onSession === 'function') {
-    hooks.onSession({ provider: wcProvider, address });
-  }
-  return address;
-}
-
-function disableAppKitSignature() {
-  try {
-    OptionsController.setSIWX(undefined);
-  } catch {
-    /* the server checks the one personal_sign we send */
-  }
 }
 
 function noteUri(uri) {
@@ -225,7 +201,7 @@ async function buildModal() {
     run.finally(() => clearTimeout(stuck));
     return run;
   };
-  const modal = createAppKit({
+  return createAppKit({
     adapters: [new EthersAdapter()],
     networks: [mainnet],
     defaultNetwork: mainnet,
@@ -263,15 +239,6 @@ async function buildModal() {
       connectMethodsOrder: ['wallet']
     }
   });
-  if (modal && typeof modal.ready === 'function') {
-    try {
-      await modal.ready();
-    } catch {
-      /* a remote config failure must not block the wallet list */
-    }
-  }
-  disableAppKitSignature();
-  return modal;
 }
 
 function getModal() {
@@ -298,37 +265,27 @@ async function providerOf(modal) {
   throw walletError('NO_WALLET');
 }
 
-async function finishConnect(modal, hooks) {
-  const known = notifySession(hooks);
-  const provider = wcProvider && typeof wcProvider.request === 'function'
-    ? wcProvider
-    : await providerOf(modal);
-  ignoreChainSwitch(provider);
-  const hint = sessionHint(modal);
-  const proof = proofFromSession(provider.session) || null;
-  if (known || (proof && proof.address)) {
-    return {
-      provider,
-      address: known || proof.address,
-      chainId: provider.__muzzRealChain,
-      ...hint,
-      namespaces: provider.session?.namespaces || null,
-      ...(proof || {})
-    };
-  }
+async function finishConnect(modal) {
   if (!hasLiveSession(wcProvider) && connectPromise) {
     await Promise.race([
       connectPromise.catch(() => {}),
       new Promise((resolve) => setTimeout(resolve, 800))
     ]);
   }
+  muzzMark('session');
+  const provider = wcProvider && typeof wcProvider.request === 'function'
+    ? wcProvider
+    : await providerOf(modal);
+  ignoreChainSwitch(provider);
+  const hint = sessionHint(modal);
+  const proof = proofFromSession(provider.session) || null;
   let opened = { provider, address: '', chainId: provider.__muzzRealChain };
   try {
     opened = await openSession(provider, { silent: true });
   } catch (err) {
     if (!proof) throw err;
   }
-  const address = notifySession(hooks) || (proof && proof.address) || opened.address;
+  const address = (proof && proof.address) || opened.address;
   if (!address) throw walletError('no_account');
   return {
     ...opened,
@@ -428,10 +385,22 @@ async function connectModalInner(hooks = {}) {
       }
       fn();
     };
+    let sessionSent = false;
+    const notifySession = () => {
+      if (sessionSent || !hooks || typeof hooks.onSession !== 'function') return;
+      const address = sessionAddress();
+      if (!address) return;
+      sessionSent = true;
+      try {
+        hooks.onSession({ provider: wcProvider, address });
+      } catch {
+        /* the page starts the one personal_sign */
+      }
+    };
     const connected = () => {
       // The signature has to be requested in this turn. Waiting for the modal
       // animation is what leaves MetaMask on the connect screen.
-      notifySession(hooks);
+      notifySession();
       finish(() => resolve(sessionAddress() || modal.getAddress?.() || ''));
       closeModal(modal);
     };
@@ -482,11 +451,63 @@ export function connectModal(hooks = {}) {
   return connectFlight(() => connectModalInner(hooks));
 }
 
+let relayReconnect = null;
+let relayReconnectAt = 0;
+
+async function reviveRelay() {
+  const relayer = wcProvider && wcProvider.client && wcProvider.client.core && wcProvider.client.core.relayer;
+  if (!relayer) return false;
+  const once = async () => {
+    if (typeof relayer.restartTransport === 'function') {
+      await relayer.restartTransport();
+      return true;
+    }
+    if (typeof relayer.transportOpen === 'function') {
+      await relayer.transportOpen();
+      return true;
+    }
+    return false;
+  };
+  try {
+    return await once();
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try { return await once(); } catch { return false; }
+  }
+}
+
+/** Bring the relay socket back so a personal_sign answer is not dropped after Android resumes. */
+export function reconnectWalletConnect() {
+  if (relayReconnect) return relayReconnect;
+  const now = Date.now();
+  if (now - relayReconnectAt < 1500) return Promise.resolve(false);
+  relayReconnectAt = now;
+  relayReconnect = reviveRelay().finally(() => {
+    relayReconnect = null;
+  });
+  return relayReconnect;
+}
+
+/** Drop a stuck session so the next Connect tap can open the wallet again. */
+export async function resetWalletConnect() {
+  releaseConnectLock();
+  const jobs = [];
+  if (wcProvider && typeof wcProvider.disconnect === 'function') {
+    jobs.push(Promise.resolve(wcProvider.disconnect()).catch(() => {}));
+  }
+  if (modalPromise) {
+    jobs.push(modalPromise.then((modal) => (modal && modal.disconnect ? modal.disconnect() : null)).catch(() => {}));
+  }
+  await Promise.race([
+    Promise.all(jobs),
+    new Promise((resolve) => setTimeout(resolve, 2000))
+  ]);
+}
+
 export async function restoreWalletConnect(hooks = {}) {
   if (!validProjectId(getConfig().walletConnectProjectId)) return null;
   try {
     const modal = await getModal();
-    notifySession(hooks);
     if (connectPromise && !hasLiveSession(wcProvider)) {
       await Promise.race([
         connectPromise.catch(() => {}),

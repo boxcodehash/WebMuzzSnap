@@ -51,12 +51,50 @@
 
   function currentUserReady() {
     var auth = firebase.auth();
-    if (auth.currentUser) return Promise.resolve(auth.currentUser);
-    return new Promise(function (resolve) {
-      var unsub = auth.onAuthStateChanged(function (user) {
-        unsub();
-        resolve(user || null);
+    var initial = (typeof auth.authStateReady === 'function')
+      ? auth.authStateReady().catch(function () { return null; })
+      : Promise.resolve();
+    return initial.then(function () {
+      if (auth.currentUser) return auth.currentUser;
+      return new Promise(function (resolve) {
+        var unsub = auth.onAuthStateChanged(function (user) {
+          unsub();
+          resolve(user || null);
+        });
       });
+    });
+  }
+
+  function walletUser(auth, want) {
+    var user = auth.currentUser;
+    if (!user || !want) return null;
+    return String(user.uid).toLowerCase() === want ? user : null;
+  }
+
+  function anonymousFallback(auth, want) {
+    var kept = walletUser(auth, want);
+    if (kept) {
+      start(want);
+      return Promise.resolve(kept);
+    }
+    return auth.signInAnonymously().then(function (cred) { return cred.user; });
+  }
+
+  function exchangeSession(message, signature) {
+    function once() {
+      return fetch(apiBase() + '/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message, signature: signature })
+      }).then(function (res) {
+        if (res.status >= 500) return null;
+        if (!res.ok) return { denied: true };
+        return res.json();
+      });
+    }
+    return once().then(function (data) {
+      if (data) return data;
+      return new Promise(function (resolve) { setTimeout(resolve, 800); }).then(once);
     });
   }
 
@@ -66,29 +104,41 @@
     return user.getIdToken();
   }
 
+  function storedProof() {
+    var message = '';
+    var signature = '';
+    try {
+      message = sessionStorage.getItem('muzz_login_msg') || '';
+      signature = sessionStorage.getItem('muzz_login_sig') || '';
+    } catch (err) { /* private mode */ }
+    if (message && signature) return { message: message, signature: signature };
+    try {
+      var data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
+      if (!data || Number(data.until) <= Date.now()) return null;
+      if (!data.message || !data.signature) return null;
+      return { message: data.message, signature: data.signature };
+    } catch (err) {
+      return null;
+    }
+  }
+
   function signInForChat(wallet) {
     var want = walletOf(wallet);
     var auth = firebase.auth();
-    return currentUserReady().then(function (existing) {
-      if (existing && want && String(existing.uid).toLowerCase() === want) {
+    var persist = (auth.setPersistence && firebase.auth.Auth && firebase.auth.Auth.Persistence)
+      ? auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function () { return null; })
+      : Promise.resolve();
+    return persist.then(function () { return currentUserReady(); }).then(function (existing) {
+      var kept = walletUser(auth, want) || (existing && want && String(existing.uid).toLowerCase() === want ? existing : null);
+      if (kept) {
         start(want);
-        return existing;
+        return kept;
       }
-      var message = '';
-      var signature = '';
-      try {
-        message = sessionStorage.getItem('muzz_login_msg') || '';
-        signature = sessionStorage.getItem('muzz_login_sig') || '';
-      } catch (err) { /* private mode */ }
-      if (!want || !message || !signature) return auth.signInAnonymously().then(function (cred) { return cred.user; });
-      return fetch(apiBase() + '/api/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message, signature: signature })
-      }).then(function (res) {
-        if (!res.ok) return null;
-        return res.json();
-      }).then(function (data) {
+      var proof = storedProof();
+      var message = proof ? proof.message : '';
+      var signature = proof ? proof.signature : '';
+      if (!want || !message || !signature) return anonymousFallback(auth, want);
+      return exchangeSession(message, signature).then(function (data) {
         if (data && data.customToken) return auth.signInWithCustomToken(data.customToken);
         return null;
       }).then(function (cred) {
@@ -96,9 +146,9 @@
           start(want);
           return cred.user;
         }
-        return auth.signInAnonymously().then(function (anon) { return anon.user; });
+        return anonymousFallback(auth, want);
       }).catch(function () {
-        return auth.signInAnonymously().then(function (anon) { return anon.user; });
+        return anonymousFallback(auth, want);
       });
     });
   }

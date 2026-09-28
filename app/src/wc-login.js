@@ -3,6 +3,8 @@ export {
   connectModal as connectWalletConnect,
   peekWalletConnect,
   preloadWalletConnect,
+  reconnectWalletConnect,
+  resetWalletConnect,
   restoreWalletConnect,
   walletConnectUri
 } from './wallet.js';

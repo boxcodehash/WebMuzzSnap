@@ -25,6 +25,7 @@ public final class PushAlerts {
     static final int PERMISSION_REQUEST = 41012;
     private static String token = "";
     private static boolean asked = false;
+    private static Activity foreground = null;
 
     private PushAlerts() {}
 
@@ -46,6 +47,7 @@ public final class PushAlerts {
 
     static void askPermission(Activity activity) {
         if (activity == null) return;
+        foreground = activity;
         ensureChannel(activity);
         if (Build.VERSION.SDK_INT < 33) {
             inject(activity);
@@ -63,26 +65,38 @@ public final class PushAlerts {
 
     static void refresh(Activity activity) {
         if (activity == null) return;
+        foreground = activity;
         ensureChannel(activity);
         inject(activity);
         if (token == null || token.isEmpty()) fetchToken(activity);
     }
 
     static void fetchToken(Context context) {
+        fetchToken(context, 0);
+    }
+
+    private static void fetchToken(Context context, int attempt) {
         if (context == null) return;
         try {
             FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
                 if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty()) {
-                Exception error = task.getException();
-                String detail = error == null ? "empty" : error.getClass().getSimpleName();
-                String message = error == null || error.getMessage() == null ? "" : error.getMessage();
-                if (message.length() > 160) message = message.substring(0, 160);
-                android.util.Log.w(TAG, "fcm token failed " + detail + (message.isEmpty() ? "" : " " + message));
+                    Exception error = task.getException();
+                    String detail = error == null ? "empty" : error.getClass().getSimpleName();
+                    String message = error == null || error.getMessage() == null ? "" : error.getMessage();
+                    if (message.length() > 160) message = message.substring(0, 160);
+                    android.util.Log.w(TAG, "fcm token failed " + detail + (message.isEmpty() ? "" : " " + message));
+                    if (attempt < 3 && (token == null || token.isEmpty())) {
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                            () -> fetchToken(context, attempt + 1),
+                            4000L
+                        );
+                    }
                     return;
                 }
                 token = task.getResult();
                 android.util.Log.i(TAG, "fcm token obtained len=" + token.length());
-                if (context instanceof Activity) inject((Activity) context);
+                Activity target = context instanceof Activity ? (Activity) context : foreground;
+                if (target != null) inject(target);
             });
         } catch (Throwable err) {
             android.util.Log.w(TAG, "fcm token failed " + err.getClass().getSimpleName());

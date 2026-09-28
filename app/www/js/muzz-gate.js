@@ -17,6 +17,7 @@
   const SEEN_KEY = 'muzz_seen_v1';
   const DEFAULT_PUBLIC = 'https://muzzsnap-app.vercel.app';
   const HANDOFF_MS = 3 * 60 * 1000;
+  const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
   const NONCE_KEY = 'muzz_used_nonces_v1';
 
   function withTimeout(promise, ms) {
@@ -476,13 +477,56 @@
     return sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address') || '';
   }
 
+  function rememberSession(proof) {
+    const address = String((proof && proof.address) || '').toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(address)) return;
+    const record = {
+      address: address,
+      until: Date.now() + SESSION_MS,
+      signature: proof.signature || '',
+      message: proof.message || ''
+    };
+    try { localStorage.setItem('muzz_session', JSON.stringify(record)); } catch (err) { /* private mode */ }
+    rememberWallet(address);
+    try {
+      if (record.signature) sessionStorage.setItem('muzz_login_sig', record.signature);
+      if (record.message) sessionStorage.setItem('muzz_login_msg', record.message);
+    } catch (err) { /* private mode */ }
+  }
+
+  function durableSession() {
+    try {
+      const data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
+      if (!data) return null;
+      const until = Number(data.until);
+      if (!Number.isFinite(until) || until <= Date.now()) return null;
+      const address = String(data.address || '').toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(address)) return null;
+      return {
+        address: address,
+        until: until,
+        signature: data.signature || '',
+        message: data.message || ''
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
   function clearWallet() {
     sessionStorage.removeItem('muzz_wallet_address');
     localStorage.removeItem('muzz_wallet_address');
+    localStorage.removeItem('muzz_session');
     sessionStorage.removeItem('muzz_login_sig');
     sessionStorage.removeItem('muzz_login_msg');
     sessionStorage.removeItem('muzz_user_role');
     sessionStorage.removeItem('muzz_is_admin');
+    try {
+      if (global.firebase && firebase.auth && firebase.apps && firebase.apps.length) {
+        const auth = firebase.auth();
+        if (auth.currentUser && typeof auth.signOut === 'function') auth.signOut();
+      }
+    } catch (err) { /* this page may not load auth */ }
   }
 
   global.muzzGate = {
@@ -490,6 +534,7 @@
     MIN_WHOLE,
     DEFAULT_PUBLIC,
     HANDOFF_MS,
+    SESSION_MS,
     isBalanceExempt,
     readMuzzBalance,
     visible,
@@ -515,6 +560,8 @@
     explainSignError,
     debugLine,
     rememberWallet,
+    rememberSession,
+    durableSession,
     savedWallet,
     clearWallet
   };
