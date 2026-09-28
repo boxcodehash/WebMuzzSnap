@@ -81,6 +81,8 @@ test('offline photos use the mailbox, and a failed direct link falls back to it'
   const chat = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
   assert.match(chat, /listLocal/);
   assert.match(chat, /via === 'direct'/);
+  assert.match(chat, />Auto delete 24hr</);
+  assert.doesNotMatch(chat, />\s*Verify\b|safety number|safety-number/i);
   const rules = readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8');
   assert.match(rules, /photoMailbox/);
   assert.match(rules, /privateSignal/);
