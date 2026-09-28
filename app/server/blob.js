@@ -182,6 +182,8 @@ export async function handlePrivateBlob(req, deps = {}) {
   if (!isWallet(recipient) || recipient === sender) return fail(400, 'bad_recipient');
   const bytes = decodeCiphertext(req.body && req.body.ct);
   if (!bytes) return fail(400, 'bad_blob');
+  const meta = photoMeta(req.body);
+  if (!meta) return fail(400, 'bad_blob');
   const id = randomBytes(16).toString('hex');
   const now = req.now || Date.now();
   try {
@@ -191,12 +193,52 @@ export async function handlePrivateBlob(req, deps = {}) {
       to: recipient,
       pathname: stored.pathname,
       url: stored.url,
-      createdAt: now
+      createdAt: now,
+      iv: meta.iv,
+      fromPub: meta.fromPub,
+      toPub: meta.toPub
+    });
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'photoMailbox/' + recipient + '/' + id, setup.access, {
+      from: sender,
+      createdAt: now,
+      iv: meta.iv,
+      fromPub: meta.fromPub,
+      toPub: meta.toPub
     });
   } catch {
     return fail(502, 'blob_failed');
   }
   return { status: 200, body: { id } };
+}
+
+function photoMeta(body) {
+  const iv = String(body && body.iv || '').trim();
+  const fromPub = String(body && body.fromPub || '').trim();
+  const toPub = String(body && body.toPub || '').trim();
+  if (iv.length < 8 || iv.length > 80 || /[^A-Za-z0-9+/=]/.test(iv)) return null;
+  if (fromPub.length < 80 || fromPub.length > 400 || /[^A-Za-z0-9+/=]/.test(fromPub)) return null;
+  if (toPub.length < 80 || toPub.length > 400 || /[^A-Za-z0-9+/=]/.test(toPub)) return null;
+  return { iv, fromPub, toPub };
+}
+
+async function dropDelivered(setup, id, row) {
+  await deletePrivateBlob(setup.token, row.url, setup.fetchImpl);
+  await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateBlobs/' + id, setup.access);
+  if (row.to) {
+    await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'photoMailbox/' + row.to + '/' + id, setup.access);
+  }
+  if (row.msgThread && row.msgId && /^[A-Za-z0-9_-]{1,128}$/.test(row.msgId)) {
+    const path = 'privateInbox/' + row.msgThread + '/messages/' + row.msgId;
+    let msg = null;
+    try {
+      msg = await rtdb(setup.fetchImpl, 'GET', setup.env, path, setup.access);
+    } catch {
+      msg = null;
+    }
+    if (msg && msg.seal && msg.seal.id === id && msg.from === row.from && msg.to === row.to) {
+      await rtdb(setup.fetchImpl, 'DELETE', setup.env, path, setup.access);
+    }
+  }
 }
 
 export async function handlePrivateBlobRead(req, deps = {}) {
@@ -212,10 +254,9 @@ export async function handlePrivateBlobRead(req, deps = {}) {
   try {
     const row = await rtdb(setup.fetchImpl, 'GET', setup.env, 'privateBlobs/' + id, setup.access);
     if (!row || !row.url) return fail(404, 'not_found');
-    if (row.from !== wallet && row.to !== wallet) return fail(403, 'forbidden');
+    if (row.to !== wallet) return fail(403, 'forbidden');
     if (!fresh(row, now)) {
-      await deletePrivateBlob(setup.token, row.url, setup.fetchImpl);
-      await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateBlobs/' + id, setup.access);
+      await dropDelivered(setup, id, row);
       return fail(410, 'expired');
     }
     const ct = await readBlobBytes(setup.token, row.url, setup.fetchImpl);
@@ -238,11 +279,84 @@ export async function handlePrivateBlobDelete(req, deps = {}) {
     const row = await rtdb(setup.fetchImpl, 'GET', setup.env, 'privateBlobs/' + id, setup.access);
     if (!row || !row.url) return { status: 200, body: { ok: true } };
     if (row.to !== wallet) return fail(403, 'forbidden');
-    await deletePrivateBlob(setup.token, row.url, setup.fetchImpl);
-    await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateBlobs/' + id, setup.access);
+    await dropDelivered(setup, id, row);
     return { status: 200, body: { ok: true } };
   } catch {
     return fail(502, 'blob_failed');
+  }
+}
+
+export async function handlePrivateBlobAck(req, deps = {}) {
+  return handlePrivateBlobDelete(req, deps);
+}
+
+export async function handlePrivateBlobLink(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const sender = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!sender) return fail(401, 'unauthorized');
+  const id = String(req.body && req.body.id || '').trim().toLowerCase();
+  const thread = String(req.body && req.body.thread || '').trim().toLowerCase();
+  const msgId = String(req.body && req.body.msgId || '').trim();
+  if (!/^[a-f0-9]{32}$/.test(id)) return fail(400, 'bad_blob');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(msgId)) return fail(400, 'bad_blob');
+  const parts = thread.split('_');
+  if (parts.length !== 2 || !isWallet(parts[0]) || !isWallet(parts[1])) return fail(400, 'bad_blob');
+  try {
+    const row = await rtdb(setup.fetchImpl, 'GET', setup.env, 'privateBlobs/' + id, setup.access);
+    if (!row || row.from !== sender) return fail(403, 'forbidden');
+    if (parts[0] !== row.from && parts[0] !== row.to) return fail(400, 'bad_blob');
+    if (parts[1] !== row.from && parts[1] !== row.to) return fail(400, 'bad_blob');
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'privateBlobs/' + id, setup.access, {
+      ...row,
+      msgThread: thread,
+      msgId
+    });
+  } catch {
+    return fail(502, 'storage_failed');
+  }
+  return { status: 200, body: { ok: true } };
+}
+
+export async function handlePhotoMailbox(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'GET' && req.method !== 'POST') return fail(405, 'method');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const wallet = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!wallet) return fail(401, 'unauthorized');
+  let rows;
+  try {
+    rows = await rtdb(setup.fetchImpl, 'GET', setup.env, 'photoMailbox/' + wallet, setup.access);
+  } catch {
+    return fail(502, 'storage_failed');
+  }
+  const items = [];
+  const table = rows && typeof rows === 'object' ? rows : {};
+  for (const [id, row] of Object.entries(table)) {
+    if (!/^[a-f0-9]{32}$/.test(id) || !row || typeof row !== 'object') continue;
+    items.push({
+      id,
+      from: String(row.from || ''),
+      createdAt: Number(row.createdAt) || 0,
+      iv: String(row.iv || ''),
+      fromPub: String(row.fromPub || ''),
+      toPub: String(row.toPub || '')
+    });
+  }
+  return { status: 200, body: { items } };
+}
+
+function mailboxLeaves(node, trail, out) {
+  if (!node || typeof node !== 'object') return;
+  if (typeof node.createdAt === 'number' && typeof node.from === 'string') {
+    out.push({ trail, row: node });
+    return;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    mailboxLeaves(value, trail.concat(key), out);
   }
 }
 
@@ -267,12 +381,83 @@ export async function handlePrivateExpire(req, deps = {}) {
   for (const [id, row] of entries) {
     if (!row || fresh(row, now)) continue;
     try {
-      await deletePrivateBlob(setup.token, row.url, setup.fetchImpl);
-      await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateBlobs/' + id, setup.access);
+      await dropDelivered(setup, id, row);
       removed += 1;
     } catch {
       /* the next daily run tries again */
     }
   }
+  try {
+    const tree = await rtdb(setup.fetchImpl, 'GET', setup.env, 'photoMailbox', setup.access);
+    const leaves = [];
+    mailboxLeaves(tree, [], leaves);
+    for (const leaf of leaves) {
+      if (!leaf.row || fresh(leaf.row, now) || leaf.trail.length < 2) continue;
+      const path = 'photoMailbox/' + leaf.trail.join('/');
+      try {
+        await rtdb(setup.fetchImpl, 'DELETE', setup.env, path, setup.access);
+        removed += 1;
+      } catch {
+        /* the next daily run tries again */
+      }
+    }
+  } catch {
+    /* blob rows were already cleared */
+  }
+  try {
+    const signals = await rtdb(setup.fetchImpl, 'GET', setup.env, 'privateSignal', setup.access);
+    const callers = signals && typeof signals === 'object' ? Object.entries(signals) : [];
+    for (const [to, froms] of callers) {
+      if (!isWallet(to) || !froms || typeof froms !== 'object') continue;
+      for (const [from, node] of Object.entries(froms)) {
+        if (!isWallet(from) || from === to) continue;
+        const stamp = newestStamp(node);
+        if (stamp > 0 && now - stamp < BLOB_TTL_MS) continue;
+        try {
+          await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateSignal/' + to + '/' + from, setup.access);
+          removed += 1;
+        } catch {
+          /* the next daily run tries again */
+        }
+      }
+    }
+  } catch {
+    /* the next daily run tries again */
+  }
+  try {
+    const inbox = await rtdb(setup.fetchImpl, 'GET', setup.env, 'privateInbox', setup.access);
+    const threads = inbox && typeof inbox === 'object' ? Object.entries(inbox) : [];
+    for (const [thread, threadNode] of threads) {
+      if (!/^0x[a-f0-9]{40}_0x[a-f0-9]{40}$/.test(thread)) continue;
+      const messages = threadNode && threadNode.messages;
+      if (!messages || typeof messages !== 'object') continue;
+      for (const [msgId, msg] of Object.entries(messages)) {
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(msgId)) continue;
+        if (!msg || !msg.seal || msg.seal.kind !== 'photo') continue;
+        const ts = Number(msg.timestamp) || 0;
+        if (ts > 0 && now - ts < BLOB_TTL_MS) continue;
+        try {
+          await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateInbox/' + thread + '/messages/' + msgId, setup.access);
+          removed += 1;
+        } catch {
+          /* the next daily run tries again */
+        }
+      }
+    }
+  } catch {
+    /* the next daily run tries again */
+  }
   return { status: 200, body: { removed } };
+}
+
+function newestStamp(node) {
+  let newest = 0;
+  const walk = (value) => {
+    if (!value || typeof value !== 'object') return;
+    if (typeof value.at === 'number') newest = Math.max(newest, value.at);
+    if (typeof value.createdAt === 'number') newest = Math.max(newest, value.createdAt);
+    for (const child of Object.values(value)) walk(child);
+  };
+  walk(node);
+  return newest;
 }

@@ -1,7 +1,7 @@
 {
-  "versionCode": 15,
-  "versionName": "1.0.15",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=115",
-  "notes": "One wallet approval, and encrypted private photos.",
+  "versionCode": 16,
+  "versionName": "1.0.16",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=116",
+  "notes": "Private photos move to the other phone and leave the server.",
   "force": false
 }

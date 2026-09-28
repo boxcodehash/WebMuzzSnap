@@ -209,7 +209,7 @@
     });
   }
 
-  function sealPhoto(me, peer, bytes) {
+  function preparePhoto(me, peer, bytes) {
     return loadOrCreate().then(function (keys) {
       return peerKey(peer).then(function (toPub) {
         if (!toPub) {
@@ -218,33 +218,109 @@
           throw missing;
         }
         return encryptBytes(keys.privateKey, toPub, bytes).then(function (box) {
-          return post('/api/private-blob', { to: String(peer || '').toLowerCase(), ct: box.ct }).then(function (stored) {
-            return {
-              v: 1,
-              kind: 'photo',
-              iv: box.iv,
-              id: stored.id,
-              fromPub: keys.pub,
-              toPub: toPub
-            };
-          });
+          return {
+            v: 1,
+            kind: 'photo',
+            iv: box.iv,
+            ct: box.ct,
+            from: walletOf(me),
+            to: walletOf(peer),
+            fromPub: keys.pub,
+            toPub: toPub
+          };
         });
       });
     });
   }
 
+  function rememberBox(box, id) {
+    var row = {
+      id: id,
+      from: box.from,
+      to: box.to,
+      iv: box.iv,
+      ct: box.ct,
+      fromPub: box.fromPub,
+      toPub: box.toPub
+    };
+    if (global.MuzzTransfer && typeof global.MuzzTransfer.remember === 'function') {
+      return global.MuzzTransfer.remember(row).then(function () { return row; });
+    }
+    return Promise.resolve(row);
+  }
+
+  function uploadMailbox(box) {
+    return post('/api/private-blob', {
+      to: box.to,
+      ct: box.ct,
+      iv: box.iv,
+      fromPub: box.fromPub,
+      toPub: box.toPub
+    }).then(function (stored) {
+      var seal = {
+        v: 1,
+        kind: 'photo',
+        iv: box.iv,
+        id: stored.id,
+        fromPub: box.fromPub,
+        toPub: box.toPub
+      };
+      return rememberBox(box, stored.id).then(function () { return seal; });
+    });
+  }
+
+  function sealPhoto(me, peer, bytes) {
+    return preparePhoto(me, peer, bytes).then(function (box) {
+      return uploadMailbox(box);
+    });
+  }
+
+  function linkPhoto(id, thread, msgId) {
+    return post('/api/private-blob-link', { id: id, thread: thread, msgId: msgId }).catch(function () { return null; });
+  }
+
+  function pendingPhotos() {
+    return post('/api/photo-mailbox', {}).then(function (data) {
+      return (data && data.items) || [];
+    });
+  }
+
+  function ackPhoto(id) {
+    return post('/api/private-blob-ack', { id: id }).catch(function () { return null; });
+  }
+
   function openPhoto(me, from, seal) {
-    return loadOrCreate().then(function (keys) {
-      return post('/api/private-blob-read', { id: seal.id }).then(function (stored) {
-        return decryptBytes(keys.privateKey, otherPub(seal, me, from), seal.iv, stored.ct);
-      }).then(function (plain) {
-        return new Blob([plain], { type: 'image/webp' });
+    var local = (global.MuzzTransfer && typeof global.MuzzTransfer.readLocal === 'function')
+      ? global.MuzzTransfer.readLocal(seal && seal.id)
+      : Promise.resolve(null);
+    return local.then(function (row) {
+      return loadOrCreate().then(function (keys) {
+        if (row && row.ct) {
+          return decryptBytes(keys.privateKey, otherPub(seal, me, from), row.iv || seal.iv, row.ct);
+        }
+        return post('/api/private-blob-read', { id: seal.id }).then(function (stored) {
+          var box = {
+            from: walletOf(from),
+            to: walletOf(me),
+            iv: seal.iv,
+            ct: stored.ct,
+            fromPub: seal.fromPub,
+            toPub: seal.toPub
+          };
+          return rememberBox(box, seal.id).then(function () {
+            return ackPhoto(seal.id);
+          }).then(function () {
+            return decryptBytes(keys.privateKey, otherPub(seal, me, from), seal.iv, stored.ct);
+          });
+        });
       });
+    }).then(function (plain) {
+      return new Blob([plain], { type: 'image/webp' });
     });
   }
 
   function forgetBlob(id) {
-    return post('/api/private-blob-delete', { id: id }).catch(function () { return null; });
+    return ackPhoto(id);
   }
 
   function canvasToBlob(canvas, type, quality) {
@@ -305,7 +381,12 @@
     peerKey: peerKey,
     sealText: sealText,
     openText: openText,
+    preparePhoto: preparePhoto,
+    uploadMailbox: uploadMailbox,
     sealPhoto: sealPhoto,
+    linkPhoto: linkPhoto,
+    pendingPhotos: pendingPhotos,
+    ackPhoto: ackPhoto,
     openPhoto: openPhoto,
     forgetBlob: forgetBlob,
     compressImage: compressImage,

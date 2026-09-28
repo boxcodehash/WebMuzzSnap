@@ -1,0 +1,85 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "messages": {
+      "$channel": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "status": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && ($id == auth.uid || $id == 'wallet_' + auth.uid)"
+      }
+    },
+    "walletRegistry": {
+      ".read": "auth != null",
+      "$wallet": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "muted": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "banned": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "fcmTokens": {
+      "$wallet": {
+        ".read": "auth != null && auth.uid == $wallet",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "notifyRate": {
+      ".read": false,
+      ".write": false
+    },
+    "loginNonces": {
+      ".read": false,
+      ".write": false
+    },
+    "walletKeys": {
+      "$wallet": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "privateBlobs": {
+      ".read": false,
+      ".write": false
+    },
+    "photoMailbox": {
+      "$wallet": {
+        ".read": "auth != null && auth.uid == $wallet",
+        ".write": false
+      }
+    },
+    "privateSignal": {
+      "$to": {
+        "$from": {
+          ".read": "auth != null && (auth.uid == $to || auth.uid == $from) && $to.matches(/^0x[a-f0-9]{40}$/) && $from.matches(/^0x[a-f0-9]{40}$/) && $to != $from",
+          ".write": "auth != null && (auth.uid == $to || auth.uid == $from) && $to.matches(/^0x[a-f0-9]{40}$/) && $from.matches(/^0x[a-f0-9]{40}$/) && $to != $from"
+        }
+      }
+    },
+    "privateInbox": {
+      "$thread": {
+        ".read": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid))",
+        ".write": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid)) && (!newData.exists() || !newData.hasChild('from') || newData.child('from').val() == auth.uid)"
+      }
+    },
+    "privateIndex": {
+      "$owner": {
+        ".read": "auth != null && auth.uid == $owner",
+        "$peer": {
+          ".write": "auth != null && (auth.uid == $owner || auth.uid == $peer)"
+        }
+      }
+    }
+  }
+}

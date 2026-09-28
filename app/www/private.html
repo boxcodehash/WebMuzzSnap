@@ -36,6 +36,7 @@
   <script src="js/fcm-client.js"></script>
   <script src="js/translate.js"></script>
   <script src="js/private-e2ee.js"></script>
+  <script src="js/photo-transfer.js"></script>
   <style>
     :root{
       --bg:#181d23;
@@ -352,6 +353,40 @@
       `;
     }
 
+    let messageGen = 0;
+    function applyMessages(remote) {
+      const gen = ++messageGen;
+      const base = remote || [];
+      const finish = (rows) => {
+        if (gen !== messageGen) return;
+        const seen = new Set(base.map((item) => item.seal && item.seal.id).filter(Boolean));
+        const extra = [];
+        (rows || []).forEach((row) => {
+          if (!row || !row.id || !row.ct || seen.has(row.id)) return;
+          const from = String(row.from || '').toLowerCase();
+          const to = String(row.to || '').toLowerCase();
+          const inThread = (from === meWallet && to === activeWallet) || (from === activeWallet && to === meWallet);
+          if (!inThread) return;
+          seen.add(row.id);
+          extra.push({
+            id: 'local-' + row.id,
+            from,
+            to,
+            timestamp: Number(row.savedAt) || 0,
+            text: 'Photo',
+            seal: { v: 1, kind: 'photo', iv: row.iv, id: row.id, fromPub: row.fromPub, toPub: row.toPub }
+          });
+        });
+        messages = base.concat(extra).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+        render();
+      };
+      if (!activeWallet || !window.MuzzTransfer || typeof MuzzTransfer.listLocal !== 'function') {
+        finish([]);
+        return;
+      }
+      MuzzTransfer.listLocal().then(finish).catch(() => finish([]));
+    }
+
     function renderMessages(){
       const box = document.getElementById('messages');
       if(!activeWallet){
@@ -405,7 +440,7 @@
           img.src = URL.createObjectURL(blob);
           node.textContent = '';
           node.appendChild(img);
-          if (!mine && msg.seal.id) MuzzE2EE.forgetBlob(msg.seal.id);
+          /* The ciphertext is already on this phone. The server copy was deleted when it was saved. */
         }).catch(() => {
           node.textContent = 'Could not open this photo.';
         });
@@ -430,8 +465,7 @@
       const handler = snap => {
         const val = snap.val() || {};
         const all = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
-        messages = muzzGate.visible(all, Date.now());
-        render();
+        applyMessages(muzzGate.visible(all, Date.now()));
       };
       ref.on('value', handler);
       inboxUnsub = () => ref.off('value', handler);
@@ -570,16 +604,32 @@
         const image = await MuzzE2EE.compressImage(file);
         if (!image) throw Object.assign(new Error('unsupported'), { code: 'unsupported' });
         const bytes = new Uint8Array(await image.arrayBuffer());
-        const seal = await MuzzE2EE.sealPhoto(meWallet, activeWallet, bytes);
+        const peer = contacts.find((item) => item.wallet === activeWallet);
         const tid = threadId(meWallet, activeWallet);
-        await db.ref('privateInbox/' + tid + '/messages').push({
+        const seal = window.MuzzTransfer
+          ? await MuzzTransfer.send({ me: meWallet, peer: activeWallet, bytes: bytes, online: !!(peer && peer.online), db: db })
+          : await MuzzE2EE.sealPhoto(meWallet, activeWallet, bytes);
+        const msgRef = await db.ref('privateInbox/' + tid + '/messages').push({
           from: meWallet,
           to: activeWallet,
           username: meName,
           text: 'Photo',
-          seal: seal,
+          seal: {
+            v: seal.v,
+            kind: 'photo',
+            iv: seal.iv,
+            id: seal.id,
+            fromPub: seal.fromPub,
+            toPub: seal.toPub
+          },
           timestamp: Date.now()
         });
+        if (seal && seal.via === 'mailbox' && seal.id && msgRef && msgRef.key) {
+          MuzzE2EE.linkPhoto(seal.id, tid, msgRef.key);
+        }
+        if (seal && seal.via === 'direct' && msgRef && typeof msgRef.remove === 'function') {
+          msgRef.remove().catch((err) => console.error(err));
+        }
         const preview = { lastText: 'Photo', lastAt: Date.now() };
         await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
         await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
@@ -624,6 +674,10 @@
       applyPicker();
       if (window.MuzzNotify) MuzzNotify.requestPermission();
     });
+    window.addEventListener('muzz-photo-sync', () => {
+      if (!activeWallet) return;
+      applyMessages(messages.filter((item) => !String(item.id || '').startsWith('local-')));
+    });
     window.addEventListener('muzz-unread', (event) => {
       unreadMap = (event.detail && event.detail.unread) || {};
       renderContacts();
@@ -654,6 +708,7 @@
         if (window.MuzzPush) await MuzzPush.signInForChat(meWallet);
         else await firebase.auth().signInAnonymously();
         if (window.MuzzE2EE) MuzzE2EE.publish().catch((err) => console.error(err));
+        if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: meWallet });
       } catch (err) { console.error(err); }
       autoResizeInput();
       markWalletPresence();

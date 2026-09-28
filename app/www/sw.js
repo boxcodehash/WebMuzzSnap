@@ -1,4 +1,4 @@
-const CACHE = 'muzzsnap-app-v11';
+const CACHE = 'muzzsnap-app-v12';
 const SHELL = [
   './',
   './index.html',
@@ -33,11 +33,16 @@ self.addEventListener('push', (event) => {
   try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
   const data = payload.data || payload;
   const peer = data.peer || '';
-  event.waitUntil(self.registration.showNotification('MuzzSnap', {
-    body: 'New private message',
-    tag: peer ? 'pm-' + peer : 'pm',
-    data: { peer }
-  }));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification('MuzzSnap', {
+      body: 'New private message',
+      tag: peer ? 'pm-' + peer : 'pm',
+      data: { peer }
+    }),
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      clients.forEach((client) => client.postMessage({ type: 'muzz-photo-sync' }));
+    })
+  ]));
 });
 
 self.addEventListener('notificationclick', (event) => {

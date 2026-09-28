@@ -6,8 +6,11 @@ import vm from 'node:vm';
 import { resetGoogleCaches, signJwt } from '../server/google.js';
 import {
   decodeCiphertext,
+  handlePhotoMailbox,
   handlePrivateBlob,
+  handlePrivateBlobAck,
   handlePrivateBlobDelete,
+  handlePrivateBlobLink,
   handlePrivateBlobRead,
   handlePrivateExpire,
   handleWalletKey
@@ -98,8 +101,14 @@ function mockBackend(db, blobs) {
         let found = false;
         for (const key of Object.keys(db)) {
           if (!key.startsWith(prefix)) continue;
-          nested[key.slice(prefix.length)] = db[key];
           found = true;
+          const parts = key.slice(prefix.length).split('/');
+          let cursor = nested;
+          for (let i = 0; i < parts.length - 1; i += 1) {
+            cursor[parts[i]] = cursor[parts[i]] && typeof cursor[parts[i]] === 'object' ? cursor[parts[i]] : {};
+            cursor = cursor[parts[i]];
+          }
+          cursor[parts[parts.length - 1]] = db[key];
         }
         return jsonResponse(200, found ? nested : null);
       }
@@ -109,6 +118,10 @@ function mockBackend(db, blobs) {
       }
       if (method === 'DELETE') {
         delete db[path];
+        const prefix = path + '/';
+        for (const key of Object.keys(db)) {
+          if (key.startsWith(prefix)) delete db[key];
+        }
         return jsonResponse(200, null);
       }
     }
@@ -164,6 +177,7 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
   resetGoogleCaches();
   assert.equal(decodeCiphertext(''), null);
   const ct = Buffer.from('cipher-bytes').toString('base64');
+  const pubs = { iv: Buffer.from('0123456789ab').toString('base64'), fromPub: 'A'.repeat(120), toPub: 'B'.repeat(120) };
   const db = {};
   const blobs = new Map();
   const fetchImpl = mockBackend(db, blobs);
@@ -171,7 +185,7 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
   const uploaded = await handlePrivateBlob({
     method: 'POST',
     headers: { authorization: 'Bearer ' + idToken(alice) },
-    body: { to: bob, ct },
+    body: { to: bob, ct, ...pubs },
     now
   }, { env, fetchImpl });
   assert.equal(uploaded.status, 200);
@@ -180,7 +194,36 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
   const record = db['privateBlobs/' + uploaded.body.id];
   assert.equal(record.from, alice);
   assert.equal(record.to, bob);
+  assert.equal(record.url.startsWith('https://'), true);
+  assert.equal(db['photoMailbox/' + bob + '/' + uploaded.body.id].from, alice);
+  assert.equal(db['photoMailbox/' + bob + '/' + uploaded.body.id].url, undefined);
   assert.equal(blobs.size, 1);
+
+  const senderRead = await handlePrivateBlobRead({
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + idToken(alice) },
+    body: { id: uploaded.body.id },
+    now
+  }, { env, fetchImpl });
+  assert.equal(senderRead.status, 403);
+
+  const stranger = '0x' + '11'.repeat(20);
+  const strangerList = await handlePhotoMailbox({
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + idToken(stranger) },
+    body: {},
+    now
+  }, { env, fetchImpl });
+  assert.equal(strangerList.status, 200);
+  assert.equal(strangerList.body.items.length, 0);
+  const bobList = await handlePhotoMailbox({
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + idToken(bob) },
+    body: {},
+    now
+  }, { env, fetchImpl });
+  assert.equal(bobList.body.items.length, 1);
+  assert.equal(bobList.body.items[0].url, undefined);
 
   const denied = await handlePrivateBlobDelete({
     method: 'POST',
@@ -200,7 +243,21 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
   assert.equal(read.status, 200);
   assert.equal(Buffer.from(read.body.ct, 'base64').toString(), 'cipher-bytes');
 
-  const removed = await handlePrivateBlobDelete({
+  const thread = [alice, bob].sort().join('_');
+  db['privateInbox/' + thread + '/messages/msg1'] = {
+    from: alice,
+    to: bob,
+    text: 'Photo',
+    seal: { id: uploaded.body.id, kind: 'photo' }
+  };
+  const linked = await handlePrivateBlobLink({
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + idToken(alice) },
+    body: { id: uploaded.body.id, thread, msgId: 'msg1' },
+    now
+  }, { env, fetchImpl });
+  assert.equal(linked.status, 200);
+  const removed = await handlePrivateBlobAck({
     method: 'POST',
     headers: { authorization: 'Bearer ' + idToken(bob) },
     body: { id: uploaded.body.id },
@@ -209,15 +266,28 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
   assert.equal(removed.status, 200);
   assert.equal(blobs.size, 0);
   assert.equal(db['privateBlobs/' + uploaded.body.id], undefined);
+  assert.equal(db['photoMailbox/' + bob + '/' + uploaded.body.id], undefined);
+  assert.equal(db['privateInbox/' + thread + '/messages/msg1'], undefined);
 
   const again = await handlePrivateBlob({
     method: 'POST',
     headers: { authorization: 'Bearer ' + idToken(alice) },
-    body: { to: bob, ct },
+    body: { to: bob, ct, ...pubs },
     now
   }, { env, fetchImpl });
   assert.equal(again.status, 200);
   db['privateBlobs/' + again.body.id].createdAt = now - (25 * 60 * 60 * 1000);
+  db['privateSignal/' + bob + '/' + alice + '/offer'] = { at: now - (25 * 60 * 60 * 1000), sdp: 'old' };
+  db['privateSignal/' + alice + '/' + bob + '/offer'] = { at: now, sdp: 'live' };
+  db['privateInbox/' + thread + '/messages/oldphoto'] = {
+    from: alice, to: bob, text: 'Photo', timestamp: now - (25 * 60 * 60 * 1000), seal: { kind: 'photo', id: 'old' }
+  };
+  db['privateInbox/' + thread + '/messages/hello'] = {
+    from: alice, to: bob, text: 'Encrypted message', timestamp: now - (25 * 60 * 60 * 1000), seal: { kind: 'text' }
+  };
+  db['privateInbox/' + thread + '/messages/newphoto'] = {
+    from: alice, to: bob, text: 'Photo', timestamp: now, seal: { kind: 'photo', id: 'new' }
+  };
   const expired = await handlePrivateExpire({
     method: 'GET',
     headers: { authorization: 'Bearer cron-test-secret' },
@@ -225,8 +295,13 @@ test('ciphertext goes to Blob and is deleted when the recipient opens it or afte
     now
   }, { env, fetchImpl });
   assert.equal(expired.status, 200);
-  assert.equal(expired.body.removed, 1);
+  assert.equal(expired.body.removed, 3);
   assert.equal(db['privateBlobs/' + again.body.id], undefined);
+  assert.equal(db['privateSignal/' + bob + '/' + alice + '/offer'], undefined);
+  assert.equal(db['privateSignal/' + alice + '/' + bob + '/offer'].sdp, 'live');
+  assert.equal(db['privateInbox/' + thread + '/messages/oldphoto'], undefined);
+  assert.equal(db['privateInbox/' + thread + '/messages/hello'].seal.kind, 'text');
+  assert.equal(db['privateInbox/' + thread + '/messages/newphoto'].seal.id, 'new');
 
   const missing = await handleWalletKey({
     method: 'POST',
