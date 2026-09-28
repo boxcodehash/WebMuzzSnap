@@ -193,6 +193,7 @@ test('session proof, notify, register, and push config', async () => {
     { env, fetchImpl }
   );
   assert.equal(replay.status, 401);
+  assert.equal(replay.body.error, 'nonce_used');
 
   const missing = await handleNotify(
     { method: 'POST', headers: {}, body: { to: recipientWallet }, now },

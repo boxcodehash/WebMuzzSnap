@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 export const AUTH_CHAINS = ['eip155:1', 'eip155:56'];
 export const AUTH_METHODS = ['personal_sign', 'eth_sign', 'eth_requestAccounts', 'eth_accounts'];
 const TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
-const AUTH_TTL_MS = 3 * 60 * 1000;
+const AUTH_TTL_MS = 10 * 60 * 1000;
 
 export function randomAuthNonce() {
   const bytes = new Uint8Array(16);

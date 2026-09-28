@@ -7,7 +7,7 @@ import {
   tokenId,
   verifyFirebaseIdToken
 } from './google.js';
-import { proveLogin } from './login-proof.js';
+import { classifyLogin } from './login-proof.js';
 
 export const NOTIFICATION_TITLE = 'MuzzSnap';
 export const NOTIFICATION_BODY = 'New private message';
@@ -20,6 +20,13 @@ const RATE_WINDOW_MS = 60 * 1000;
 
 export function fail(status, error) {
   return { status, body: { error } };
+}
+
+function sessionError(reason) {
+  if (reason === 'expired' || reason === 'bad_signature' || reason === 'bad_format' || reason === 'nonce_used') {
+    return reason;
+  }
+  return 'bad_format';
 }
 
 export function bearerToken(headers) {
@@ -214,13 +221,21 @@ export async function handleSession(req, deps = {}) {
   if (!account) return fail(503, 'push_not_configured');
   const message = req.body && req.body.message;
   const signature = req.body && req.body.signature;
-  const proof = proveLogin(message, signature, req.now || Date.now());
-  if (!proof) return fail(401, 'bad_session');
+  const judged = classifyLogin(message, signature, req.now || Date.now());
+  if (!judged.proof) {
+    const reason = sessionError(judged.reason);
+    console.warn('session rejected: ' + reason);
+    return fail(401, reason);
+  }
+  const proof = judged.proof;
   const key = proof.nonce || signatureKey(signature);
   try {
     const access = await getGoogleAccessToken(account, fetchImpl, req.now);
     const used = await rtdb(fetchImpl, 'GET', env, 'loginNonces/' + key, access);
-    if (used) return fail(401, 'session_used');
+    if (used) {
+      console.warn('session rejected: nonce_used');
+      return fail(401, 'nonce_used');
+    }
     await rtdb(fetchImpl, 'PUT', env, 'loginNonces/' + key, access, { wallet: proof.wallet, exp: proof.exp });
     return {
       status: 200,

@@ -1,7 +1,7 @@
 {
-  "versionCode": 16,
-  "versionName": "1.0.16",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=116",
-  "notes": "Private photos move to the other phone and leave the server.",
+  "versionCode": 17,
+  "versionName": "1.0.17",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=117",
+  "notes": "Wallet sign-in uses a fresh signature and does not reuse an expired one.",
   "force": false
 }

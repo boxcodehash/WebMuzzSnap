@@ -88,8 +88,10 @@
         body: JSON.stringify({ message: message, signature: signature })
       }).then(function (res) {
         if (res.status >= 500) return null;
-        if (!res.ok) return { denied: true };
-        return res.json();
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) return { denied: true, status: res.status, error: body && body.error };
+          return body || {};
+        });
       });
     }
     return once().then(function (data) {
@@ -104,6 +106,40 @@
     return user.getIdToken();
   }
 
+  function sessionReason(error) {
+    if (error === 'expired' || error === 'nonce_used' || error === 'bad_signature' || error === 'bad_format') return error;
+    if (error === 'session_used') return 'nonce_used';
+    return 'bad_format';
+  }
+
+  function holdForSign(reason) {
+    try { sessionStorage.setItem('muzz_login_hold', sessionReason(reason)); } catch (err) { /* private mode */ }
+  }
+
+  function proofStillFresh(message, signature) {
+    var gate = global.muzzGate;
+    if (gate && typeof gate.proofReusable === 'function') return gate.proofReusable(message, signature);
+    return false;
+  }
+
+  function dropStaleProof(message, reason) {
+    var gate = global.muzzGate;
+    if (gate && typeof gate.markNonceExchanged === 'function' && typeof gate.proofNonce === 'function') {
+      gate.markNonceExchanged(gate.proofNonce(message), gate.proofExpiry ? gate.proofExpiry(message) : 0);
+    }
+    if (gate && typeof gate.clearLoginProof === 'function') gate.clearLoginProof();
+    else {
+      try {
+        sessionStorage.removeItem('muzz_login_msg');
+        sessionStorage.removeItem('muzz_login_sig');
+        sessionStorage.removeItem('muzz_wc_proof');
+        localStorage.removeItem('muzz_session');
+      } catch (err) { /* private mode */ }
+    }
+    holdForSign(reason);
+    console.warn('session rejected: ' + sessionReason(reason));
+  }
+
   function storedProof() {
     var message = '';
     var signature = '';
@@ -111,15 +147,20 @@
       message = sessionStorage.getItem('muzz_login_msg') || '';
       signature = sessionStorage.getItem('muzz_login_sig') || '';
     } catch (err) { /* private mode */ }
-    if (message && signature) return { message: message, signature: signature };
+    if (proofStillFresh(message, signature)) return { message: message, signature: signature };
     try {
       var data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
       if (!data || Number(data.until) <= Date.now()) return null;
-      if (!data.message || !data.signature) return null;
+      if (!proofStillFresh(data.message, data.signature)) return null;
       return { message: data.message, signature: data.signature };
     } catch (err) {
       return null;
     }
+  }
+
+  function needsFreshSign(reason) {
+    dropStaleProof('', reason || 'expired');
+    return { needsSign: true, reason: sessionReason(reason || 'expired') };
   }
 
   function signInForChat(wallet) {
@@ -137,11 +178,23 @@
       var proof = storedProof();
       var message = proof ? proof.message : '';
       var signature = proof ? proof.signature : '';
-      if (!want || !message || !signature) return anonymousFallback(auth, want);
+      if (!want) return anonymousFallback(auth, want);
+      if (!message || !signature) return needsFreshSign('expired');
       return exchangeSession(message, signature).then(function (data) {
-        if (data && data.customToken) return auth.signInWithCustomToken(data.customToken);
+        if (data && data.customToken) {
+          if (global.muzzGate && typeof global.muzzGate.consumeLoginProof === 'function') {
+            global.muzzGate.consumeLoginProof(message);
+          }
+          try { sessionStorage.removeItem('muzz_login_hold'); } catch (err) { /* private mode */ }
+          return auth.signInWithCustomToken(data.customToken);
+        }
+        if (data && data.denied) {
+          dropStaleProof(message, data.error || 'expired');
+          return { needsSign: true, reason: sessionReason(data.error || 'expired') };
+        }
         return null;
       }).then(function (cred) {
+        if (cred && cred.needsSign) return cred;
         if (cred && cred.user) {
           start(want);
           return cred.user;

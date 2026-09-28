@@ -235,6 +235,12 @@
     }
 
     async function validatePrivateAccess(){
+      try {
+        if (sessionStorage.getItem('muzz_login_hold')) {
+          window.location.replace('login.html');
+          return false;
+        }
+      } catch (err) { /* private mode */ }
       if(!/^0x[a-f0-9]{40}$/.test(meWallet)){
         muzzGate.clearWallet();
         window.location.href = 'login.html';
@@ -707,8 +713,13 @@
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
       try {
-        if (window.MuzzPush) await MuzzPush.signInForChat(meWallet);
-        else await firebase.auth().signInAnonymously();
+        if (window.MuzzPush) {
+          const signed = await MuzzPush.signInForChat(meWallet);
+          if (signed && signed.needsSign) {
+            window.location.replace('login.html');
+            return;
+          }
+        } else await firebase.auth().signInAnonymously();
         if (window.MuzzE2EE) MuzzE2EE.publish().catch((err) => console.error(err));
         if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: meWallet });
       } catch (err) { console.error(err); }

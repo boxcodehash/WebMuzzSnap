@@ -542,6 +542,12 @@
       useEffect(() => {
         if (localShot) return undefined;
         const sessionWallet = (muzzGate.savedWallet() || '').toLowerCase();
+        try {
+          if (sessionStorage.getItem('muzz_login_hold')) {
+            window.location.replace('login.html');
+            return;
+          }
+        } catch (err) { /* private mode */ }
         if (!/^0x[a-f0-9]{40}$/.test(sessionWallet)) {
           muzzGate.clearWallet();
           window.location.href = 'login.html';
@@ -581,6 +587,11 @@
           ? MuzzPush.signInForChat(sessionWallet)
           : firebase.auth().signInAnonymously().then(function (cred) { return cred.user; });
         authReady.then((user) => {
+          if (cancelled) return;
+          if (!user || user.needsSign) {
+            window.location.replace('login.html');
+            return;
+          }
           const isWallet = !sessionWallet.startsWith('guest_');
           const wallet = isWallet ? sessionWallet.toLowerCase() : '';
           let username = '';

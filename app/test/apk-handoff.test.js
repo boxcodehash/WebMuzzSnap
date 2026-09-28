@@ -94,7 +94,7 @@ test('el token de vuelta se verifica una sola vez y caduca', async () => {
   assert.throws(() => gate.verifyHandoff(expired, Date.now()), /EXPIRED/);
   const explained = gate.explainSignError(Object.assign(new Error('EXPIRED'), { code: 'expired' }));
   assert.equal(explained.title, 'Sign-in expired.');
-  assert.match(explained.desc, /3 minutes/);
+  assert.match(explained.desc, /10 minutes/);
   const chainish = gate.explainSignError(Object.assign(new Error('Switch network failed'), { code: 'chain' }));
   assert.notEqual(chainish.title, 'Wrong network.');
   assert.doesNotMatch(`${chainish.title} ${chainish.desc}`, /switch to Ethereum mainnet/i);
@@ -129,7 +129,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.16/);
+  assert.match(login, /v1\.0\.17/);
   assert.match(login, /signFlight/);
   assert.match(login, /if \(signFlight\) return signFlight/);
   assert.match(login, /Connecting…/);
@@ -142,7 +142,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(wallet, /eip155:56/);
   assert.match(wallet, /ignoreChainSwitch/);
   assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.16"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.17"/);
   const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(capacitor.server.url, undefined);
   assert.equal(capacitor.server.androidScheme, 'https');
@@ -197,10 +197,10 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates/);
   assert.match(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates/);
   const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
-  assert.equal(manifestJson.versionCode, 16);
-  assert.equal(manifestJson.versionName, '1.0.16');
-  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=116');
-  assert.equal(manifestJson.notes, 'Private photos move to the other phone and leave the server.');
+  assert.equal(manifestJson.versionCode, 17);
+  assert.equal(manifestJson.versionName, '1.0.17');
+  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=117');
+  assert.equal(manifestJson.notes, 'Wallet sign-in uses a fresh signature and does not reuse an expired one.');
   assert.equal(manifestJson.force, false);
   const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
   assert.match(JSON.stringify(dlHeaders), /Access-Control-Allow-Origin/);

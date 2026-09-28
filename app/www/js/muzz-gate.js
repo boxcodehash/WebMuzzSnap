@@ -16,9 +16,10 @@
   const READ_MS = 24 * 60 * 60 * 1000;
   const SEEN_KEY = 'muzz_seen_v1';
   const DEFAULT_PUBLIC = 'https://muzzsnap-app.vercel.app';
-  const HANDOFF_MS = 3 * 60 * 1000;
+  const HANDOFF_MS = 10 * 60 * 1000;
   const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
   const NONCE_KEY = 'muzz_used_nonces_v1';
+  const EXCHANGED_KEY = 'muzz_exchanged_nonces';
 
   function withTimeout(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -387,7 +388,7 @@
     const msg = (err && (err.message || err.reason)) ? String(err.message || err.reason) : 'Connection rejected.';
     const code = err && err.code;
     if (code === 'expired' || msg === 'EXPIRED') {
-      return { title: 'Sign-in expired.', desc: 'That signature is older than 3 minutes. Go back to MuzzSnap and sign in again.' };
+      return { title: 'Sign-in expired.', desc: 'That signature is older than 10 minutes. Go back to MuzzSnap and sign in again.' };
     }
     if (code === 'used' || msg === 'ALREADY_USED') {
       return { title: 'Sign-in already used.', desc: 'This return link was already used on this device. Sign in again.' };
@@ -513,6 +514,82 @@
     }
   }
 
+  function proofLine(message, prefix) {
+    const line = String(message || '').split('\n').find((item) => item.startsWith(prefix));
+    return line ? line.slice(prefix.length).trim() : '';
+  }
+
+  function proofExpiry(message) {
+    const exp = Number(proofLine(message, 'Expires: '));
+    return Number.isFinite(exp) ? exp : 0;
+  }
+
+  function proofNonce(message) {
+    return proofLine(message, 'Nonce: ').toLowerCase();
+  }
+
+  function exchangedMap() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(EXCHANGED_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function nonceExchanged(nonce) {
+    const id = String(nonce || '').toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(id)) return false;
+    return Boolean(exchangedMap()[id]);
+  }
+
+  function markNonceExchanged(nonce, exp) {
+    const id = String(nonce || '').toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(id)) return;
+    const map = exchangedMap();
+    const now = Date.now();
+    Object.keys(map).forEach((key) => {
+      if (Number(map[key]) < now) delete map[key];
+    });
+    map[id] = Number(exp) || (now + HANDOFF_MS);
+    try { localStorage.setItem(EXCHANGED_KEY, JSON.stringify(map)); } catch (err) { /* private mode */ }
+  }
+
+  function proofReusable(message, signature, now) {
+    if (!message || !signature) return false;
+    const clock = Number(now) || Date.now();
+    const exp = proofExpiry(message);
+    if (!exp || exp <= clock) return false;
+    if (nonceExchanged(proofNonce(message))) return false;
+    return true;
+  }
+
+  function clearLoginProof() {
+    try {
+      sessionStorage.removeItem('muzz_login_msg');
+      sessionStorage.removeItem('muzz_login_sig');
+      sessionStorage.removeItem('muzz_wc_proof');
+    } catch (err) { /* private mode */ }
+    try { localStorage.removeItem('muzz_session'); } catch (err) { /* private mode */ }
+  }
+
+  function consumeLoginProof(message) {
+    markNonceExchanged(proofNonce(message), proofExpiry(message));
+    try {
+      sessionStorage.removeItem('muzz_login_msg');
+      sessionStorage.removeItem('muzz_login_sig');
+      sessionStorage.removeItem('muzz_wc_proof');
+    } catch (err) { /* private mode */ }
+    try {
+      const data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
+      if (data && typeof data === 'object') {
+        data.message = '';
+        data.signature = '';
+        localStorage.setItem('muzz_session', JSON.stringify(data));
+      }
+    } catch (err) { /* private mode */ }
+  }
+
   function clearWallet() {
     sessionStorage.removeItem('muzz_wallet_address');
     localStorage.removeItem('muzz_wallet_address');
@@ -563,6 +640,13 @@
     rememberSession,
     durableSession,
     savedWallet,
+    proofExpiry,
+    proofNonce,
+    nonceExchanged,
+    markNonceExchanged,
+    proofReusable,
+    clearLoginProof,
+    consumeLoginProof,
     clearWallet
   };
 })(window);

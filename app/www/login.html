@@ -396,10 +396,12 @@
             margin-bottom: 4px;
         }
 
-        .error-box p:last-child {
+        .error-box p:last-of-type {
             font-size: 0.85rem;
             color: rgba(255, 255, 255, 0.65);
         }
+
+        #loginRetry { margin-top: 12px; }
 
         .debug-line {
             display: block;
@@ -597,6 +599,7 @@
         <div id="errorBox" class="error-box hidden">
             <p id="errorTitle"></p>
             <p id="errorDesc"></p>
+            <button type="button" id="loginRetry" class="btn btn-primary hidden">Retry</button>
             <button type="button" id="debugLine" class="debug-line hidden"></button>
         </div>
     </main>
@@ -609,7 +612,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.16</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.17</small></footer>
     <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 
     <script>
@@ -803,6 +806,8 @@
             errorBox.classList.remove('hidden');
             document.getElementById('errorTitle').innerText = title;
             document.getElementById('errorDesc').innerText = desc;
+            const retry = document.getElementById('loginRetry');
+            if (retry) retry.classList.add('hidden');
             const line = document.getElementById('debugLine');
             if (debug) {
                 line.textContent = debug;
@@ -1076,6 +1081,7 @@
         }
 
         function finishInBrowser(address, signature, message) {
+            try { sessionStorage.removeItem('muzz_login_hold'); } catch (err) { /* private mode */ }
             saveUserSession(address);
             if (muzzGate.rememberSession) muzzGate.rememberSession({ address: address, signature: signature, message: message });
             else muzzGate.rememberWallet(address);
@@ -1087,6 +1093,7 @@
         }
 
         function finishReturnToApk(address, signature, message, exp, nonce) {
+            try { sessionStorage.removeItem('muzz_login_hold'); } catch (err) { /* private mode */ }
             saveUserSession(address);
             if (muzzGate.rememberSession) muzzGate.rememberSession({ address: address, signature: signature, message: message });
             else muzzGate.rememberWallet(address);
@@ -1113,6 +1120,7 @@
 
         function signatureMatches(message, signature, address) {
             if (!message || !signature || !address) return false;
+            if (muzzGate.proofReusable && !muzzGate.proofReusable(message, signature)) return false;
             const exp = proofExpiry(message);
             if (exp && exp <= Date.now()) return false;
             try {
@@ -1296,8 +1304,49 @@
             else finishInBrowser(address, signature, message);
         }
 
+        function loginHeld() {
+            try { return !!sessionStorage.getItem('muzz_login_hold'); } catch (err) { return false; }
+        }
+
+        function sessionErrorText(code) {
+            if (code === 'nonce_used') {
+                return {
+                    title: 'Sign-in already used.',
+                    desc: 'That wallet signature was already exchanged. Tap Retry and sign once in your wallet.'
+                };
+            }
+            if (code === 'bad_signature') {
+                return {
+                    title: 'Could not sign in.',
+                    desc: 'The signature does not match this wallet. Tap Retry and sign once.'
+                };
+            }
+            if (code === 'bad_format') {
+                return {
+                    title: 'Could not sign in.',
+                    desc: 'The sign-in message was not accepted. Tap Retry and sign once. Set the phone clock automatically if it is more than 7 minutes off.'
+                };
+            }
+            return {
+                title: 'Sign-in expired.',
+                desc: 'That wallet signature expired before it could be checked. Tap Retry and sign once in your wallet.'
+            };
+        }
+
+        function showSessionHold() {
+            let code = '';
+            try { code = sessionStorage.getItem('muzz_login_hold') || ''; } catch (err) { code = ''; }
+            if (!code) return false;
+            const text = sessionErrorText(code);
+            showError(text.title, text.desc);
+            const retry = document.getElementById('loginRetry');
+            if (retry) retry.classList.remove('hidden');
+            return true;
+        }
+
         function enterDurableSession() {
             if (!muzzGate.durableSession) return false;
+            if (loginHeld()) return false;
             try {
                 if (sessionStorage.getItem('muzz_balance_hold') === '1') return false;
             } catch (err) { /* private mode */ }
@@ -1305,8 +1354,15 @@
             if (!session) return false;
             try {
                 sessionStorage.setItem('muzz_wallet_address', session.address);
-                if (session.signature) sessionStorage.setItem('muzz_login_sig', session.signature);
-                if (session.message) sessionStorage.setItem('muzz_login_msg', session.message);
+                const reusable = session.message && session.signature
+                    && (!muzzGate.proofReusable || muzzGate.proofReusable(session.message, session.signature));
+                if (reusable) {
+                    sessionStorage.setItem('muzz_login_sig', session.signature);
+                    sessionStorage.setItem('muzz_login_msg', session.message);
+                } else {
+                    sessionStorage.removeItem('muzz_login_sig');
+                    sessionStorage.removeItem('muzz_login_msg');
+                }
             } catch (err) { /* private mode */ }
             window.location.href = 'chat.html';
             return true;
@@ -1319,6 +1375,7 @@
         // A tap is an explicit retry. Automatic resume must not clear this flag.
         function allowAnotherSign() {
             try { sessionStorage.removeItem('muzz_sign_req'); } catch (err) { /* private mode */ }
+            try { sessionStorage.removeItem('muzz_login_hold'); } catch (err) { /* private mode */ }
         }
 
         async function cancelStuckLogin() {
@@ -1530,6 +1587,7 @@
 
         function resumeWalletLogin() {
             if (shotStatus) return;
+            if (loginHeld()) return;
             if (document.visibilityState === 'hidden') return;
             if (enterDurableSession()) return;
             if (signFlight) {
@@ -1694,6 +1752,13 @@
         document.getElementById('debugLine').addEventListener('click', () => {
             document.getElementById('debugLine').classList.add('hidden');
         });
+        document.getElementById('loginRetry').addEventListener('click', () => {
+            const retry = document.getElementById('loginRetry');
+            if (retry) retry.classList.add('hidden');
+            errorBox.classList.add('hidden');
+            allowAnotherSign();
+            accessWithWallet();
+        });
         document.getElementById('btnWc').addEventListener('click', () => {
             window.muzzMark('tap');
             if (enterDurableSession()) return;
@@ -1736,6 +1801,7 @@
             paintLinks();
             listenForApkReturn();
             preloadWalletStack();
+            if (showSessionHold()) return;
             if (enterDurableSession()) return;
             resumeWalletLogin();
         });
