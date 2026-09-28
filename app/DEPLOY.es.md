@@ -222,7 +222,7 @@ No firmes este APK de debug para Play Store. Para una release hace falta una key
 
 FCM es gratis en el plan Spark. **No** hace falta una Cloud Function ni el plan Blaze. El envío es una función de Vercel en el proyecto **muzzsnap-app** (Root Directory `app`): `POST /api/notify`. El cliente la llama después de guardar el privado. El cuerpo es solo `{ "to": "0x…" }`. El texto del aviso es siempre `New private message`. No se manda el mensaje.
 
-La función comprueba el ID token de Firebase (el uid es la wallet), que existan las dos entradas de `privateIndex`, un límite de 20 por minuto, los tokens en `fcmTokens/{destinatario}` y llama a FCM HTTP v1. `api/notify.js` le pasa `process.env`. La cuenta de servicio es **solo** `process.env.FIREBASE_SERVICE_ACCOUNT` (el JSON entero). Ya está como variable sensible en el proyecto de Vercel **muzzsnap-app** (Production y Preview). No va en git, ni en el cliente, ni en `www.zip`.
+La función comprueba el ID token de Firebase (el uid es la wallet), que existan las dos entradas de `privateIndex`, un límite de 20 por minuto, los tokens en `fcmTokens/{destinatario}` y llama a FCM HTTP v1. `POST /api/notify` es una rewrite a `api/push.js`, que le pasa `process.env`. La cuenta de servicio es **solo** `process.env.FIREBASE_SERVICE_ACCOUNT` (el JSON entero). Ya está como variable sensible en el proyecto de Vercel **muzzsnap-app** (Production y Preview). No va en git, ni en el cliente, ni en `www.zip`.
 
 `/api` no usa Cloud Functions, `firebase-admin` ni `google-auth-library`. El `crypto` de Node firma el token de Google. La única dependencia npm de las funciones es `ethers`. La clave pública Web Push va en el cliente y en `GET /api/push-config`. `FIREBASE_VAPID_KEY` la sustituye si la defines. La clave privada se queda en Firebase.
 
@@ -238,7 +238,7 @@ Pega `rtdb.fcm.rules.snippet.json` **dentro de las reglas que ya hay** (consola 
 vercel deploy --prod
 ```
 
-Lleva `api/`, `server/`, `www/`, `vercel.json` y un `package.json` cuya única dependencia es `ethers`. Vercel ejecuta `npm install`. El sitio sale de `www`. No metas la cuenta de servicio en la carpeta: Vercel ya tiene `FIREBASE_SERVICE_ACCOUNT`.
+Lleva cinco funciones en `api/` (`private.js`, `push.js`, `session.js`, `translate.js`, `private-expire.js`), código compartido en `server/` (no son funciones extra), `www/`, `vercel.json` y un `package.json` cuya única dependencia es `ethers`. Las rewrites conservan las URLs públicas (`/api/notify`, `/api/session`, `/api/register-token`, `/api/push-config`, las de fotos privadas y `/api/private-expire` del cron diario). El plan Hobby admite 12 funciones; este zip se queda en 5. Vercel ejecuta `npm install`. El sitio sale de `www`. No metas la cuenta de servicio en la carpeta: Vercel ya tiene `FIREBASE_SERVICE_ACCOUNT`.
 
 Activa **Authentication** en `pulsari` si aún no está. La sesión firma un custom token; no crea una Cloud Function.
 

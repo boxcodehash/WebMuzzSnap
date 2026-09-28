@@ -231,7 +231,7 @@ Do not ship this debug APK to the Play Store. A release needs your own keystore,
 
 FCM itself is free on the Spark plan. Do **not** add a Cloud Function for this. The sender is a Vercel function in the **muzzsnap-app** project (Root Directory `app`): `POST /api/notify`. The sender's browser calls it after the private message is already in Realtime Database. The body is only `{ "to": "0x…" }`. The notification text is always `New private message`. Message text is not sent.
 
-The function checks a Firebase ID token whose uid is the sender wallet, checks that both `privateIndex` entries exist, rate-limits (20 per minute), reads `fcmTokens/{recipient}`, and calls FCM HTTP v1. `api/notify.js` passes `process.env` into that check. The service account is **only** `process.env.FIREBASE_SERVICE_ACCOUNT` (the entire JSON string). It is already set as a sensitive variable on the Vercel project **muzzsnap-app** for Production and Preview. It is not in git, not in the client, and not in `www.zip`.
+The function checks a Firebase ID token whose uid is the sender wallet, checks that both `privateIndex` entries exist, rate-limits (20 per minute), reads `fcmTokens/{recipient}`, and calls FCM HTTP v1. `POST /api/notify` is a rewrite to `api/push.js`, which passes `process.env` into that check. The service account is **only** `process.env.FIREBASE_SERVICE_ACCOUNT` (the entire JSON string). It is already set as a sensitive variable on the Vercel project **muzzsnap-app** for Production and Preview. It is not in git, not in the client, and not in `www.zip`.
 
 `/api` does not use Cloud Functions, `firebase-admin`, or `google-auth-library`. Node's `crypto` signs the Google token. The only npm package the functions import is `ethers` (to check the wallet signature). The Web Push public key is built into the client and into `GET /api/push-config`. `FIREBASE_VAPID_KEY` overrides it if you set one. The private VAPID key stays in Firebase.
 
@@ -247,7 +247,7 @@ Paste `rtdb.fcm.rules.snippet.json` **into the existing** Realtime Database rule
 vercel deploy --prod
 ```
 
-The folder contains `api/` (`/api/notify`, `/api/session`, `/api/register-token`, `/api/push-config`), `server/`, `www/`, `vercel.json`, and a `package.json` whose only dependency is `ethers`. Vercel runs `npm install`. The site is served from `www`. Do not add the service account to the folder. Vercel already has `FIREBASE_SERVICE_ACCOUNT`.
+The folder contains five Serverless Functions in `api/` (`private.js`, `push.js`, `session.js`, `translate.js`, `private-expire.js`), shared code in `server/` (not extra functions), `www/`, `vercel.json`, and a `package.json` whose only dependency is `ethers`. Rewrites keep the old public paths (`/api/notify`, `/api/session`, `/api/register-token`, `/api/push-config`, the private-blob paths, and `/api/private-expire` for the daily cron). Hobby allows 12 functions; this zip stays at 5. Vercel runs `npm install`. The site is served from `www`. Do not add the service account to the folder. Vercel already has `FIREBASE_SERVICE_ACCOUNT`.
 
 Also enable **Authentication** on `pulsari` (Authentication → Get started) if it is not on yet. The session function signs a custom token; it does not add a Cloud Function. Paste the Realtime Database snippet before relying on client writes. The sender still writes tokens with the service account, which bypasses rules.
 

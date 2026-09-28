@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -328,9 +328,10 @@ test('clients, rules, and the Android fallback do not ship the service account',
     assert.match(source, /muzzsnap-app\.vercel\.app/);
     assert.match(source, /BD4Waq9Zdd8iVPmAvv3K4brWllOezeIREB_X_m6ijlit0ffs9Ff9GQJc8pjzCefT03A3lshYXCNDmUOPk6sIkew/);
   }
-  const notifyFn = readFileSync(new URL('../api/notify.js', import.meta.url), 'utf8');
+  const notifyFn = readFileSync(new URL('../api/push.js', import.meta.url), 'utf8');
   assert.match(notifyFn, /process\.env\.FIREBASE_SERVICE_ACCOUNT/);
   assert.match(notifyFn, /env: process\.env/);
+  assert.match(notifyFn, /handleNotifySelf/);
   for (const file of ['www/private.html', 'www/chat.html']) {
     const html = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.match(html, /fcm-client\.js/);
@@ -356,7 +357,7 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.match(alerts, /POST_NOTIFICATIONS/);
   assert.match(alerts, /fcm token obtained/);
   assert.match(alerts, /https:\/\/localhost\/private\.html/);
-  assert.match(readFileSync(new URL('../api/notify-self.js', import.meta.url), 'utf8'), /handleNotifySelf/);
+  assert.match(readFileSync(new URL('../api/push.js', import.meta.url), 'utf8'), /handleNotifySelf/);
   for (const file of ['www/sw.js', '../sw.js']) {
     const sw = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
     assert.match(sw, /body: 'New private message'/);
@@ -424,7 +425,9 @@ test('clients, rules, and the Android fallback do not ship the service account',
   const slim = JSON.parse(readFileSync(join(staged, 'package.json'), 'utf8'));
   assert.equal(slim.dependencies.ethers, SLIM_PACKAGE.dependencies.ethers);
   assert.equal(slim.type, 'module');
-  assert.equal(readFileSync(join(staged, 'api', 'notify.js'), 'utf8').includes('process.env.FIREBASE_SERVICE_ACCOUNT'), true);
+  assert.equal(existsSync(join(staged, 'api', 'notify.js')), false);
+  assert.equal(readFileSync(join(staged, 'api', 'push.js'), 'utf8').includes('process.env.FIREBASE_SERVICE_ACCOUNT'), true);
+  assert.ok(readdirSync(join(staged, 'api')).filter((name) => name.endsWith('.js')).length <= 8);
   assert.equal(readFileSync(join(staged, 'www', 'js', 'fcm-client.js'), 'utf8').includes(PUBLIC_VAPID_KEY), true);
   assert.equal(existsSync(join(staged, 'www', 'config.local.json')), false);
   assert.equal(existsSync(join(staged, 'www', 'js', 'app.js')), false);

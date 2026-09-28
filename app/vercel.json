@@ -8,6 +8,20 @@
       "maxDuration": 10
     }
   },
+  "rewrites": [
+    { "source": "/api/private-blob", "destination": "/api/private?op=blob" },
+    { "source": "/api/private-blob-read", "destination": "/api/private?op=read" },
+    { "source": "/api/private-blob-ack", "destination": "/api/private?op=ack" },
+    { "source": "/api/private-blob-delete", "destination": "/api/private?op=delete" },
+    { "source": "/api/private-blob-link", "destination": "/api/private?op=link" },
+    { "source": "/api/photo-mailbox", "destination": "/api/private?op=mailbox" },
+    { "source": "/api/wallet-key", "destination": "/api/private?op=key" },
+    { "source": "/api/wallet-key-read", "destination": "/api/private?op=key-read" },
+    { "source": "/api/notify", "destination": "/api/push?op=notify" },
+    { "source": "/api/notify-self", "destination": "/api/push?op=notify-self" },
+    { "source": "/api/register-token", "destination": "/api/push?op=register" },
+    { "source": "/api/push-config", "destination": "/api/push?op=config" }
+  ],
   "crons": [
     {
       "path": "/api/private-expire",
