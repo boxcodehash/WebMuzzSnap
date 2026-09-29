@@ -187,17 +187,13 @@ test('MetaMask skips the one-hour authenticate wait and signs as soon as the ses
     'https://metamask.app.link/wc?requestId=&sessionTopic=abc'
   );
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
-  const body = login.slice(login.indexOf('async function signInWithProvider'), login.indexOf('async function accessWithWallet'));
-  const sent = body.indexOf("window.muzzMark('personal_sign:sent')");
-  const balanceStart = body.indexOf("window.muzzMark('balance:start')");
-  const balanceAwait = body.indexOf('await balancePromise');
-  const api = body.indexOf("window.muzzMark('api:none')");
-  assert.ok(balanceStart > 0 && balanceStart < sent);
-  assert.ok(api > 0 && sent > api);
-  assert.ok(balanceAwait > sent);
-  assert.doesNotMatch(body, /fetch\(\s*['"]\/api/);
-  assert.match(login, /preloadWalletConnect/);
-  assert.match(login, /prefetchLoginNonce/);
+  const client = readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8');
+  const balanceStart = client.indexOf("log('balance:start')");
+  const signCall = client.indexOf("method: 'personal_sign'");
+  assert.ok(balanceStart > 0 && signCall > balanceStart);
+  assert.match(client, /\/api\/session\?op=nonce/);
+  assert.doesNotMatch(login, /preloadWalletConnect|prefetchLoginNonce|signInWithProvider|accessWithWallet/);
+  assert.doesNotMatch(client, /authenticate\(/);
   const walletSrc = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
   assert.match(walletSrc, /plainConnect/);
   assert.match(walletSrc, /return createAppKit\(/);
@@ -348,13 +344,13 @@ test('MetaMask uses a plain connect, and one-click falls back after a timeout or
   assert.equal(failed.session.topic, 'plain-after-error');
 
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
-  assert.match(login, /v1\.0\.18/);
+  const page = readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8');
+  assert.match(login, /v1\.0\.19/);
   assert.match(login, />Copy log</);
-  assert.match(login, /muzz_debug_log/);
-  assert.match(login, /connect:timeout/);
-  assert.match(login, /rememberSignRequest\(address, message, true\)/);
-  assert.match(login, /personal_sign:suppressed/);
-  assert.match(login, /resume:wait/);
+  assert.match(page, /muzz_debug_log/);
+  assert.match(page, /Copy log|copyLog/);
+  assert.doesNotMatch(login, /connect:timeout|rememberSignRequest|personal_sign:suppressed|resume:wait/);
+  assert.doesNotMatch(page, /wc_sessionAuthenticate|one-click/);
   const pub = readFileSync(new URL('../www/config.public.js', import.meta.url), 'utf8');
   assert.match(pub, /8ff03dad157892146048cfe2b4e381ca/);
   const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');

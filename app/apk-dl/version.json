@@ -1,7 +1,7 @@
 {
-  "versionCode": 18,
-  "versionName": "1.0.18",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=118",
-  "notes": "MetaMask connects with a normal WalletConnect session, then one signature. The wallet list no longer needs Node's Buffer.",
+  "versionCode": 19,
+  "versionName": "1.0.19",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=119",
+  "notes": "Wallet login connects, checks the MUZZ balance, then asks for one signature.",
   "force": false
 }

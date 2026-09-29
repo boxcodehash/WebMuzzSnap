@@ -1,0 +1,273 @@
+import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
+import test from 'node:test';
+import { Wallet } from 'ethers';
+import { readMuzzHolding } from '../server/muzz-balance.js';
+import { handleSession } from '../server/push.js';
+import {
+  EXEMPT_WALLET,
+  MIN_WHOLE,
+  MUZZ_TOKEN,
+  PUBLIC_APP,
+  buildLoginMessage,
+  dappUrl,
+  explainLoginError,
+  loginWithWallet,
+  readMuzzBalance
+} from '../src/login-client.js';
+
+const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const env = {
+  FIREBASE_SERVICE_ACCOUNT: JSON.stringify({
+    type: 'service_account',
+    project_id: 'pulsari',
+    private_key_id: 'testkey',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    client_email: 'firebase-adminsdk-test@pulsari.iam.gserviceaccount.com'
+  }),
+  FIREBASE_DATABASE_URL: 'https://pulsari-default-rtdb.firebaseio.com'
+};
+
+function jsonResponse(status, body) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body)
+  };
+}
+
+function rpcResult(data, balance = '0x84595161401484a000000') {
+  if (String(data).startsWith('0x313ce567')) return '0x12';
+  return balance;
+}
+
+function mockBackend(db, opts = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const method = init.method || 'GET';
+    const u = String(url);
+    calls.push(u);
+    if (u.startsWith('https://oauth2.googleapis.com/token')) {
+      return jsonResponse(200, { access_token: 'ya29.test', expires_in: 3600 });
+    }
+    if (u.includes('ethereum.publicnode.com') || u.includes('eth.drpc.org') || u.includes('rpc.ankr.com')) {
+      if (opts.rpcFails) throw new Error('RPC unreachable');
+      const body = JSON.parse(init.body || '{}');
+      const data = body.params && body.params[0] && body.params[0].data || '';
+      return jsonResponse(200, { jsonrpc: '2.0', id: 1, result: rpcResult(data, opts.balance) });
+    }
+    if (u.includes('firebaseio.com')) {
+      const path = decodeURIComponent(new URL(u).pathname.replace(/^\//, '').replace(/\.json$/, ''));
+      if (method === 'GET') return jsonResponse(200, Object.prototype.hasOwnProperty.call(db, path) ? db[path] : null);
+      if (method === 'PUT') {
+        db[path] = JSON.parse(init.body);
+        return jsonResponse(200, db[path]);
+      }
+    }
+    return jsonResponse(500, { error: 'unexpected' });
+  };
+  return { fetchImpl, calls };
+}
+
+test('the short login message and error text stay specific', () => {
+  const address = '0x' + 'ab'.repeat(20);
+  const message = buildLoginMessage(address, 'CD'.repeat(16));
+  assert.equal(message, 'MuzzSnap\nWallet: ' + address + '\nNonce: ' + 'cd'.repeat(16));
+  assert.equal(message.split('\n')[0], 'MuzzSnap');
+  assert.equal(MUZZ_TOKEN, '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0');
+  assert.equal(MIN_WHOLE, 10_000_000n);
+  assert.equal(EXEMPT_WALLET, '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a');
+
+  const crashed = explainLoginError(Object.assign(new Error('Buffer is not defined'), { code: 'rejected' }));
+  assert.equal(crashed.title, 'Could not open the wallet list.');
+  assert.match(crashed.desc, /Buffer is not defined/);
+  assert.doesNotMatch(crashed.title + ' ' + crashed.desc, /Signature rejected|cancelled the connection/);
+
+  const denied = explainLoginError(Object.assign(new Error('user rejected the request'), { code: 4001 }));
+  assert.equal(denied.title, 'The wallet did not sign.');
+  assert.match(denied.desc, /user rejected the request/);
+
+  const low = explainLoginError(Object.assign(new Error('Insufficient MUZZ balance. You have 1 MUZZ'), { code: 'balance' }));
+  assert.equal(low.title, 'Insufficient MUZZ balance.');
+  assert.equal(dappUrl({ hostname: 'localhost', origin: 'https://localhost' }), PUBLIC_APP);
+  assert.equal(dappUrl({ hostname: 'muzzsnap-app.vercel.app', origin: 'https://muzzsnap-app.vercel.app' }), PUBLIC_APP);
+});
+
+test('balance reads the public RPC and the exempt wallet skips it', async () => {
+  let fetches = 0;
+  const exempt = await readMuzzBalance(EXEMPT_WALLET, async () => {
+    fetches += 1;
+    throw new Error('should not fetch');
+  });
+  assert.equal(exempt.ok, true);
+  assert.equal(exempt.exempt, true);
+  assert.equal(fetches, 0);
+
+  const holding = await readMuzzBalance('0x' + '11'.repeat(20), async (url, init) => {
+    fetches += 1;
+    const body = JSON.parse(init.body);
+    const data = body.params[0].data;
+    const result = String(data).startsWith('0x313ce567') ? '0x12' : '0x1';
+    return { json: async () => ({ result }) };
+  });
+  assert.equal(holding.ok, false);
+  assert.equal(fetches, 2);
+
+  const enough = await readMuzzBalance('0x' + '22'.repeat(20), async (_url, init) => {
+    const data = JSON.parse(init.body).params[0].data;
+    const result = String(data).startsWith('0x313ce567') ? '0x12' : '0x84595161401484a000000';
+    return { json: async () => ({ result }) };
+  });
+  assert.equal(enough.ok, true);
+  assert.equal(enough.formatted, '10,000,000');
+});
+
+test('wallet login checks balance before the single personal_sign', async () => {
+  const address = '0x' + 'cd'.repeat(20);
+  const order = [];
+  const ethereum = {
+    async request({ method }) {
+      order.push(method);
+      if (method === 'eth_requestAccounts') return [address];
+      if (method === 'personal_sign') return '0x' + '22'.repeat(65);
+      throw new Error(method);
+    }
+  };
+  await assert.rejects(
+    loginWithWallet({
+      ethereum,
+      storage: { getItem: () => null, setItem() {}, removeItem() {} },
+      readBalance: async () => {
+        order.push('balance');
+        return { ok: false, formatted: '1' };
+      },
+      nonce: async () => { order.push('nonce'); return { nonce: 'ab'.repeat(16) }; }
+    }),
+    (err) => err && err.code === 'balance'
+  );
+  assert.deepEqual(order, ['eth_requestAccounts', 'balance']);
+
+  order.length = 0;
+  const result = await loginWithWallet({
+    ethereum: null,
+    storage: { getItem: () => null, setItem() {}, removeItem() {} },
+    connectWc: async () => {
+      order.push('wc');
+      return {
+        accounts: [address],
+        request: async ({ method }) => {
+          order.push(method);
+          return '0x' + '33'.repeat(65);
+        }
+      };
+    },
+    readBalance: async () => { order.push('balance'); return { ok: true, formatted: '10,000,000' }; },
+    nonce: async () => { order.push('nonce'); return { nonce: 'ef'.repeat(16) }; },
+    exchange: async (message, signature) => {
+      order.push('exchange');
+      assert.match(message, /^MuzzSnap\nWallet: /);
+      assert.match(signature, /^0x/);
+      return { customToken: 'custom' };
+    }
+  });
+  assert.equal(result.customToken, 'custom');
+  assert.deepEqual(order, ['wc', 'balance', 'nonce', 'personal_sign', 'exchange']);
+});
+
+test('the server nonce, short signature, balance, and exempt wallet', async () => {
+  const wallet = Wallet.createRandom();
+  const now = 1_700_000_000_000;
+  const db = {};
+  const backend = mockBackend(db);
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const issued = await handleSession(
+      { method: 'GET', url: '/api/session?op=nonce', query: { op: 'nonce' }, now },
+      { env, fetchImpl: backend.fetchImpl }
+    );
+    assert.equal(issued.status, 200);
+    assert.match(issued.body.nonce, /^[a-f0-9]{32}$/);
+    assert.equal(db['loginIssued/' + issued.body.nonce].exp, now + 10 * 60 * 1000);
+
+    const message = buildLoginMessage(wallet.address, issued.body.nonce);
+    const signature = await wallet.signMessage(message);
+    const ok = await handleSession(
+      { method: 'POST', body: { message, signature }, now },
+      { env, fetchImpl: backend.fetchImpl }
+    );
+    assert.equal(ok.status, 200);
+    assert.ok(ok.body.customToken);
+
+    const reused = await handleSession(
+      { method: 'POST', body: { message, signature }, now },
+      { env, fetchImpl: backend.fetchImpl }
+    );
+    assert.equal(reused.status, 401);
+    assert.equal(reused.body.error, 'nonce_used');
+
+    const missing = buildLoginMessage(wallet.address, 'ab'.repeat(16));
+    const missingSig = await wallet.signMessage(missing);
+    const unknown = await handleSession(
+      { method: 'POST', body: { message: missing, signature: missingSig }, now },
+      { env, fetchImpl: backend.fetchImpl }
+    );
+    assert.equal(unknown.status, 401);
+    assert.equal(unknown.body.error, 'bad_format');
+
+    const bad = await handleSession(
+      { method: 'POST', body: { message, signature: await Wallet.createRandom().signMessage(message) }, now: now + 1 },
+      { env, fetchImpl: mockBackend(db).fetchImpl }
+    );
+    assert.equal(bad.status, 401);
+    assert.equal(bad.body.error, 'bad_signature');
+
+    const staleNonce = '12'.repeat(16);
+    db['loginIssued/' + staleNonce] = { exp: now - 1 };
+    const staleMessage = buildLoginMessage(wallet.address, staleNonce);
+    const stale = await handleSession(
+      { method: 'POST', body: { message: staleMessage, signature: await wallet.signMessage(staleMessage) }, now },
+      { env, fetchImpl: backend.fetchImpl }
+    );
+    assert.equal(stale.status, 401);
+    assert.equal(stale.body.error, 'expired');
+    assert.equal(db['loginNonces/' + staleNonce], undefined);
+
+    const lowNonce = '34'.repeat(16);
+    db['loginIssued/' + lowNonce] = { exp: now + 60_000 };
+    const lowMessage = buildLoginMessage(wallet.address, lowNonce);
+    const lowBackend = mockBackend(db, { balance: '0x1' });
+    const low = await handleSession(
+      { method: 'POST', body: { message: lowMessage, signature: await wallet.signMessage(lowMessage) }, now },
+      { env, fetchImpl: lowBackend.fetchImpl }
+    );
+    assert.equal(low.status, 403);
+    assert.equal(low.body.error, 'balance');
+    assert.equal(db['loginNonces/' + lowNonce], undefined);
+
+    const downNonce = '56'.repeat(16);
+    db['loginIssued/' + downNonce] = { exp: now + 60_000 };
+    const downMessage = buildLoginMessage(wallet.address, downNonce);
+    const down = await handleSession(
+      { method: 'POST', body: { message: downMessage, signature: await wallet.signMessage(downMessage) }, now },
+      { env, fetchImpl: mockBackend(db, { rpcFails: true }).fetchImpl }
+    );
+    assert.equal(down.status, 503);
+    assert.equal(down.body.error, 'balance_unavailable');
+
+    let exemptFetches = 0;
+    const exemptHolding = await readMuzzHolding(EXEMPT_WALLET, async () => {
+      exemptFetches += 1;
+      throw new Error('exempt wallet must not hit an RPC');
+    });
+    assert.equal(exemptHolding.ok, true);
+    assert.equal(exemptHolding.exempt, true);
+    assert.equal(exemptFetches, 0);
+    assert.equal(warnings.join('\n').includes(signature), false);
+    assert.match(warnings.join('\n'), /session rejected: nonce_used/);
+  } finally {
+    console.warn = original;
+  }
+});

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   createCustomToken,
   databaseUrl,
@@ -8,6 +9,7 @@ import {
   verifyFirebaseIdToken
 } from './google.js';
 import { classifyLogin } from './login-proof.js';
+import { readMuzzHolding } from './muzz-balance.js';
 
 export const NOTIFICATION_TITLE = 'MuzzSnap';
 export const NOTIFICATION_BODY = 'New private message';
@@ -212,13 +214,37 @@ export async function handleNotifySelf(req, deps = {}) {
   }
 }
 
+function requestOp(req) {
+  if (req.query && req.query.op) return String(req.query.op);
+  try {
+    return new URL(req.url || '/', 'https://muzzsnap.local').searchParams.get('op') || '';
+  } catch {
+    return '';
+  }
+}
+
+async function issueNonce(req, env, fetchImpl, account) {
+  if (requestOp(req) !== 'nonce') return fail(405, 'method');
+  const now = Number(req.now) || Date.now();
+  const nonce = randomBytes(16).toString('hex');
+  const exp = now + 10 * 60 * 1000;
+  try {
+    const access = await getGoogleAccessToken(account, fetchImpl, req.now);
+    await rtdb(fetchImpl, 'PUT', env, 'loginIssued/' + nonce, access, { exp });
+    return { status: 200, body: { nonce, exp } };
+  } catch {
+    return fail(502, 'session_failed');
+  }
+}
+
 export async function handleSession(req, deps = {}) {
   if (req.method === 'OPTIONS') return { status: 204, body: null };
-  if (req.method !== 'POST') return fail(405, 'method');
   const env = deps.env || process.env;
   const fetchImpl = deps.fetchImpl || fetch;
   const account = loadServiceAccount(env);
   if (!account) return fail(503, 'push_not_configured');
+  if (req.method === 'GET') return issueNonce(req, env, fetchImpl, account);
+  if (req.method !== 'POST') return fail(405, 'method');
   const message = req.body && req.body.message;
   const signature = req.body && req.body.signature;
   const judged = classifyLogin(message, signature, req.now || Date.now());
@@ -231,17 +257,43 @@ export async function handleSession(req, deps = {}) {
   const key = proof.nonce || signatureKey(signature);
   try {
     const access = await getGoogleAccessToken(account, fetchImpl, req.now);
+    if (proof.short) {
+      const issued = await rtdb(fetchImpl, 'GET', env, 'loginIssued/' + proof.nonce, access);
+      if (!issued || typeof issued !== 'object') {
+        console.warn('session rejected: bad_format');
+        return fail(401, 'bad_format');
+      }
+      if (Number(issued.exp) <= (Number(req.now) || Date.now())) {
+        console.warn('session rejected: expired');
+        return fail(401, 'expired');
+      }
+    }
     const used = await rtdb(fetchImpl, 'GET', env, 'loginNonces/' + key, access);
     if (used) {
       console.warn('session rejected: nonce_used');
       return fail(401, 'nonce_used');
     }
-    await rtdb(fetchImpl, 'PUT', env, 'loginNonces/' + key, access, { wallet: proof.wallet, exp: proof.exp });
+    const holding = deps.readBalance
+      ? await deps.readBalance(proof.wallet)
+      : await readMuzzHolding(proof.wallet, fetchImpl);
+    if (!holding || holding.unreachable) {
+      console.warn('session rejected: balance_unavailable');
+      return fail(503, 'balance_unavailable');
+    }
+    if (!holding.ok) {
+      console.warn('session rejected: balance');
+      return fail(403, 'balance');
+    }
+    await rtdb(fetchImpl, 'PUT', env, 'loginNonces/' + key, access, { wallet: proof.wallet, exp: proof.exp || (Number(req.now) || Date.now()) });
     return {
       status: 200,
       body: { customToken: createCustomToken(account, proof.wallet, req.now || Date.now()) }
     };
-  } catch {
+  } catch (err) {
+    if (err && err.code === 'balance_unavailable') {
+      console.warn('session rejected: balance_unavailable');
+      return fail(503, 'balance_unavailable');
+    }
     return fail(502, 'session_failed');
   }
 }

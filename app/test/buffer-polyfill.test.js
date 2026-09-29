@@ -6,7 +6,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { getAddress, verifyMessage } from 'ethers';
 
-const bundleUrl = pathToFileURL(fileURLToPath(new URL('../www/js/wc-login.js', import.meta.url))).href;
+const bundleUrl = pathToFileURL(fileURLToPath(new URL('../www/js/login.js', import.meta.url))).href;
 
 function memoryStorage() {
   const data = new Map();
@@ -37,11 +37,13 @@ function loadGate() {
 }
 
 test('the bundled login does not need Node Buffer', () => {
-  const bundle = readFileSync(new URL('../www/js/wc-login.js', import.meta.url), 'utf8');
+  const bundle = readFileSync(new URL('../www/js/login.js', import.meta.url), 'utf8');
   assert.match(bundle, /muzz-buffer-polyfill/);
   assert.doesNotMatch(bundle, /(?:^|[^.\w])Buffer\.from/);
+  assert.doesNotMatch(bundle, /import\(["']@reown\/appkit\/core["']\)/);
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
-  assert.match(login, /import\('\.\/js\/wc-login\.js'\)/);
+  assert.match(login, /js\/login-page\.js/);
+  assert.doesNotMatch(login, /wc-login\.js/);
   const rootLogin = readFileSync(new URL('../../login.html', import.meta.url), 'utf8');
   assert.doesNotMatch(rootLogin, /wc-login|@reown\/appkit|WalletConnect/);
 

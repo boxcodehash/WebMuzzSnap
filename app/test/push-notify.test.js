@@ -85,6 +85,14 @@ function mockBackend(db, calls) {
       }
       return jsonResponse(200, { name: 'projects/pulsari/messages/1' });
     }
+    if (u.includes('ethereum.publicnode.com') || u.includes('eth.drpc.org') || u.includes('rpc.ankr.com')) {
+      const rpcBody = JSON.parse(opts.body || '{}');
+      const data = rpcBody.params && rpcBody.params[0] && rpcBody.params[0].data || '';
+      if (String(data).startsWith('0x313ce567')) {
+        return jsonResponse(200, { jsonrpc: '2.0', id: 1, result: '0x12' });
+      }
+      return jsonResponse(200, { jsonrpc: '2.0', id: 1, result: '0x84595161401484a000000' });
+    }
     if (u.includes('firebaseio.com')) {
       const path = decodeURIComponent(new URL(u).pathname.replace(/^\//, '').replace(/\.json$/, ''));
       if (method === 'GET') {

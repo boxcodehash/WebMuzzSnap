@@ -27,9 +27,23 @@ function inspectExpiring(lines, wallet, clock) {
   return { wallet, exp, nonce };
 }
 
+function inspectShort(lines) {
+  if (lines[0] !== 'MuzzSnap') return null;
+  const walletLine = lines.find((line) => line.startsWith('Wallet: '));
+  const nonceLine = lines.find((line) => line.startsWith('Nonce: '));
+  if (!walletLine || !nonceLine) return { reason: 'bad_format' };
+  const wallet = walletLine.slice('Wallet: '.length).trim().toLowerCase();
+  const nonce = nonceLine.slice('Nonce: '.length).trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) return { reason: 'bad_format' };
+  if (!/^[a-f0-9]{32}$/.test(nonce)) return { reason: 'bad_format' };
+  return { wallet, nonce, exp: 0, short: true };
+}
+
 function inspectLoginProof(message, now) {
   const lines = String(message || '').split('\n');
   const clock = Number(now) || Date.now();
+  const short = inspectShort(lines);
+  if (short) return short;
   if (/wants you to sign in with your Ethereum account:$/.test(String(lines[0] || ''))) {
     if (!lines.some((line) => line === 'MuzzSnap Login')) return { reason: 'bad_format' };
     if (!lines.some((line) => line.startsWith('Token: '))) return { reason: 'bad_format' };
@@ -73,7 +87,14 @@ export function classifyLogin(message, signature, now) {
     return { reason: 'bad_signature' };
   }
   if (String(recovered).toLowerCase() !== parsed.wallet) return { reason: 'bad_signature' };
-  return { proof: { wallet: parsed.wallet, exp: parsed.exp, nonce: parsed.nonce } };
+  return {
+    proof: {
+      wallet: parsed.wallet,
+      exp: parsed.exp,
+      nonce: parsed.nonce,
+      short: parsed.short === true
+    }
+  };
 }
 
 export function proveLogin(message, signature, now) {

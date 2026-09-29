@@ -76,7 +76,7 @@ test('el sitio de Vercel publica las páginas reales, no el chat de muestra', ()
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
   const gate = readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8');
   assert.match(gate, /10,000,000/);
-  assert.match(login, /readMuzzBalance/);
+  assert.match(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /readMuzzBalance/);
   assert.match(login, /muzz-gate\.js/);
   assert.doesNotMatch(login, /Enter as Guest/);
   assert.doesNotMatch(login, /MUZZ_PREVIEW/);

@@ -19,10 +19,19 @@ export function readRequest(req) {
     }
   }
   if (!body || typeof body !== 'object') body = {};
+  let query = {};
+  try {
+    const url = new URL(req.url || '/', 'https://muzzsnap.local');
+    query = Object.fromEntries(url.searchParams.entries());
+  } catch {
+    query = {};
+  }
   return {
     method: String(req.method || 'GET').toUpperCase(),
     headers,
     body,
+    url: req.url || '',
+    query,
     now: Date.now()
   };
 }

@@ -38,6 +38,14 @@ function mockBackend(db) {
     if (u.startsWith('https://oauth2.googleapis.com/token')) {
       return jsonResponse(200, { access_token: 'ya29.test', expires_in: 3600 });
     }
+    if (u.includes('ethereum.publicnode.com') || u.includes('eth.drpc.org') || u.includes('rpc.ankr.com')) {
+      const body = JSON.parse(opts.body || '{}');
+      const data = body.params && body.params[0] && body.params[0].data || '';
+      if (String(data).startsWith('0x313ce567')) {
+        return jsonResponse(200, { jsonrpc: '2.0', id: 1, result: '0x12' });
+      }
+      return jsonResponse(200, { jsonrpc: '2.0', id: 1, result: '0x84595161401484a000000' });
+    }
     if (u.includes('firebaseio.com')) {
       const path = decodeURIComponent(new URL(u).pathname.replace(/^\//, '').replace(/\.json$/, ''));
       if (method === 'GET') return jsonResponse(200, Object.prototype.hasOwnProperty.call(db, path) ? db[path] : null);
@@ -280,12 +288,9 @@ test('a 401 clears the stale proof and a later chat load does not send it again'
   assert.equal(posts.length, 1);
 
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
-  const boot = login.slice(login.indexOf('loadLocalConfig().then'));
-  assert.ok(boot.indexOf('showSessionHold') < boot.indexOf('enterDurableSession'));
   assert.match(login, /id="loginRetry"/);
   assert.match(login, />Retry</);
-  const resume = login.slice(login.indexOf('function resumeWalletLogin'));
-  assert.match(resume.slice(0, resume.indexOf('enterDurableSession')), /loginHeld\(\)/);
+  assert.match(login, /js\/login-page\.js/);
   const chat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
   assert.match(chat, /user\.needsSign/);
   assert.match(chat, /muzz_login_hold/);
