@@ -9,6 +9,7 @@ await esbuild.build({
   outfile: 'www/js/wc-login.js',
   minify: true,
   legalComments: 'none',
+  inject: ['src/buffer-polyfill.js'],
   define: {
     'process.env.NODE_ENV': '"production"'
   }

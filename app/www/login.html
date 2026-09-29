@@ -848,7 +848,12 @@
         }
 
         function showSignError(err, provider, hint) {
-            const text = muzzGate.explainSignError(err, { inWallet: inApp || wantsApkReturn() });
+            const info = debugInfo(provider, hint);
+            const text = muzzGate.explainSignError(err, {
+                inWallet: inApp || wantsApkReturn(),
+                chain: info.chain,
+                namespaces: info.namespaces
+            });
             const code = err && err.code != null ? String(err.code) : '';
             window.muzzMark('error:' + (code || 'unknown'));
             window.muzzDebugLog(new Date().toISOString(), 'error: ' + text.title + ' ' + text.desc);

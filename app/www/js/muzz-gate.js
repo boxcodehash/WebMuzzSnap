@@ -422,7 +422,30 @@
     if (code === 'balance' || /Insufficient MUZZ/i.test(msg)) {
       return { title: 'Insufficient MUZZ balance.', desc: msg };
     }
+    if (code === 'buffer' || /buffer is not defined/i.test(msg)) {
+      return {
+        title: 'Could not open the wallet list.',
+        desc: 'Buffer is not defined. The wallet list crashed before a wallet was chosen. Tap Retry.'
+      };
+    }
+    if (code === 'connect_failed') {
+      return {
+        title: 'Could not connect the wallet.',
+        desc: msg || 'The wallet list failed before a connection was made.'
+      };
+    }
     if (code === 'rejected' || code === 4001 || /rejected|denied|cancel/i.test(msg)) {
+      const namespaces = opts && opts.namespaces;
+      const chain = opts && opts.chain;
+      const noNamespaces = !namespaces || typeof namespaces !== 'object' || Object.keys(namespaces).length === 0;
+      const noChain = chain == null || chain === '' || chain === 'unknown';
+      const noSession = Boolean(err && err.noSession) || (opts && Object.prototype.hasOwnProperty.call(opts, 'namespaces') && noNamespaces && noChain);
+      if (noSession && code !== 4001 && !(err && err.userCancel)) {
+        return {
+          title: 'Could not connect the wallet.',
+          desc: 'The wallet list closed before a connection was made. No wallet session was started.'
+        };
+      }
       return { title: 'Signature rejected.', desc: 'The wallet cancelled the connection or the signature.' };
     }
     if (code === 'pending' || msg === 'pending') {
@@ -468,7 +491,10 @@
     let chain = source.chain;
     if (chain == null || chain === '') chain = chainFromNamespaces(source.namespaces);
     if (chain == null || chain === '') chain = 'unknown';
-    return 'err: ' + code + ' chain:' + chain + ' ns:' + compactNamespaces(source.namespaces);
+    let line = 'err: ' + code + ' chain:' + chain + ' ns:' + compactNamespaces(source.namespaces);
+    const msg = err && err.message ? String(err.message) : '';
+    if (msg && msg !== code) line += ' msg:' + (msg.length > 140 ? msg.slice(0, 140) : msg);
+    return line;
   }
 
   function rememberWallet(address) {

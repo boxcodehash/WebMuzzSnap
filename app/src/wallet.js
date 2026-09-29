@@ -1,3 +1,4 @@
+import { SnackController } from '@reown/appkit-controllers';
 import { mainnet } from 'viem/chains';
 import { getConfig } from './config.js';
 import { NATIVE_RETURN, SUPPORTED_WALLETS } from './walletCatalog.js';
@@ -31,7 +32,45 @@ import {
 
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
 
+let snackWatch = false;
 let modalPromise = null;
+
+function rememberWalletFault(err) {
+  const message = String((err && err.message) || err || '').trim();
+  if (!message) return;
+  globalThis.__muzzSnackError = { at: Date.now(), message };
+}
+
+function watchWalletFaults() {
+  if (snackWatch) return;
+  snackWatch = true;
+  try {
+    SnackController.subscribeKey('open', (open) => {
+      if (!open || SnackController.state.variant !== 'error') return;
+      rememberWalletFault(SnackController.state.message);
+    });
+  } catch {
+    /* the page still reports window errors */
+  }
+  if (typeof globalThis.addEventListener === 'function') {
+    globalThis.addEventListener('error', (event) => rememberWalletFault(event && (event.error || event.message)));
+    globalThis.addEventListener('unhandledrejection', (event) => rememberWalletFault(event && event.reason));
+  }
+}
+
+function connectClosedError() {
+  const note = globalThis.__muzzSnackError;
+  const fresh = note && Date.now() - note.at < 20000 ? String(note.message || '') : '';
+  if (fresh && !/user rejected|user denied/i.test(fresh)) {
+    const err = new Error(fresh);
+    err.code = /buffer is not defined/i.test(fresh) ? 'buffer' : 'connect_failed';
+    err.noSession = true;
+    return err;
+  }
+  const err = walletError('rejected');
+  err.noSession = true;
+  return err;
+}
 let wcProvider = null;
 let latestUri = '';
 let connectStarted = false;
@@ -163,6 +202,7 @@ function validProjectId(value) {
 }
 
 async function buildModal() {
+  watchWalletFaults();
   muzzMark('appkit-init');
   const projectId = getConfig().walletConnectProjectId.trim();
   if (!validProjectId(projectId)) throw walletError('NO_PROJECT_ID');
@@ -482,7 +522,7 @@ async function connectModalInner(hooks = {}) {
             /* no document */
           }
           releaseConnectLock();
-          finish(() => reject(walletError('rejected')));
+          finish(() => reject(connectClosedError()));
         }, 400);
       }
     });
@@ -492,7 +532,7 @@ async function connectModalInner(hooks = {}) {
       finish(() => reject(err));
     });
   });
-  if (generation !== connectGeneration && !hasLiveSession(wcProvider)) throw walletError('rejected');
+  if (generation !== connectGeneration && !hasLiveSession(wcProvider)) throw connectClosedError();
   closeModal(modal);
   return finishConnect(modal, hooks);
 }

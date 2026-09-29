@@ -1,3 +1,5 @@
+import './buffer-polyfill.js';
+
 export {
   closeWalletModal,
   connectModal as connectWalletConnect,

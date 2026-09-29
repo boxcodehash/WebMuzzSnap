@@ -25,7 +25,9 @@ export function mapWalletError(err) {
   const code = err && err.code;
   const msg = String((err && (err.message || err.reason)) || '');
   if (code === 4001 || code === 'ACTION_REJECTED' || /user rejected|user denied|rejected the|denied|cancel/i.test(msg)) {
-    return walletError('rejected');
+    const rejected = walletError('rejected');
+    rejected.userCancel = true;
+    return rejected;
   }
   if (code === -32002 || /already pending|request already/i.test(msg)) return walletError('pending');
   if (code === 'no_account' || /no account|no wallet account/i.test(msg)) return walletError('no_account');

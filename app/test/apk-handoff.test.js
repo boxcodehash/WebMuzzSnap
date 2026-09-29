@@ -102,7 +102,7 @@ test('el token de vuelta se verifica una sola vez y caduca', async () => {
     chain: 56,
     namespaces: { eip155: { chains: ['eip155:56'], accounts: [`eip155:56:${wallet.address}`] } }
   });
-  assert.equal(line, 'err: balance chain:56 ns:eip155:56');
+  assert.equal(line, 'err: balance chain:56 ns:eip155:56 msg:x');
   assert.equal(gate.debugLine(new Error('x'), {}).startsWith('err: error chain:unknown ns:none'), true);
 });
 
@@ -200,7 +200,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.equal(manifestJson.versionCode, 18);
   assert.equal(manifestJson.versionName, '1.0.18');
   assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=118');
-  assert.equal(manifestJson.notes, 'MetaMask connects with a normal WalletConnect session, then one signature.');
+  assert.equal(manifestJson.notes, 'MetaMask connects with a normal WalletConnect session, then one signature. The wallet list no longer needs Node\'s Buffer.');
   assert.equal(manifestJson.force, false);
   const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
   assert.match(JSON.stringify(dlHeaders), /Access-Control-Allow-Origin/);
