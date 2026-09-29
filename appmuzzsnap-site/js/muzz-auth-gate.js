@@ -88,6 +88,9 @@
     return accounts[0];
   }
 
+  // Login used to switch chains before personal_sign. MetaMask mobile reloads on
+  // that switch and the signature sheet never appears. Balance is read from a
+  // mainnet RPC, so the login signature does not call this.
   async function ensureMainnet(eth) {
     try {
       await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
@@ -95,6 +98,38 @@
       if (e.code === 4001) throw new Error('Switch to Ethereum Mainnet to verify MUZZ');
       throw e;
     }
+  }
+
+  function walletTimeouts() {
+    if (global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.timeouts) return MuzzMetaMaskBridge.timeouts();
+    var t = global.MUZZ_WALLET_TIMEOUTS || {};
+    return { connect: t.connect || 20000, sign: t.sign || 45000, deeplink: t.deeplink || 60000 };
+  }
+
+  function withTimeout(promise, ms, label) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        reject(new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's. Tap Retry.'));
+      }, ms);
+      Promise.resolve(promise).then(function (v) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(v);
+      }, function (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
+  }
+
+  function walletLog(step) {
+    if (global.MuzzWalletDebug && MuzzWalletDebug.log) MuzzWalletDebug.log(step);
   }
 
   async function signAuth(eth, address, purpose) {
@@ -110,9 +145,17 @@
       'Purpose: ' + (purpose || 'login') + '\n' +
       'Nonce: ' + nonce + '\n' +
       'Time: ' + at;
-    var provider = new ethers.providers.Web3Provider(eth);
-    var signer = provider.getSigner();
-    var signature = await signer.signMessage(message);
+    var hex = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message));
+    if (global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.foregroundForSign) {
+      MuzzMetaMaskBridge.foregroundForSign(eth);
+    }
+    walletLog('personal_sign sent');
+    var signature = await withTimeout(
+      eth.request({ method: 'personal_sign', params: [hex, address] }),
+      walletTimeouts().sign,
+      'Signature request'
+    );
+    walletLog('personal_sign returned');
     var recovered = ethers.utils.verifyMessage(message, signature);
     if (norm(recovered) !== norm(address)) throw new Error('Signature mismatch');
     var auth = { address: address, message: message, signature: signature, at: at, nonce: nonce, purpose: purpose || 'access' };
@@ -174,15 +217,18 @@
    */
   async function verifyMuzzGate(onStatus) {
     var eth = pickProvider();
-    // Android APK / Capacitor WebView: no injected provider → MetaMask deeplink bridge
-    if (!eth) {
-      var native = !!(global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.isNative && MuzzMetaMaskBridge.isNative());
-      var likelyAndroid = /Android/i.test(navigator.userAgent || '');
-      if (native || likelyAndroid) {
-        return verifyMuzzGateViaDeeplink(onStatus);
-      }
-      throw new Error('Install MetaMask');
+    // Native app has no injected provider: open MetaMask and wait for muzzsnap://auth.
+    if (!eth && global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.isNative && MuzzMetaMaskBridge.isNative()) {
+      return verifyMuzzGateViaDeeplink(onStatus);
     }
+    // Mobile Chrome / Safari: leave this page in the same tap. Sign runs inside MetaMask.
+    if (!eth && global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.shouldOpenMetaMask && MuzzMetaMaskBridge.shouldOpenMetaMask()) {
+      onStatus && onStatus('Opening MetaMask…');
+      walletLog('open MetaMask now');
+      MuzzMetaMaskBridge.openMetaMaskNow();
+      return new Promise(function () {});
+    }
+    if (!eth) throw new Error('Install MetaMask, then open this page in the MetaMask browser.');
     // Brave: if default wallet is Brave, keep trying MetaMask from providers[]
     if (eth.isBraveWallet && !eth.isMetaMask) {
       var mm = pickProvider();
@@ -192,16 +238,20 @@
         throw new Error('In Brave: Settings → Extensions → MetaMask → set as default wallet, then retry');
       }
     }
-    onStatus && onStatus('Open MetaMask…');
-    var address = await requestAccounts(eth);
-    onStatus && onStatus('Switch to Ethereum Mainnet…');
-    await ensureMainnet(eth);
-    // re-read account on mainnet
-    var accounts = await eth.request({ method: 'eth_accounts' });
-    address = accounts[0] || address;
-    onStatus && onStatus('Sign verification message…');
+    if (global.MuzzMetaMaskBridge && MuzzMetaMaskBridge.clearStaleWalletConnect) {
+      MuzzMetaMaskBridge.clearStaleWalletConnect();
+    }
+    onStatus && onStatus('Requesting wallet…');
+    walletLog('eth_requestAccounts sent');
+    var accountsPromise = eth.request({ method: 'eth_requestAccounts' });
+    var accounts = await withTimeout(accountsPromise, walletTimeouts().connect, 'MetaMask connect');
+    walletLog('eth_requestAccounts ok');
+    var address = accounts && accounts[0];
+    if (!address) throw new Error('No wallet accounts');
+    onStatus && onStatus('Sign in MetaMask…');
     var auth = await signAuth(eth, address, 'muzz_balance_gate');
     onStatus && onStatus('Reading MUZZ on contract…');
+    walletLog('balance read start');
     var balInfo = await readMainnetMuzzBalance(address);
     if (!(balInfo.human >= MIN_MUZZ)) {
       clearSessionSoft();

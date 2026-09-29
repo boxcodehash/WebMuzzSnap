@@ -121,6 +121,15 @@
     }
     .hint{margin:10px 0 0;font-size:11px;color:var(--muted);min-height:1.2em;line-height:1.4}
     .hint.ok{color:var(--ok)}.hint.bad{color:var(--bad)}
+    #walletDebug{margin-top:10px}
+    #walletLog{
+      margin:0;max-height:140px;overflow:auto;text-align:left;
+      font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d5dbe6;
+      background:#0b0d12;border:1px solid rgba(255,255,255,.1);
+      border-radius:12px;padding:10px;white-space:pre-wrap;word-break:break-word;
+    }
+    #walletLogCopy{margin-top:8px;min-height:44px;width:100%;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:transparent;color:#fff;font-weight:600;cursor:pointer}
+    #btnRetry[hidden],#walletDebug[hidden]{display:none!important}
     .secure{margin-top:10px;font-size:10px;color:#6b7280;line-height:1.45}
     .loading{
       display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);
@@ -161,6 +170,11 @@
       <p class="hint" style="margin-top:0">MetaMask signature + ≥ 2,000,000 MUZZ on contract <code style="color:#fca5a5">0xef3d…B8f0</code></p>
       <button class="btn" id="btnVerify" type="button" style="width:100%;margin-top:10px">Verify wallet & enter</button>
       <p class="hint" id="enterHint"></p>
+      <button class="btn" id="btnRetry" type="button" hidden style="width:100%;margin-top:10px">Retry</button>
+      <div id="walletDebug" hidden>
+        <pre id="walletLog"></pre>
+        <button type="button" id="walletLogCopy">Copy log</button>
+      </div>
       <div class="secure">No guest. Signature + nonce/timestamp (24h). Mainnet balance check. Duplicate/fake login blocked.</div>
     </div>
 
@@ -290,13 +304,64 @@
       }
     } catch (_) {}
 
-    $('btnEnter').onclick = function () {
+    function showRetry(on) {
+      $('btnRetry').hidden = !on;
+    }
+
+    function startWalletLogin() {
       showPanel('enter');
-      tip($('enterHint'), 'Opening MetaMask…');
-      // One tap: start verify (desktop extension or APK bridge)
-      setTimeout(function () {
-        try { $('btnVerify').click(); } catch (_) {}
-      }, 200);
+      showRetry(false);
+      if (window.MuzzWalletDebug) MuzzWalletDebug.log('tap');
+      var bridge = window.MuzzMetaMaskBridge;
+      var insideReturn = /(?:\?|&)mmlogin=1(?:&|$)/.test(location.search);
+      if (bridge && bridge.shouldOpenMetaMask && bridge.shouldOpenMetaMask()) {
+        if (insideReturn) {
+          tip($('enterHint'), 'MetaMask did not connect. Open this page in the MetaMask browser and tap Retry.', false);
+          showRetry(true);
+          return;
+        }
+        tip($('enterHint'), 'Opening MetaMask…');
+        bridge.openMetaMaskNow();
+        return;
+      }
+      runVerify();
+    }
+
+    function runVerify() {
+      if (!window.MuzzAuthGate) {
+        tip($('enterHint'), 'Auth module missing', false);
+        showRetry(true);
+        return;
+      }
+      $('btnVerify').disabled = true;
+      showRetry(false);
+      MuzzAuthGate.verifyMuzzGate(function (s) {
+        tip($('enterHint'), s);
+        if (window.MuzzWalletDebug) MuzzWalletDebug.log(s);
+      }).then(function (res) {
+        if (!res) return;
+        tip($('enterHint'), 'OK · ' + Math.floor(res.balance).toLocaleString() + ' MUZZ · entering…', true);
+        if (window.MuzzWalletDebug) MuzzWalletDebug.log('gate ok');
+        setTimeout(function () { location.href = SOCIAL; }, 600);
+      }).catch(function (e) {
+        var msg = e.reason || e.message || String(e);
+        if (/user rejected|4001/i.test(msg)) msg = 'Cancelled in MetaMask. Tap Retry.';
+        if (/phishing|deceptive|vaciar|drain|malicious|security alert/i.test(msg)) {
+          msg = 'MetaMask showed a security notice. If you trust this site, continue in MetaMask and tap Retry.';
+        }
+        tip($('enterHint'), msg, false);
+        if (window.MuzzWalletDebug) MuzzWalletDebug.log('error ' + msg);
+        showRetry(true);
+      }).then(function () {
+        $('btnVerify').disabled = false;
+      });
+    }
+
+    $('btnEnter').onclick = function () {
+      startWalletLogin();
+    };
+    $('btnRetry').onclick = function () {
+      startWalletLogin();
     };
 
     $('btnMintOpen').onclick = function () {
@@ -304,30 +369,26 @@
       tip($('mintHint'), 'Basic ≈ $2 · Premium ≈ $4 · 100% to dead');
     };
 
-    $('btnVerify').onclick = async function () {
-      if (!window.MuzzAuthGate) {
-        tip($('enterHint'), 'Auth module missing', false);
-        return;
-      }
-      loading(true);
-      $('btnVerify').disabled = true;
-      try {
-        var res = await MuzzAuthGate.verifyMuzzGate(function (s) { tip($('enterHint'), s); });
-        tip($('enterHint'), 'OK · ' + Math.floor(res.balance).toLocaleString() + ' MUZZ · entering…', true);
-        setTimeout(function () { location.href = SOCIAL; }, 600);
-      } catch (e) {
-        var msg = e.reason || e.message || String(e);
-        if (/user rejected|4001/i.test(msg)) msg = 'Cancelled in MetaMask';
-        // MetaMask heuristic warnings are not app errors — keep tip calm
-        if (/phishing|deceptive|vaciar|drain|malicious|security alert/i.test(msg)) {
-          msg = 'MetaMask showed a security notice. If you trust this site, continue in MetaMask and press Enter again.';
-        }
-        tip($('enterHint'), msg, false);
-      } finally {
-        loading(false);
-        $('btnVerify').disabled = false;
+    $('btnVerify').onclick = function () {
+      startWalletLogin();
+    };
+
+    $('walletLogCopy').onclick = function () {
+      var text = (window.MuzzWalletDebug && MuzzWalletDebug.text) ? MuzzWalletDebug.text() : ($('walletLog').textContent || '');
+      function done(ok) { tip($('enterHint'), ok ? 'Log copied' : text, ok); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }).catch(function () { done(false); });
+      } else {
+        done(false);
       }
     };
+
+    if (/(?:\?|&)mmlogin=1(?:&|$)/.test(location.search)) {
+      showPanel('enter');
+      tip($('enterHint'), 'MetaMask opened. Requesting the signature…');
+      if (window.MuzzWalletDebug) MuzzWalletDebug.log('mmlogin resume');
+      setTimeout(function () { startWalletLogin(); }, 0);
+    }
 
     $('mintInput').addEventListener('input', function () {
       var u = $('mintInput').value.trim();

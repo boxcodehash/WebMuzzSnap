@@ -1,18 +1,44 @@
 /**
- * Capacitor / Android MetaMask bridge
- * Opens MetaMask app via deeplink Ã¢â€ â€™ sign on mm-bridge.html Ã¢â€ â€™ returns muzzsnap://auth?...
+ * Mobile MetaMask open + Capacitor return bridge.
+ * Mobile browsers open MetaMask in the same tap. The native app still
+ * returns through muzzsnap://auth after mm-bridge signs.
  */
 (function (global) {
   'use strict';
 
-  // Hosted on Vercel project appmuzzsnap (full MuzzSnap web app)
-  // Use clean URL Ã¢â‚¬â€ Vercel cleanUrls 308s *.html and MetaMask shows "page does not exist"
-  var BRIDGE_HTTPS = 'https://appmuzzsnap.vercel.app/mm-bridge';
-  var BRIDGE_HTTPS_FALLBACK = 'https://appmuzzsnap.vercel.app/mm-bridge';
   var RETURN_SCHEME = 'muzzsnap://auth';
   var pendingResolve = null;
   var pendingReject = null;
   var listenerReady = false;
+
+  global.MuzzWalletDebug = global.MuzzWalletDebug || {
+    lines: [],
+    log: function (step) {
+      var stamp = new Date().toISOString().slice(11, 23);
+      var line = stamp + '  ' + step;
+      this.lines.push(line);
+      if (this.lines.length > 60) this.lines.shift();
+      try { sessionStorage.setItem('muzz_wallet_log', this.lines.join('\n')); } catch (_) {}
+      var pre = document.getElementById('walletLog');
+      if (pre) pre.textContent = this.lines.join('\n');
+      var box = document.getElementById('walletDebug');
+      if (box) box.hidden = false;
+    },
+    text: function () { return this.lines.join('\n'); }
+  };
+
+  function log(step) {
+    if (global.MuzzWalletDebug && MuzzWalletDebug.log) MuzzWalletDebug.log(step);
+  }
+
+  function timeouts() {
+    var t = global.MUZZ_WALLET_TIMEOUTS || {};
+    return {
+      connect: t.connect || 20000,
+      sign: t.sign || 45000,
+      deeplink: t.deeplink || 60000
+    };
+  }
 
   function isNative() {
     try {
@@ -22,8 +48,124 @@
     }
   }
 
+  function isMobileWeb() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  }
+
+  function inMetaMaskApp() {
+    return /MetaMaskMobile/i.test(navigator.userAgent || '');
+  }
+
+  function pickProvider() {
+    var eth = global.ethereum;
+    if (!eth) return null;
+    if (eth.providers && eth.providers.length) {
+      return (
+        eth.providers.find(function (p) { return p.isMetaMask && !p.isBraveWallet; }) ||
+        eth.providers.find(function (p) { return p.isMetaMask; }) ||
+        eth.providers[0]
+      );
+    }
+    return eth;
+  }
+
   function hasInjectedProvider() {
-    return !!(global.ethereum);
+    return !!pickProvider();
+  }
+
+  /** Phone browser with no injected wallet. Already inside MetaMask: do not deep-link again. */
+  function shouldOpenMetaMask() {
+    if (isNative() || inMetaMaskApp() || pickProvider()) return false;
+    return isMobileWeb();
+  }
+
+  function dappPath() {
+    var path = location.pathname || '/';
+    if (path.charAt(0) !== '/') path = '/' + path;
+    return location.host + path + '?mmlogin=1';
+  }
+
+  function universalLink() {
+    return 'https://metamask.app.link/dapp/' + dappPath();
+  }
+
+  function schemeLink() {
+    return 'metamask://dapp/' + dappPath();
+  }
+
+  /**
+   * Assign the deep link synchronously. No await before this.
+   * Android tries the app scheme first (no Branch hop). iOS uses the universal link.
+   */
+  function openMetaMaskNow() {
+    var android = /Android/i.test(navigator.userAgent || '');
+    var target = android ? schemeLink() : universalLink();
+    log('deeplink assign ' + target);
+    try { sessionStorage.setItem('muzz_deeplink_at', String(Date.now())); } catch (_) {}
+    location.assign(target);
+    if (android) {
+      setTimeout(function () {
+        if (document.visibilityState === 'visible') {
+          var fallback = universalLink();
+          log('scheme still visible, universal fallback ' + fallback);
+          location.assign(fallback);
+        }
+      }, 800);
+    }
+  }
+
+  function bridgePage() {
+    if (/^https?:$/i.test(location.protocol) && location.host) {
+      return location.origin + '/mm-bridge.html';
+    }
+    return 'https://appmuzzsnap.vercel.app/mm-bridge';
+  }
+
+  function clearStaleWalletConnect() {
+    var removed = 0;
+    try {
+      var keys = [];
+      var i;
+      for (i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+      keys.forEach(function (k) {
+        if (!k) return;
+        if (/^wc@2:|^walletconnect|WALLETCONNECT/i.test(k)) {
+          localStorage.removeItem(k);
+          removed++;
+        }
+      });
+    } catch (_) {}
+    var eth = pickProvider();
+    try {
+      var wc = eth && (eth.isWalletConnect || (eth.provider && eth.provider.isWalletConnect));
+      if (wc && typeof eth.disconnect === 'function') {
+        eth.disconnect();
+        removed++;
+        log('walletconnect disconnect');
+      }
+    } catch (e) {
+      log('walletconnect disconnect failed ' + (e && e.message ? e.message : e));
+    }
+    if (removed) log('cleared stale walletconnect ' + removed);
+    return removed;
+  }
+
+  /** Bring a WalletConnect wallet forward without leaving this page. */
+  function foregroundForSign(eth) {
+    var wc = eth && (eth.isWalletConnect || (eth.provider && eth.provider.isWalletConnect));
+    if (!wc) {
+      log('sign in place');
+      return;
+    }
+    var href = 'https://metamask.app.link/';
+    log('foreground walletconnect ' + href);
+    var a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    (document.body || document.documentElement).appendChild(a);
+    a.click();
+    a.remove();
   }
 
   function openExternal(url) {
@@ -32,12 +174,7 @@
         return Capacitor.Plugins.Browser.open({ url: url });
       }
     } catch (_) {}
-    try {
-      if (global.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App && Capacitor.Plugins.App.openUrl) {
-        return Capacitor.Plugins.App.openUrl({ url: url });
-      }
-    } catch (_) {}
-    global.open(url, '_system');
+    location.assign(url);
     return Promise.resolve();
   }
 
@@ -87,25 +224,13 @@
         Capacitor.Plugins.App.addListener('appUrlOpen', function (event) {
           var payload = parseAuthUrl(event && event.url);
           if (!payload) return;
+          log('native return');
           completePending(payload, null);
         });
       }
     } catch (_) {}
-
-    // Also handle cold-start / hash fallback
-    try {
-      if (location.hash && location.hash.indexOf('muzzauth=') >= 0) {
-        var raw = decodeURIComponent(location.hash.replace(/^#muzzauth=/, ''));
-        var payload2 = parseAuthUrl('muzzsnap://auth?' + raw);
-        if (payload2) completePending(payload2, null);
-      }
-    } catch (_) {}
   }
 
-  /**
-   * Opens MetaMask in-app browser on the HTTPS bridge page.
-   * Bridge signs and returns via muzzsnap://auth?...
-   */
   function requestSignedAuth(purpose, onStatus) {
     ensureListener();
     return new Promise(function (resolve, reject) {
@@ -119,35 +244,59 @@
       var qs =
         '?purpose=' + encodeURIComponent(purpose || 'muzz_balance_gate') +
         '&return=' + encodeURIComponent(RETURN_SCHEME);
-      var url = BRIDGE_HTTPS + qs;
-      var urlFallback = BRIDGE_HTTPS_FALLBACK + qs;
+      var page = bridgePage() + qs;
+      var mmLink = 'https://metamask.app.link/dapp/' + page.replace(/^https?:\/\//, '');
+      log('native deeplink ' + mmLink);
+      onStatus && onStatus('Opening MetaMask…');
+      try {
+        openExternal(mmLink);
+      } catch (e) {
+        completePending(null, e);
+        return;
+      }
 
-      // MetaMask deep link Ã¢â€ â€™ opens bridge inside MetaMask in-app browser
-      // Format: https://link.metamask.io/dapp/<host>/<path>?<query>
-      var mmLink = 'https://link.metamask.io/dapp/' + url.replace(/^https?:\/\//, '');
-
-      onStatus && onStatus('Opening MetaMaskÃ¢â‚¬Â¦');
-      openExternal(mmLink).catch(function () {
-        return openExternal(url).catch(function () {
-          return openExternal(urlFallback);
-        });
-      });
-
-      // Timeout if user never returns
       setTimeout(function () {
         if (pendingResolve) {
-          completePending(null, new Error('MetaMask login timed out. Return to MuzzSnap after signing.'));
+          log('native deeplink timeout');
+          completePending(null, new Error('Timed out waiting for the MetaMask signature. Tap Retry.'));
         }
-      }, 180000);
+      }, timeouts().deeplink);
     });
   }
 
+  function boot() {
+    clearStaleWalletConnect();
+    var eth = pickProvider();
+    log('boot provider=' + (eth ? 'yes' : 'no') + ' mobile=' + isMobileWeb() + ' metamaskApp=' + inMetaMaskApp());
+    if (!eth || !eth.request) return;
+    eth.request({ method: 'eth_chainId' }).then(function (id) {
+      global.__muzzChainId = id;
+      log('preload chain ' + id);
+    }).catch(function (e) {
+      log('preload chain failed ' + (e && e.message ? e.message : e));
+    });
+    eth.request({ method: 'eth_accounts' }).then(function (acc) {
+      log('preload accounts ' + ((acc && acc.length) || 0));
+    }).catch(function () {});
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
   global.MuzzMetaMaskBridge = {
     isNative: isNative,
+    isMobileWeb: isMobileWeb,
+    inMetaMaskApp: inMetaMaskApp,
     hasInjectedProvider: hasInjectedProvider,
+    shouldOpenMetaMask: shouldOpenMetaMask,
+    openMetaMaskNow: openMetaMaskNow,
+    universalLink: universalLink,
+    schemeLink: schemeLink,
+    clearStaleWalletConnect: clearStaleWalletConnect,
+    foregroundForSign: foregroundForSign,
     requestSignedAuth: requestSignedAuth,
     parseAuthUrl: parseAuthUrl,
-    BRIDGE_HTTPS: BRIDGE_HTTPS,
-    RETURN_SCHEME: RETURN_SCHEME,
+    timeouts: timeouts,
+    RETURN_SCHEME: RETURN_SCHEME
   };
 })(window);

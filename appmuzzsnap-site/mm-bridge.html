@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MuzzSnap · MetaMask Bridge</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050505;color:#fff;font-family:Inter,system-ui,sans-serif;padding:24px;text-align:center}
+    .box{width:min(420px,100%);background:rgba(255,255,255,.04);border:1px solid rgba(255,31,31,.35);border-radius:18px;padding:22px}
+    h1{font-size:18px;margin:0 0 10px}
+    p{color:#9aa3b8;font-size:14px;line-height:1.45}
+    .ok{color:#4ade80}.bad{color:#f87171}
+    button{margin-top:14px;width:100%;min-height:48px;border:0;border-radius:12px;padding:14px;font-weight:700;background:#ff1f1f;color:#fff;cursor:pointer}
+    pre{margin:12px 0 0;max-height:140px;overflow:auto;text-align:left;font:12px/1.45 ui-monospace,monospace;color:#d5dbe6;background:#0b0d12;border-radius:12px;padding:10px;white-space:pre-wrap;word-break:break-word}
+    #copy{background:transparent;border:1px solid rgba(255,255,255,.15)}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>MuzzSnap Login</h1>
+    <p id="status">Connecting MetaMask…</p>
+    <button id="retry" hidden type="button">Retry connect &amp; sign</button>
+    <pre id="log"></pre>
+    <button id="copy" type="button">Copy log</button>
+  </div>
+  <script>
+  (function () {
+    var statusEl = document.getElementById('status');
+    var retryBtn = document.getElementById('retry');
+    var logEl = document.getElementById('log');
+    var lines = [];
+    var params = new URLSearchParams(location.search);
+    var purpose = params.get('purpose') || 'muzz_balance_gate';
+    var returnScheme = params.get('return') || 'muzzsnap://auth';
+    var SIGN_MS = (window.MUZZ_WALLET_TIMEOUTS && MUZZ_WALLET_TIMEOUTS.sign) || 45000;
+    var CONNECT_MS = (window.MUZZ_WALLET_TIMEOUTS && MUZZ_WALLET_TIMEOUTS.connect) || 20000;
+
+    function log(step) {
+      lines.push(new Date().toISOString().slice(11, 23) + '  ' + step);
+      logEl.textContent = lines.join('\n');
+    }
+    function tip(msg, ok) {
+      statusEl.textContent = msg;
+      statusEl.className = ok === true ? 'ok' : (ok === false ? 'bad' : '');
+      log(msg);
+    }
+    function withTimeout(promise, ms, label) {
+      return new Promise(function (resolve, reject) {
+        var done = false;
+        var timer = setTimeout(function () {
+          if (done) return;
+          done = true;
+          reject(new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's. Tap Retry.'));
+        }, ms);
+        Promise.resolve(promise).then(function (v) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(v);
+        }, function (e) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          reject(e);
+        });
+      });
+    }
+    function pickEth() {
+      var eth = window.ethereum;
+      if (!eth) return null;
+      if (eth.providers && eth.providers.length) {
+        return eth.providers.find(function (p) { return p.isMetaMask; }) || eth.providers[0];
+      }
+      return eth;
+    }
+    function goBack(payload) {
+      var q = new URLSearchParams(payload).toString();
+      var url = returnScheme + (returnScheme.indexOf('?') >= 0 ? '&' : '?') + q;
+      tip('Signed. Returning to MuzzSnap…', true);
+      location.href = url;
+    }
+
+    async function run() {
+      retryBtn.hidden = true;
+      var eth = pickEth();
+      log('run provider=' + (eth ? 'yes' : 'no'));
+      if (!eth) {
+        tip('Open this page inside the MetaMask browser.', false);
+        retryBtn.hidden = false;
+        return;
+      }
+      tip('Requesting wallet…');
+      log('eth_requestAccounts sent');
+      var accounts = await withTimeout(eth.request({ method: 'eth_requestAccounts' }), CONNECT_MS, 'MetaMask connect');
+      var address = accounts && accounts[0];
+      if (!address) throw new Error('No account');
+      log('eth_requestAccounts ok');
+      var nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var at = String(Date.now());
+      var message =
+        'Sign in to MuzzSnap\n\n' +
+        'This signature proves you own this wallet.\n' +
+        'It does NOT move funds, approve tokens, or spend gas.\n\n' +
+        'Wallet: ' + address + '\n' +
+        'Purpose: ' + purpose + '\n' +
+        'Nonce: ' + nonce + '\n' +
+        'Time: ' + at;
+      var hex = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(message));
+      tip('Sign in MetaMask…');
+      log('personal_sign sent');
+      var signature = await withTimeout(
+        eth.request({ method: 'personal_sign', params: [hex, address] }),
+        SIGN_MS,
+        'Signature request'
+      );
+      log('personal_sign returned');
+      var recovered = ethers.utils.verifyMessage(message, signature);
+      if (String(recovered).toLowerCase() !== String(address).toLowerCase()) {
+        throw new Error('Signature mismatch');
+      }
+      goBack({
+        address: address,
+        signature: signature,
+        message: message,
+        nonce: nonce,
+        at: at,
+        purpose: purpose
+      });
+    }
+
+    retryBtn.onclick = function () {
+      run().catch(function (e) {
+        tip(e.message || String(e), false);
+        retryBtn.hidden = false;
+      });
+    };
+    document.getElementById('copy').onclick = function () {
+      var text = lines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(function () {});
+      }
+    };
+    log('bridge load');
+    run().catch(function (e) {
+      tip(e.message || String(e), false);
+      retryBtn.hidden = false;
+    });
+  })();
+  </script>
+</body>
+</html>
