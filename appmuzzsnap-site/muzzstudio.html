@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>MuzzSnap · MuzzStudio LIVE</title>
   <meta name="theme-color" content="#0a0d14" />
   <link rel="stylesheet" href="css/muzz-desktop.css" />
@@ -81,6 +81,8 @@
           if (!r.ok) throw new Error('launch failed');
           document.getElementById('studioHint').textContent = 'Desktop MuzzStudio launching…';
         }).catch(function () {
+          var hint = document.getElementById('studioHint');
+          if (hint) hint.textContent = 'El lanzador de escritorio no está en este sitio (POST /muzzocial/api/launch-studio). En un Windows local: D:\\streamingsoftware\\MuzzStudio-LIVE\\START.bat';
           alert('Open manually:\nD:\\streamingsoftware\\MuzzStudio-LIVE\\START.bat');
         });
       };

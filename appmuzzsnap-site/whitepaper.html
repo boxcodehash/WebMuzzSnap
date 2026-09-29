@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <meta name="theme-color" content="#050507" />
   <meta name="description" content="MuzzSnap + MuzzleToken interactive Web3 whitepaper: privacidad, chat, social, games, staking, wallet crypto y MuzzStudio." />
   <title>MuzzSnap + MuzzleToken | Web3 Interactive Whitepaper</title>
@@ -303,7 +303,7 @@
   <script src="js/muzz-i18n.js"></script>
   <script src="js/muzz-auth-gate.js"></script>
   <script src="js/muzz-shell.js"></script>
-  <script>try{ if(window.MuzzShell && MuzzShell.getWallet()){ /* stay */ } }catch(e){}</script>
+  <script>try{ if(window.MuzzShell && MuzzShell.mountBar) MuzzShell.mountBar('whitepaper'); }catch(e){}</script>
   <div class="particles" aria-hidden="true">
     <span class="p" style="left:4%;animation-delay:0s"></span><span class="p" style="left:12%;animation-delay:2s"></span>
     <span class="p" style="left:21%;animation-delay:5s"></span><span class="p" style="left:31%;animation-delay:1s"></span>
@@ -319,7 +319,7 @@
         <span>MUZZSNAP</span>
       </a>
       <div class="navlinks">
-       <button class="nav-btn active" onclick="location.href='index.html'"><span class="nav-icon"></span><span>Home</span>
+        <button type="button" class="nav-btn" onclick="location.href='index.html'"><span>Home</span></button>
         <a href="#ecosystem">Ecosystem</a>
         <a href="#muzzsnap">MuzzSnap</a>
         <a href="#staking">Staking</a>
@@ -498,7 +498,7 @@
         <div class="cta reveal">
           <div class="kicker">Join the ecosystem</div>
           <h2><span class="grad">MuzzSnap is not only a token.</span><br>It is a Web3 software ecosystem.</h2>
-          <p class="lead" style="margin:22px auto 0">Privacy, social connection, games, staking, wallet identity and creator tools â⬝ powered by MuzzleToken.</p>
+          <p class="lead" style="margin:22px auto 0">Privacy, social connection, games, staking, wallet identity and creator tools · powered by MuzzleToken.</p>
           <div class="hero-actions" style="justify-content:center">
             <a class="btn" href="https://muzzsnap.com/" target="_blank" rel="noopener">Open MuzzSnap</a>
             <a class="btn secondary" href="https://x.com/MuzzSnap" target="_blank" rel="noopener">X / Twitter</a>

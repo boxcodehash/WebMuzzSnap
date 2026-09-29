@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>MuzzID | Create Username NFT</title>
   <meta name="theme-color" content="#050505" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
@@ -192,6 +192,8 @@
         $('btnMint').disabled = false;
       }
     };
+
+    try { if (window.MuzzShell && MuzzShell.mountBar) MuzzShell.mountBar('muzzid'); } catch (e) {}
 
     // Hardhat ping
     if (window.MuzzIDMint) {

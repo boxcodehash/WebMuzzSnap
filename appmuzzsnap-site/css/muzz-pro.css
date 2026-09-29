@@ -125,43 +125,51 @@ h1.brand,
   font-weight: 600;
 }
 
-/* ---------- Mobile tab bar (social keeps its own markup) ---------- */
-.mobile-bottom {
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  border-radius: 0 !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-bottom: none !important;
-  box-shadow: none !important;
-  padding: 4px 4px env(safe-area-inset-bottom, 0px) !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 0 !important;
-  height: var(--muzz-tab-h);
+/* Old social bar stays in the DOM for its button ids, but is not shown. */
+.mobile-bottom { display: none !important; }
+
+/* One bottom bar, pinned to the viewport on every phone width. */
+.muzz-tabbar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  margin: 0;
+  z-index: 80;
   box-sizing: border-box;
-  background: rgba(12, 14, 18, 0.96) !important;
-  backdrop-filter: blur(16px);
-  align-items: center;
+  height: var(--muzz-tab-h);
+  padding: 4px 6px env(safe-area-inset-bottom, 0px);
+  background: #0e1116;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  transform: none;
+  justify-content: space-around;
+  align-items: stretch;
 }
-.mobile-bottom button {
-  min-height: var(--muzz-touch);
-  padding: 4px 2px !important;
-  border-radius: 10px !important;
-  display: flex !important;
+.muzz-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muzz-muted);
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  color: var(--muzz-muted) !important;
-  font-family: var(--font-ui) !important;
-  font-size: 11px !important;
-  font-weight: 500 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
+  padding: 2px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 1.1;
 }
-.mobile-bottom button svg {
+.muzz-tab svg {
   width: 22px;
   height: 22px;
   display: block;
@@ -171,14 +179,16 @@ h1.brand,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.mobile-bottom button.active {
-  background: transparent !important;
-  color: #fff !important;
-  font-weight: 600 !important;
+.muzz-tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mobile-bottom button.active svg { color: var(--muzz-red); }
+.muzz-tab.active { color: #fff; font-weight: 600; }
+.muzz-tab.active svg { color: var(--muzz-red); }
 .fab {
-  bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  bottom: calc(12px + var(--muzz-tab-h)) !important;
   width: 52px !important;
   height: 52px !important;
   border-radius: 16px !important;
@@ -241,10 +251,28 @@ a.back {
 }
 .close-btn { width: 44px !important; height: 44px !important; font-size: 22px !important; }
 .pill { letter-spacing: 0.04em !important; font-size: 11px !important; }
-@media (max-width: 980px) {
-  body.muzz-has-tabbar .overlay {
-    padding-bottom: calc(20px + var(--muzz-tab-h));
+@media (max-width: 1100px) {
+  body.muzz-has-tabbar .muzz-tabbar {
+    display: flex !important;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    z-index: 80 !important;
   }
+  body.muzz-has-tabbar {
+    padding-bottom: var(--muzz-tab-h);
+  }
+  /* App columns end above the bar. Document-scroll pages are excluded below. */
+  body.muzz-has-tabbar .layout.muzz-desktop-app,
+  body.muzz-has-tabbar .app.muzz-desktop-app:not(.social-layout) {
+    height: calc(var(--muzz-vvh, 100dvh) - var(--muzz-tab-h)) !important;
+    max-height: calc(var(--muzz-vvh, 100dvh) - var(--muzz-tab-h)) !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  body.muzz-has-tabbar .layout > .side,
   body.muzz-has-tabbar .layout > .main,
   body.muzz-has-tabbar .app > .chat,
   body.muzz-has-tabbar .app > .main {
@@ -252,13 +280,99 @@ a.back {
     max-height: 100% !important;
     min-height: 0 !important;
   }
-}
-@media (max-width: 1100px) {
-  body.muzz-has-tabbar[data-muzz-page="studio"] .layout > .main {
-    height: 100% !important;
-    max-height: 100% !important;
-    min-height: 0 !important;
+  body.muzz-has-tabbar .layout > .side { display: none !important; }
+  /* Private chat drawer sits above the tab bar so the contact list is not covered. */
+  body.muzz-has-tabbar .drawer-backdrop { z-index: 85; }
+  body.muzz-has-tabbar .sidebar.drawer-open { z-index: 86; }
+  body.muzz-has-tabbar .main,
+  body.muzz-has-tabbar .messages,
+  body.muzz-has-tabbar .feed-scroll {
+    padding-bottom: 16px;
+    scroll-padding-bottom: 16px;
   }
+  /* Social and profile scroll with the document, so only pad them. */
+  body.muzz-has-tabbar[data-muzz-page="social"] .app.social-layout,
+  body.muzz-has-tabbar[data-muzz-page="profile"] .overlay {
+    height: auto !important;
+    max-height: none !important;
+    min-height: calc(var(--muzz-vvh, 100dvh) - var(--muzz-tab-h)) !important;
+  }
+  body.muzz-has-tabbar[data-muzz-page="social"] {
+    padding-bottom: 0;
+  }
+  body.muzz-has-tabbar[data-muzz-page="social"] .app {
+    padding-bottom: calc(20px + var(--muzz-tab-h)) !important;
+  }
+  body.muzz-has-tabbar[data-muzz-page="profile"] .overlay,
+  body.muzz-has-tabbar[data-muzz-page="whitepaper"],
+  body.muzz-has-tabbar[data-muzz-page="muzzid"] {
+    padding-bottom: calc(20px + var(--muzz-tab-h));
+  }
+  /* overflow-x:hidden on the whitepaper body turns overflow-y into auto and
+     stops the document from scrolling. clip keeps the sideways lock. */
+  body[data-muzz-page="whitepaper"] {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+  body.muzz-kb-open .muzz-tabbar {
+    transform: translateY(120%) !important;
+    pointer-events: none !important;
+  }
+  body.muzz-kb-open.muzz-has-tabbar,
+  body.muzz-kb-open.muzz-has-tabbar[data-muzz-page="social"] .app,
+  body.muzz-kb-open.muzz-has-tabbar .layout.muzz-desktop-app,
+  body.muzz-kb-open.muzz-has-tabbar .app.muzz-desktop-app {
+    height: var(--muzz-vvh, 100dvh) !important;
+    max-height: var(--muzz-vvh, 100dvh) !important;
+    padding-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  #muzzWpBar { position: static !important; }
+  .nav .navlinks {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+  }
+  .nav .navin {
+    height: auto !important;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    row-gap: 8px;
+  }
+  .navlinks a,
+  .navlinks .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 0;
+    cursor: pointer;
+  }
+  #galaxyMissing { color: #fca5a5; }
+  .muzz-sheet { max-height: min(78dvh, 100%); overflow: auto; }
+}
+
+@media (max-width: 480px) {
+  body[data-muzz-page="buy"] .main { padding: 16px !important; }
+  body[data-muzz-page="buy"] .grid { grid-template-columns: 1fr !important; }
+  .bar, .top, .topbar, .feed-top { padding-left: 12px !important; padding-right: 12px !important; }
+  .card, .post, .composer, .profile-card { max-width: 100%; }
+  .hero-actions { width: 100%; }
+  .actions { flex-wrap: wrap; max-width: 100%; }
+  .actions .btn, .bar .btn, .bar .actions .btn { min-height: 44px; }
+  .bar h1 { font-size: 14px !important; letter-spacing: 0.04em !important; }
+  code, pre { max-width: 100%; overflow-wrap: anywhere; }
+  .wrap { width: min(1180px, calc(100% - 28px)); }
+  img, video, iframe, svg { max-width: 100%; }
+  .muzz-tabbar svg { max-width: 22px; }
 }
 
 /* ---------- Chat / private ---------- */
