@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>MuzzSnap · Private · E2EE P2P</title>
+  <meta name="theme-color" content="#11161c" />
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script src="js/muzz-emoji.js"></script>
+  <script src="js/muzz-push.js"></script>
+
+  <style>
+    :root{
+      --bg:#181d23;--panel:#11161c;--soft:#232a33;--line:rgba(255,255,255,.08);
+      --red:#ff2a2a;--red-2:#b40000;--text:#f4f7fb;--muted:#95a0af;
+      --green:#39ff14;--blue:#8ec5ff;
+      --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);
+    }
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    html,body{margin:0;height:100%;width:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#252b33,#1b2027);color:var(--text)}
+    body{overflow:hidden;font-size:14pt}
+    .app{height:100dvh;width:100%;max-width:none;display:grid;grid-template-columns:300px minmax(0,1fr);margin:0;gap:0}
+    .sidebar,.chat{min-height:0;height:100dvh}
+    .sidebar{background:rgba(10,13,17,.92);backdrop-filter:blur(10px);border-right:1px solid rgba(255,42,42,.14);padding:16px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+    .brand{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,42,42,.18);border-radius:22px;background:linear-gradient(180deg,rgba(255,42,42,.06),rgba(255,42,42,.02))}
+    .logo{width:46px;height:46px;border-radius:16px;background:linear-gradient(145deg,var(--red),var(--red-2));display:grid;place-items:center;box-shadow:0 0 20px rgba(255,42,42,.22);font-size:20px}
+    .brand h1{margin:0;font-size:25px;letter-spacing:-1px;font-weight:900;font-style:italic}
+    .brand h1 span{color:var(--red)}
+    .card{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:22px;padding:14px}
+    .section-title{font-size:11px;letter-spacing:.22em;color:#8c95a3;text-transform:uppercase;font-weight:800;margin:0 0 12px}
+    .user-badge{display:flex;align-items:center;gap:10px;padding:12px;border-radius:18px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.16)}
+    .avatar{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#2a313b,#12171d);display:grid;place-items:center;color:#fff;font-weight:900;flex:0 0 auto;font-size:13px}
+    .avatar.red{background:linear-gradient(145deg,var(--red),var(--red-2))}
+    .muted{color:var(--muted)}.small{font-size:11px}
+    .contact-list{display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:42vh;padding-right:4px}
+    .contact{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;border:1px solid transparent;background:rgba(255,255,255,.02);cursor:pointer;transition:.2s;text-align:left;width:100%;color:inherit;font:inherit}
+    .contact:hover{background:rgba(255,255,255,.04)}.contact.active{background:rgba(255,42,42,.08);border-color:rgba(255,42,42,.18)}
+    .status-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:6px;flex:0 0 auto}
+    .status-dot.off{background:#6b7280;box-shadow:none}
+    .side-actions{display:grid;gap:10px;margin-top:auto}
+    .btn{border:none;border-radius:18px;padding:14px 16px;font-weight:800;cursor:pointer;transition:.2s;font:inherit}
+    .btn.red{background:linear-gradient(145deg,var(--red),var(--red-2));color:white;box-shadow:0 0 18px rgba(255,42,42,.18)}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .new-row{display:flex;gap:8px}.new-row input{flex:1;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text);border-radius:14px;padding:10px 12px;outline:none;font:inherit;font-size:12px}
+    .chat{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;background:linear-gradient(180deg,rgba(16,20,25,.8),rgba(8,10,14,.9))}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .topbar-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .topbar h2{margin:0;font-size:13px;letter-spacing:.12em;color:#ff6565;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pills{display:flex;flex-wrap:wrap;gap:6px}
+    .pill{padding:6px 10px;border-radius:999px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.18);font-size:10px;color:#ff9a9a;font-weight:700}
+    .pill.ok{color:#86efac;border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.08)}
+    .messages{flex:1;min-height:0;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:12px}
+    .day{align-self:center;padding:7px 12px;border-radius:999px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.15);font-size:10px;letter-spacing:.18em;color:#ff8080;font-weight:800}
+    .msg-wrap{display:flex;gap:10px;align-items:flex-end;max-width:82%}
+    .msg-wrap.me{align-self:flex-end;flex-direction:row-reverse}
+    .bubble{padding:12px 14px;border-radius:18px;background:var(--soft);border:1px solid rgba(255,255,255,.05);line-height:1.45;box-shadow:0 8px 20px rgba(0,0,0,.18);word-break:break-word;font-size:14pt}
+    .msg-wrap.me .bubble{background:linear-gradient(145deg,var(--red),var(--red-2));border-color:transparent}
+    .meta{font-size:10px;color:var(--muted);margin:4px 6px 0;display:flex;gap:8px;flex-wrap:wrap}
+    .msg-wrap.me .meta{justify-content:flex-end}
+    .composer{padding:16px 18px calc(16px + var(--safe-bottom));border-top:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .composer-box{display:flex;gap:12px;align-items:flex-end;background:#0b1015;border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:10px 10px 10px 16px}
+    textarea{flex:1;resize:none;background:transparent;border:none;outline:none;color:var(--text);font:inherit;font-size:14pt;line-height:1.45;min-height:28px;max-height:140px;padding:6px 0}
+    textarea::placeholder{color:#6f7c8e}
+    .send{width:50px;height:50px;border-radius:16px;border:none;background:linear-gradient(145deg,var(--red),var(--red-2));color:#fff;font-size:18px;cursor:pointer;flex:0 0 auto}
+    .send:disabled{opacity:.45;cursor:not-allowed}
+    .empty{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
+    .gate{position:fixed;inset:0;z-index:50;background:rgba(5,8,12,.94);display:grid;place-items:center;padding:24px}
+    .gate.hidden{display:none}
+    .gate-card{width:min(440px,100%);background:#11161c;border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+    .gate-card.gate-loading{text-align:center;padding:40px 28px}
+    .gate-card h2{margin:0 0 10px;font-size:20px}
+    .gate-card p{color:var(--muted);line-height:1.5;margin:0 0 14px}
+    .muzzle-loader{position:relative;width:120px;height:120px;margin:0 auto 8px}
+    .muzzle-loader img{width:100%;height:100%;object-fit:cover;border-radius:28px;box-shadow:0 0 40px rgba(255,42,42,.35);border:1px solid rgba(255,255,255,.1)}
+    .muzzle-spin{
+      position:absolute;inset:-8px;border-radius:34px;border:3px solid transparent;
+      border-top-color:#ff2a2a;border-right-color:rgba(255,42,42,.35);
+      animation:muzzleSpin .9s linear infinite;pointer-events:none;
+    }
+    @keyframes muzzleSpin{to{transform:rotate(360deg)}}
+    .gate-msg{margin-top:16px!important}
+    .toast{position:fixed;left:50%;bottom:calc(20px + var(--safe-bottom));transform:translateX(-50%);background:#0b1015;border:1px solid var(--line);padding:12px 16px;border-radius:14px;z-index:60;opacity:0;pointer-events:none;transition:.25s;max-width:90vw;font-size:12px}
+    .toast.show{opacity:1}
+    .mobile-top{display:none}
+    .drawer-backdrop{
+      display:none;position:fixed;inset:0;z-index:35;
+      background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
+    }
+    .drawer-backdrop.show{display:block}
+    .icon-btn{
+      border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);
+      width:42px;height:42px;border-radius:14px;cursor:pointer;display:grid;place-items:center;
+      font-size:18px;flex-shrink:0;
+    }
+    .icon-btn:hover{background:rgba(255,42,42,.14);border-color:rgba(255,42,42,.3)}
+    .drawer-close-row{display:none;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+    @media(max-width:920px){
+      .app{grid-template-columns:1fr}
+      .sidebar{
+        display:flex;
+        position:fixed;
+        top:0;left:0;bottom:0;
+        width:min(340px,88vw);
+        z-index:40;
+        transform:translateX(-104%);
+        transition:transform .28s cubic-bezier(.22,.61,.36,1);
+        box-shadow:none;
+        padding-top:calc(14px + var(--safe-top));
+        padding-bottom:calc(14px + var(--safe-bottom));
+      }
+      .sidebar.drawer-open{
+        transform:translateX(0);
+        box-shadow:24px 0 60px rgba(0,0,0,.55);
+      }
+      .drawer-close-row{display:flex}
+      .contact-list{max-height:none;flex:1}
+      .mobile-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + var(--safe-top)) 12px 10px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.25)}
+      .topbar-left .icon-btn.chats-inline{display:grid}
+      .msg-wrap{max-width:92%}
+      .composer{position:sticky;bottom:0}
+      .pills{display:none}
+    }
+    .topbar-left .icon-btn.chats-inline{display:none}
+  </style>
+</head>
+<body>
+  <div class="gate" id="gateScreen">
+    <div class="gate-card gate-loading">
+      <div class="muzzle-loader" id="muzzleLoader">
+        <img id="muzzleLogoImg" alt="Muzzle" src="https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:200,h:200" />
+        <div class="muzzle-spin"></div>
+      </div>
+      <p id="gateText" class="gate-msg" style="display:none"></p>
+      <button class="btn red" id="gateRetry" style="width:100%;margin-bottom:10px;display:none">Reintentar</button>
+      <button class="btn ghost" id="gateLoginBtn" style="width:100%;display:none" onclick="location.href='index.html'">  Login</button>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+
+  <div class="app muzz-desktop-app" id="appRoot" style="visibility:hidden">
+    <aside class="sidebar" id="chatsDrawer" aria-label="Conversations drawer">
+      <div class="drawer-close-row">
+        <strong style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#ff8080">Chats</strong>
+        <button type="button" class="icon-btn" id="drawerCloseBtn" title="Cerrar">S"</button>
+      </div>
+      <div id="muzzNavMount"></div>
+      <div class="card" style="display:none">
+        <div class="user-badge">
+          <div class="avatar red" id="meAvatar">M</div>
+          <div style="min-width:0">
+            <div style="font-weight:800" id="meName">…</div>
+            <div class="muted small" id="meSub">Per-message key · P2P vault</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <p class="section-title">New chat</p>
+        <div class="new-row">
+          <input id="peerInput" placeholder="0x peer wallet…" spellcheck="false" />
+          <button class="btn red" id="startChatBtn" style="padding:10px 14px;border-radius:14px">Open</button>
+        </div>
+        <p class="muted small" style="margin:8px 0 0">Cada mensaje usa una clave AES nueva. El servidor solo ve ciphertext.</p>
+      </div>
+      <div class="card" style="min-height:0;display:flex;flex-direction:column;flex:1">
+        <p class="section-title">Conversations</p>
+        <div class="contact-list" id="contactList"></div>
+      </div>
+    </aside>
+
+    <section class="chat">
+      <div class="mobile-top">
+        <button type="button" class="icon-btn" id="openDrawerBtn" title="Abrir chats">ܰ</button>
+        <div style="font-weight:900;letter-spacing:.08em">MUZZ<span style="color:var(--red)">PRIVATE</span></div>
+        <button type="button" class="btn ghost" style="padding:10px 12px;border-radius:14px;font-size:12px" onclick="location.href='social.html'">Social</button>
+      </div>
+      <div class="topbar" id="chatHeader">
+        <div class="topbar-left">
+          <button type="button" class="icon-btn chats-inline" id="openDrawerBtn2" title="Chats">ܰ</button>
+          <div class="avatar" id="peerAvatar">?</div>
+          <div>
+            <h2 id="peerTitle">Select a chat</h2>
+            <div class="muted small" id="peerSub">P2P E2EE · key rotates every message</div>
+          </div>
+        </div>
+        <div class="pills">
+          <span class="pill ok" id="pillE2EE">E2EE</span>
+          <span class="pill" id="pillP2P">P2P</span>
+          <span class="pill" id="pillKey">1-msg key</span>
+        </div>
+      </div>
+      <div class="messages" id="messages">
+        <div class="empty">Abre un chat con una wallet 0x…<br>Los mensajes se cifran con clave única por envío.</div>
+      </div>
+      <div class="composer">
+        <div class="composer-box">
+          <button type="button" class="emoji-btn" data-emoji-for="messageInput" id="privateEmojiBtn" title="Emoji" disabled>xܬ</button>
+          <textarea id="messageInput" rows="1" placeholder="Encrypted private message…" disabled></textarea>
+          <button class="send" id="sendBtn" disabled title="Send encrypted">~</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* """"""""""" CONFIG """"""""""" */
+    const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
+    const MIN_MUZZ = 2_000_000;
+    const CHAIN_ID_HEX = '0x1';
+    const PUBLIC_RPCS = [
+      'https://ethereum.publicnode.com',
+      'https://cloudflare-eth.com',
+      'https://rpc.ankr.com/eth'
+    ];
+    const ERC20_ABI = [
+      'function balanceOf(address) view returns (uint256)',
+      'function decimals() view returns (uint8)'
+    ];
+    const ADMIN_WALLETS = [
+      '0x208157b5ec396759e8754058108ecf53e32392ff',
+      '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
+      '0xfab5835ca14fb3f9f478c5e4d733734e6394e03f',
+      '0x875c5a7794b601f273da58e3c1d10671d16130ec',
+      '0xf0809b8d23485f82245b777a28469e735e8430ce',
+      '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a'
+    ].map(a => a.toLowerCase());
+
+    const firebaseConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
+      messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+
+    const IDB_NAME = 'muzz_private_e2ee';
+    const IDB_KEYS = 'identity';
+    const IDB_MSGS = 'messages';
+    const BC_NAME = 'muzz-private-p2p';
+
+    /* """"""""""" UTILS """"""""""" */
+    const te = new TextEncoder();
+    const td = new TextDecoder();
+
+    function toast(msg, ms) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), ms || 2800);
+    }
+    function normalizeAddress(a) { return String(a || '').trim().toLowerCase(); }
+    function safeKey(v) { return String(v || '').replace(/[.#$/\[\]]/g, '_').toLowerCase(); }
+    function isEth(a) { return /^0x[a-fA-F0-9]{40}$/.test(a || ''); }
+    function shortAddr(a) {
+      if (!a || a.length < 12) return a || '';
+      return a.slice(0, 6) + '…' + a.slice(-4);
+    }
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+    }
+    function b64(buf) {
+      const u8 = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+      let s = '';
+      for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+      return btoa(s);
+    }
+    function fromB64(str) {
+      const bin = atob(str);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    function randomBytes(n) {
+      const a = new Uint8Array(n);
+      crypto.getRandomValues(a);
+      return a;
+    }
+    function threadId(a, b) {
+      const x = normalizeAddress(a), y = normalizeAddress(b);
+      return x < y ? (x + '__' + y) : (y + '__' + x);
+    }
+    function fmtTime(ts) {
+      try {
+        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch (_) { return ''; }
+    }
+
+    /* """"""""""" SESSION """"""""""" */
+    let wallet = normalizeAddress(sessionStorage.getItem('muzz_wallet_address') || '');
+    let loginMethod = sessionStorage.getItem('muzz_login_method') || '';
+    const isGuest = !wallet || wallet.startsWith('guest_') || loginMethod === 'guest';
+    const isAdmin = ADMIN_WALLETS.includes(wallet) || sessionStorage.getItem('muzz_is_admin') === 'true';
+    let meName = sessionStorage.getItem('muzz_username') || (isGuest ? 'Guest' : 'Node_' + wallet.slice(-4));
+    let userKey = safeKey(wallet);
+    let allowed = false;
+    let muzzBalance = Number(sessionStorage.getItem('muzz_token_balance') || 0);
+
+    let db = null;
+    let fbUid = null;
+    let identity = null; // { publicJwk, privateKey, publicKey, publicB64 }
+    let peers = {};       // userKey -> { wallet, username, publicJwk, online }
+    let threads = {};     // threadId -> { peerWallet, peerName, lastAt }
+    let messagesByThread = {}; // threadId -> { msgId: decryptedMsg }
+    let activeThread = null;
+    let msgUnsub = null;
+    let bc = null;
+
+    /* """"""""""" INDEXEDDB """"""""""" */
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const idb = req.result;
+          if (!idb.objectStoreNames.contains(IDB_KEYS)) idb.createObjectStore(IDB_KEYS, { keyPath: 'id' });
+          if (!idb.objectStoreNames.contains(IDB_MSGS)) idb.createObjectStore(IDB_MSGS, { keyPath: 'id' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function idbGet(store, id) {
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(store, 'readonly');
+        const r = tx.objectStore(store).get(id);
+        r.onsuccess = () => resolve(r.result || null);
+        r.onerror = () => reject(r.error);
+      });
+    }
+    async function idbPut(store, val) {
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(store, 'readwrite');
+        tx.objectStore(store).put(val);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    /* """"""""""" CRYPTO: identity ECDH + per-message AES key """"""""""" */
+    async function ensureIdentity() {
+      const cached = await idbGet(IDB_KEYS, userKey);
+      if (cached && cached.privateJwk && cached.publicJwk) {
+        const privateKey = await crypto.subtle.importKey(
+          'jwk', cached.privateJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
+        );
+        const publicKey = await crypto.subtle.importKey(
+          'jwk', cached.publicJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []
+        );
+        identity = {
+          publicJwk: cached.publicJwk,
+          privateJwk: cached.privateJwk,
+          privateKey,
+          publicKey
+        };
+        return identity;
+      }
+
+      const pair = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' },
+        true,
+        ['deriveBits']
+      );
+      const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+      const privateJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+      await idbPut(IDB_KEYS, { id: userKey, publicJwk, privateJwk, createdAt: Date.now() });
+      identity = { publicJwk, privateJwk, privateKey: pair.privateKey, publicKey: pair.publicKey };
+      return identity;
+    }
+
+    async function importPeerPublic(jwk) {
+      return crypto.subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+    }
+
+    /** Shared secret bits via ECDH   HKDF   AES-GCM key for wrapping message keys */
+    async function deriveWrapKey(peerPublicKey) {
+      const bits = await crypto.subtle.deriveBits(
+        { name: 'ECDH', public: peerPublicKey },
+        identity.privateKey,
+        256
+      );
+      const base = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        {
+          name: 'HKDF',
+          hash: 'SHA-256',
+          salt: te.encode('muzz-private-e2ee-v1'),
+          info: te.encode('msg-key-wrap')
+        },
+        base,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    /**
+     * Cifra un mensaje con CLAVE NUEVA por envío (AES-256-GCM).
+     * La clave se envuelve (wrap) para el peer y para el sender.
+     * Firebase solo almacena ciphertext + wraps  nunca el plaintext ni la raw key.
+     */
+    async function encryptMessage(plaintext, peerPublicJwk) {
+      // 1) Message key: random 32 bytes  NUEVA cada mensaje
+      const msgKeyRaw = randomBytes(32);
+      const msgKey = await crypto.subtle.importKey('raw', msgKeyRaw, { name: 'AES-GCM' }, false, ['encrypt']);
+      const iv = randomBytes(12);
+      const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, msgKey, te.encode(plaintext));
+
+      // 2) Wrap message key for peer (ECDH) + self (local wrap)
+      const peerPub = await importPeerPublic(peerPublicJwk);
+      const wrapPeer = await deriveWrapKey(peerPub);
+      const selfWrapKey = await selfWrapKeyFromIdentity();
+
+      const wrapIvPeer = randomBytes(12);
+      const wrapIvSelf = randomBytes(12);
+      const wrappedForPeer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: wrapIvPeer }, wrapPeer, msgKeyRaw);
+      const wrappedForSelf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: wrapIvSelf }, selfWrapKey, msgKeyRaw);
+
+      // zeroize raw key from memory as best-effort
+      msgKeyRaw.fill(0);
+
+      return {
+        ciphertext: b64(cipherBuf),
+        iv: b64(iv),
+        keyId: b64(randomBytes(8)), // unique id for this one-time key
+        wrap: {
+          peer: { data: b64(wrappedForPeer), iv: b64(wrapIvPeer) },
+          self: { data: b64(wrappedForSelf), iv: b64(wrapIvSelf) }
+        },
+        cryptoVersion: 2,
+        algo: 'AES-256-GCM + ECDH-P256-HKDF wrap · per-message key'
+      };
+    }
+
+    async function selfWrapKeyFromIdentity() {
+      // Derive stable self-wrap key from private key export fingerprint (local only)
+      const raw = te.encode(JSON.stringify(identity.privateJwk) + '|muzz-self-wrap-v1');
+      const dig = await crypto.subtle.digest('SHA-256', raw);
+      return crypto.subtle.importKey('raw', dig, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    }
+
+    async function decryptMessage(enc, isFromMe, peerPublicJwk) {
+      try {
+        let msgKeyRaw;
+        if (isFromMe) {
+          const selfWrapKey = await selfWrapKeyFromIdentity();
+          const plain = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: fromB64(enc.wrap.self.iv) },
+            selfWrapKey,
+            fromB64(enc.wrap.self.data)
+          );
+          msgKeyRaw = new Uint8Array(plain);
+        } else {
+          const peerPub = await importPeerPublic(peerPublicJwk);
+          const wrapKey = await deriveWrapKey(peerPub);
+          const plain = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: fromB64(enc.wrap.peer.iv) },
+            wrapKey,
+            fromB64(enc.wrap.peer.data)
+          );
+          msgKeyRaw = new Uint8Array(plain);
+        }
+        const msgKey = await crypto.subtle.importKey('raw', msgKeyRaw, { name: 'AES-GCM' }, false, ['decrypt']);
+        const plainBuf = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: fromB64(enc.iv) },
+          msgKey,
+          fromB64(enc.ciphertext)
+        );
+        msgKeyRaw.fill(0);
+        return td.decode(plainBuf);
+      } catch (e) {
+        console.warn('decrypt fail', e);
+        return null;
+      }
+    }
+
+    /* """"""""""" GATE: wallet + 2M MUZZ """"""""""" */
+    async function getPublicBalance(addr) {
+      for (const url of PUBLIC_RPCS) {
+        try {
+          const provider = new ethers.providers.JsonRpcProvider(url);
+          const token = new ethers.Contract(MUZZ_TOKEN, ERC20_ABI, provider);
+          const [raw, dec] = await Promise.all([
+            token.balanceOf(addr),
+            token.decimals().catch(() => 18)
+          ]);
+          return parseFloat(ethers.utils.formatUnits(raw, dec));
+        } catch (_) {}
+      }
+      throw new Error('RPC balance failed');
+    }
+
+    function showGate(msg, showRetry) {
+      document.getElementById('gateScreen').classList.remove('hidden');
+      document.getElementById('appRoot').style.visibility = 'hidden';
+      const loader = document.getElementById('muzzleLoader');
+      const text = document.getElementById('gateText');
+      const retry = document.getElementById('gateRetry');
+      const loginBtn = document.getElementById('gateLoginBtn');
+      // Por defecto: solo logo loading (sin texto Firebase)
+      if (!msg) {
+        if (loader) loader.style.display = 'block';
+        text.style.display = 'none';
+        text.textContent = '';
+        retry.style.display = 'none';
+        if (loginBtn) loginBtn.style.display = 'none';
+        return;
+      }
+      // Error / bloqueo: mostrar mensaje + acciones
+      if (loader) loader.style.display = 'none';
+      text.style.display = 'block';
+      text.textContent = msg;
+      retry.style.display = showRetry === false ? 'none' : 'block';
+      if (loginBtn) loginBtn.style.display = 'block';
+    }
+    function hideGate() {
+      document.getElementById('gateScreen').classList.add('hidden');
+      document.getElementById('appRoot').style.visibility = 'visible';
+    }
+
+    async function verifyAccess() {
+      if (!wallet || isGuest) {
+        showGate('Private requiere wallet crypto (no Guest). Vuelve al login y conecta MetaMask con 0 2M MUZZ.');
+        return false;
+      }
+      if (!isEth(wallet)) {
+        showGate('Wallet inválida. Inicia sesión de nuevo.');
+        return false;
+      }
+      if (isAdmin) {
+        allowed = true;
+        return true;
+      }
+      if (sessionStorage.getItem('muzz_social_gate') === 'ok' && muzzBalance >= MIN_MUZZ) {
+        allowed = true;
+        return true;
+      }
+      try {
+        const bal = await getPublicBalance(wallet);
+        muzzBalance = bal;
+        sessionStorage.setItem('muzz_token_balance', String(bal));
+        if (bal >= MIN_MUZZ) {
+          allowed = true;
+          sessionStorage.setItem('muzz_social_gate', 'ok');
+          return true;
+        }
+        showGate('Necesitas 0 2,000,000 MUZZ. Balance: ' + bal.toLocaleString() + ' MUZZ.');
+        return false;
+      } catch (e) {
+        // Si ya tenía gate ok en sesión, permitir
+        if (sessionStorage.getItem('muzz_social_gate') === 'ok') {
+          allowed = true;
+          return true;
+        }
+        showGate('No se pudo verificar MUZZ on-chain. ' + (e.message || e));
+        return false;
+      }
+    }
+
+    /* """"""""""" FIREBASE + P2P """"""""""" */
+    async function softWrite(path, data, mode) {
+      try {
+        if (mode === 'set') await db.ref(path).set(data);
+        else await db.ref(path).update(data);
+        return true;
+      } catch (e) {
+        console.warn('write', path, e.message || e);
+        return false;
+      }
+    }
+
+    async function publishPubkey() {
+      const payload = {
+        wallet,
+        userKey,
+        username: meName,
+        publicJwk: identity.publicJwk,
+        crypto: 'ECDH-P-256',
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+      };
+      await softWrite('private/pubkeys/' + userKey, payload, 'set');
+      await softWrite('social/privatePubkeys/' + userKey, payload, 'set');
+    }
+
+    function initBroadcast() {
+      try {
+        bc = new BroadcastChannel(BC_NAME);
+        bc.onmessage = async (ev) => {
+          const m = ev.data || {};
+          if (m.type === 'private_msg' && m.threadId && m.msg) {
+            await ingestRemoteMessage(m.threadId, m.msg.id, m.msg, true);
+          }
+        };
+        document.getElementById('pillP2P').textContent = 'P2P on';
+        document.getElementById('pillP2P').classList.add('ok');
+      } catch (_) {
+        document.getElementById('pillP2P').textContent = 'P2P local';
+      }
+    }
+
+    async function loadPeerDirectory() {
+      // Listen online wallets from status + pubkeys
+      db.ref('private/pubkeys').on('value', snap => {
+        const val = snap.val() || {};
+        Object.keys(val).forEach(k => {
+          if (k === userKey) return;
+          const p = val[k];
+          if (!p || !p.publicJwk) return;
+          peers[k] = {
+            wallet: p.wallet || k,
+            username: p.username || ('Node_' + String(p.wallet || k).slice(-4)),
+            publicJwk: p.publicJwk,
+            online: true
+          };
+        });
+        renderContacts();
+      });
+
+      // Also social users with wallets
+      db.ref('social/users').limitToLast(80).on('value', snap => {
+        const val = snap.val() || {};
+        Object.keys(val).forEach(k => {
+          const u = val[k];
+          if (!u || !u.wallet || String(u.wallet).startsWith('guest_')) return;
+          const w = normalizeAddress(u.wallet);
+          if (w === wallet) return;
+          const uk = safeKey(w);
+          if (!peers[uk]) {
+            peers[uk] = {
+              wallet: w,
+              username: u.username || ('Node_' + w.slice(-4)),
+              publicJwk: null,
+              online: !!u.active
+            };
+          } else {
+            peers[uk].username = u.username || peers[uk].username;
+          }
+        });
+        renderContacts();
+      });
+    }
+
+    async function ensurePeerPubkey(peerWallet) {
+      const pk = safeKey(peerWallet);
+      if (peers[pk] && peers[pk].publicJwk) return peers[pk].publicJwk;
+      let snap = null;
+      try { snap = await db.ref('private/pubkeys/' + pk).once('value'); } catch (_) {}
+      let v = snap && snap.val();
+      if (!v) {
+        try {
+          const s2 = await db.ref('social/privatePubkeys/' + pk).once('value');
+          v = s2.val();
+        } catch (_) {}
+      }
+      if (v && v.publicJwk) {
+        peers[pk] = peers[pk] || { wallet: peerWallet, username: v.username || shortAddr(peerWallet) };
+        peers[pk].publicJwk = v.publicJwk;
+        return v.publicJwk;
+      }
+      return null;
+    }
+
+    function openChatsDrawer() {
+      const d = document.getElementById('chatsDrawer');
+      const b = document.getElementById('drawerBackdrop');
+      if (d) d.classList.add('drawer-open');
+      if (b) {
+        b.classList.add('show');
+        b.setAttribute('aria-hidden', 'false');
+      }
+      document.body.style.overflow = 'hidden';
+    }
+    function closeChatsDrawer() {
+      const d = document.getElementById('chatsDrawer');
+      const b = document.getElementById('drawerBackdrop');
+      if (d) d.classList.remove('drawer-open');
+      if (b) {
+        b.classList.remove('show');
+        b.setAttribute('aria-hidden', 'true');
+      }
+      document.body.style.overflow = '';
+    }
+
+    async function openThread(peerWallet, peerName) {
+      peerWallet = normalizeAddress(peerWallet);
+      if (!isEth(peerWallet)) {
+        toast('Wallet inválida');
+        return;
+      }
+      if (peerWallet === wallet) {
+        toast('No puedes chatear contigo mismo');
+        return;
+      }
+      const tid = threadId(wallet, peerWallet);
+      const pub = await ensurePeerPubkey(peerWallet);
+      if (!pub) {
+        toast('El peer aún no tiene clave E2EE publicada. Debe abrir Private al menos una vez.');
+      }
+      threads[tid] = {
+        peerWallet,
+        peerName: peerName || (peers[safeKey(peerWallet)] && peers[safeKey(peerWallet)].username) || shortAddr(peerWallet),
+        lastAt: threads[tid] ? threads[tid].lastAt : 0
+      };
+      activeThread = tid;
+      document.getElementById('messageInput').disabled = false;
+      document.getElementById('sendBtn').disabled = false;
+      var em = document.getElementById('privateEmojiBtn');
+      if (em) em.disabled = false;
+      closeChatsDrawer();
+      renderContacts();
+      renderHeader();
+      await listenThread(tid);
+      renderMessages();
+    }
+
+    async function listenThread(tid) {
+      if (msgUnsub) {
+        try { msgUnsub(); } catch (_) {}
+        msgUnsub = null;
+      }
+      messagesByThread[tid] = messagesByThread[tid] || {};
+
+      // Load local vault first
+      // (messages stored as id = tid + '_' + msgId)
+
+      const ref = db.ref('private/messages/' + tid);
+      const handler = async (snap) => {
+        const val = snap.val() || {};
+        for (const id of Object.keys(val)) {
+          await ingestRemoteMessage(tid, id, val[id], false);
+        }
+        renderMessages();
+      };
+      ref.limitToLast(100).on('value', handler);
+      msgUnsub = () => ref.off('value', handler);
+
+      // also social path fallback
+      try {
+        db.ref('social/privateMessages/' + tid).limitToLast(100).on('child_added', async snap => {
+          await ingestRemoteMessage(tid, snap.key, snap.val(), false);
+          renderMessages();
+        });
+      } catch (_) {}
+    }
+
+    async function ingestRemoteMessage(tid, id, raw, fromP2P) {
+      if (!raw || !raw.ciphertext) return;
+      if (!messagesByThread[tid]) messagesByThread[tid] = {};
+      if (messagesByThread[tid][id] && messagesByThread[tid][id].text) return;
+
+      const fromMe = normalizeAddress(raw.from) === wallet;
+      const peerWallet = fromMe
+        ? (threads[tid] && threads[tid].peerWallet)
+        : normalizeAddress(raw.from);
+      let peerJwk = null;
+      if (peerWallet) peerJwk = await ensurePeerPubkey(peerWallet);
+
+      let text = null;
+      if (raw.cryptoVersion === 2 && raw.wrap) {
+        text = await decryptMessage(raw, fromMe, peerJwk || identity.publicJwk);
+      } else if (raw.plaintextLegacy) {
+        text = raw.plaintextLegacy; // should not exist
+      }
+
+      const msg = {
+        id,
+        from: raw.from,
+        to: raw.to,
+        text: text != null ? text : 'x No se pudo descifrar (falta clave del peer o mensaje corrupto)',
+        locked: text == null,
+        createdAt: raw.createdAt || Date.now(),
+        keyId: raw.keyId || '',
+        fromP2P: !!fromP2P,
+        algo: raw.algo || 'E2EE'
+      };
+      messagesByThread[tid][id] = msg;
+
+      // vault local (ciphertext + plaintext for owner device)
+      await idbPut(IDB_MSGS, {
+        id: tid + '_' + id,
+        threadId: tid,
+        ...raw,
+        decrypted: text,
+        vaultedAt: Date.now()
+      });
+
+      if (threads[tid]) threads[tid].lastAt = Math.max(threads[tid].lastAt || 0, msg.createdAt);
+      else if (peerWallet) {
+        threads[tid] = {
+          peerWallet,
+          peerName: (peers[safeKey(peerWallet)] && peers[safeKey(peerWallet)].username) || shortAddr(peerWallet),
+          lastAt: msg.createdAt
+        };
+      }
+    }
+
+    async function sendMessage() {
+      if (!activeThread || !allowed) return;
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const t = threads[activeThread];
+      if (!t) return;
+      const peerJwk = await ensurePeerPubkey(t.peerWallet);
+      if (!peerJwk) {
+        toast('Peer sin clave pública E2EE. Debe abrir Private primero.');
+        return;
+      }
+
+      document.getElementById('sendBtn').disabled = true;
+      try {
+        const enc = await encryptMessage(text, peerJwk);
+        const ref = db.ref('private/messages/' + activeThread).push();
+        const payload = {
+          id: ref.key,
+          from: wallet,
+          to: t.peerWallet,
+          fromUserKey: userKey,
+          toUserKey: safeKey(t.peerWallet),
+          createdAt: Date.now(),
+          serverAt: firebase.database.ServerValue.TIMESTAMP,
+          ...enc
+          // NO plaintext field
+        };
+
+        // Firebase (ciphertext only)
+        let wrote = await softWrite('private/messages/' + activeThread + '/' + ref.key, payload, 'set');
+        if (!wrote) {
+          wrote = await softWrite('social/privateMessages/' + activeThread + '/' + ref.key, payload, 'set');
+        }
+        if (!wrote) throw new Error('Firebase denegó escritura del mensaje cifrado');
+
+        // P2P broadcast same-origin tabs
+        if (bc) bc.postMessage({ type: 'private_msg', threadId: activeThread, msg: payload, from: userKey });
+
+        // Local optimistic decrypt
+        await ingestRemoteMessage(activeThread, ref.key, payload, true);
+        input.value = '';
+        autoSize(input);
+        renderMessages();
+        document.getElementById('pillKey').textContent = 'key ' + String(enc.keyId).slice(0, 8);
+        toast('Enviado · clave de un solo uso');
+
+        // Push notify peer (Vercel → FCM) even if app is closed
+        try {
+          if (window.MuzzPush && MuzzPush.notifyPrivateMessage) {
+            MuzzPush.notifyPrivateMessage(t.peerWallet, wallet, 'Encrypted message').catch(function () {});
+          }
+        } catch (_) {}
+      } catch (e) {
+        console.error(e);
+        toast('Error: ' + (e.message || e));
+      } finally {
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    /* """"""""""" UI """"""""""" */
+    function renderContacts() {
+      const list = document.getElementById('contactList');
+      // Merge threads + peers
+      const items = [];
+      Object.keys(threads).forEach(tid => {
+        items.push({ tid, ...threads[tid], kind: 'thread' });
+      });
+      Object.keys(peers).forEach(pk => {
+        const p = peers[pk];
+        const tid = threadId(wallet, p.wallet);
+        if (threads[tid]) return;
+        items.push({
+          tid,
+          peerWallet: p.wallet,
+          peerName: p.username,
+          lastAt: 0,
+          kind: 'peer',
+          hasKey: !!p.publicJwk
+        });
+      });
+      items.sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+
+      if (!items.length) {
+        list.innerHTML = '<div class="muted small">No hay peers aún. Abre un chat con una wallet 0x…</div>';
+        return;
+      }
+
+      list.innerHTML = items.map(it => {
+        const active = activeThread === it.tid ? 'active' : '';
+        const init = String(it.peerName || 'P').slice(0, 2).toUpperCase();
+        return `
+          <button class="contact ${active}" data-tid="${escapeHtml(it.tid)}" data-w="${escapeHtml(it.peerWallet)}" data-n="${escapeHtml(it.peerName || '')}">
+            <div class="avatar">${escapeHtml(init)}</div>
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:800;font-size:13px">${escapeHtml(it.peerName || shortAddr(it.peerWallet))}</div>
+              <div class="muted small">${escapeHtml(shortAddr(it.peerWallet))} ${it.hasKey === false ? '· sin clave' : '· E2EE'}</div>
+            </div>
+            <span class="status-dot ${it.kind === 'peer' && !it.hasKey ? 'off' : ''}"></span>
+          </button>`;
+      }).join('');
+
+      list.querySelectorAll('.contact').forEach(btn => {
+        btn.onclick = () => {
+          closeChatsDrawer();
+          openThread(btn.getAttribute('data-w'), btn.getAttribute('data-n'));
+        };
+      });
+    }
+
+    function renderHeader() {
+      if (!activeThread || !threads[activeThread]) {
+        document.getElementById('peerTitle').textContent = 'Select a chat';
+        document.getElementById('peerSub').textContent = 'P2P E2EE · key rotates every message';
+        document.getElementById('peerAvatar').textContent = '?';
+        return;
+      }
+      const t = threads[activeThread];
+      document.getElementById('peerTitle').textContent = t.peerName || shortAddr(t.peerWallet);
+      document.getElementById('peerSub').textContent = shortAddr(t.peerWallet) + ' · AES key per message';
+      document.getElementById('peerAvatar').textContent = String(t.peerName || 'P').slice(0, 2).toUpperCase();
+    }
+
+    function renderMessages() {
+      const box = document.getElementById('messages');
+      if (!activeThread) {
+        box.innerHTML = '<div class="empty">Abre un chat con una wallet 0x…<br>Los mensajes se cifran con clave única por envío.</div>';
+        return;
+      }
+      const map = messagesByThread[activeThread] || {};
+      const arr = Object.values(map).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      if (!arr.length) {
+        box.innerHTML = '<div class="empty">Sin mensajes. Todo lo que envíes va cifrado E2EE.<br><span class="small">Clave AES nueva en cada envío · wrap ECDH</span></div>';
+        return;
+      }
+      box.innerHTML = '<div class="day">ENCRYPTED THREAD</div>' + arr.map(m => {
+        const mine = normalizeAddress(m.from) === wallet;
+        return `
+          <div class="msg-wrap ${mine ? 'me' : ''}">
+            <div>
+              <div class="bubble">${escapeHtml(m.text)}</div>
+              <div class="meta">
+                <span>${fmtTime(m.createdAt)}</span>
+                <span>${m.locked ? 'x' : 'x'}</span>
+                ${m.keyId ? '<span>#' + escapeHtml(String(m.keyId).slice(0, 8)) + '</span>' : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function autoSize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    }
+
+    /* """"""""""" BOOT """"""""""" */
+    async function boot() {
+      if (window.MuzzShell) {
+        try { MuzzShell.renderNav('private'); } catch (e) { console.warn(e); }
+      }
+      document.getElementById('meName').textContent = meName;
+      document.getElementById('meAvatar').textContent = String(meName).slice(0, 2).toUpperCase();
+      document.getElementById('meSub').textContent = isAdmin
+        ? 'Admin · ' + shortAddr(wallet)
+        : shortAddr(wallet) + (muzzBalance ? ' · ' + Math.floor(muzzBalance).toLocaleString() + ' MUZZ' : '');
+
+      showGate(); // logo loading
+      const ok = await verifyAccess();
+      if (!ok) return;
+
+      showGate(); // sigue logo mientras Firebase / E2EE
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+        const cred = await firebase.auth().signInAnonymously();
+        fbUid = cred.user.uid;
+
+        await ensureIdentity();
+        await publishPubkey();
+        initBroadcast();
+        await loadPeerDirectory();
+
+        // Presence
+        await softWrite('private/online/' + userKey, {
+          wallet, username: meName, at: Date.now(), uid: fbUid
+        }, 'set');
+        try { db.ref('private/online/' + userKey).onDisconnect().remove(); } catch (_) {}
+
+        hideGate();
+        document.getElementById('pillE2EE').classList.add('ok');
+        document.getElementById('pillE2EE').textContent = 'E2EE ready';
+        toast('Private listo · E2EE P2P · clave por mensaje');
+        renderContacts();
+        renderHeader();
+
+        // Register for background push (Vercel → FCM)
+        try {
+          if (window.MuzzPush && wallet) {
+            var wantDebug = /(?:\?|&)pushdebug=1(?:&|$)/.test(String(location.search || ''));
+            if (wantDebug && MuzzPush.selfTest) {
+              MuzzPush.selfTest(wallet).then(function (r) {
+                console.log('[MuzzPush] selfTest', r);
+                try {
+                  toast(r && r.ok
+                    ? 'Push OK · revisa la notificación'
+                    : ('Push fail · ' + ((r && r.push && r.push.reason) || (r && r.reg && r.reg.reason) || 'ver consola')));
+                } catch (_) {}
+              }).catch(function (e) { console.warn('[MuzzPush] selfTest', e); });
+            } else if (MuzzPush.register) {
+              MuzzPush.register(wallet).then(function (r) {
+                if (r && r.ok) console.log('[MuzzPush] registered');
+                else console.warn('[MuzzPush]', r && r.reason);
+              }).catch(function (e) { console.warn('[MuzzPush]', e); });
+            }
+          }
+        } catch (_) {}
+      } catch (e) {
+        console.error(e);
+        showGate('Error iniciando Private: ' + (e.message || e));
+      }
+    }
+
+    document.getElementById('gateRetry').onclick = () => boot();
+    document.getElementById('openDrawerBtn').onclick = openChatsDrawer;
+    document.getElementById('openDrawerBtn2').onclick = openChatsDrawer;
+    document.getElementById('drawerCloseBtn').onclick = closeChatsDrawer;
+    document.getElementById('drawerBackdrop').onclick = closeChatsDrawer;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeChatsDrawer();
+    });
+    document.getElementById('startChatBtn').onclick = () => {
+      const w = document.getElementById('peerInput').value.trim();
+      openThread(w);
+    };
+    document.getElementById('sendBtn').onclick = sendMessage;
+    document.getElementById('messageInput').addEventListener('input', e => autoSize(e.target));
+    document.getElementById('messageInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    if (window.MuzzEmoji) MuzzEmoji.init();
+    boot();
+  })();
+  </script>
+</body>
+</html>
+

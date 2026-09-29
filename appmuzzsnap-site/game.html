@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MuzzSnap · MUZZ Galaxy</title>
+  <meta name="theme-color" content="#04040c" />
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <style>
+    :root{--bg:#04040c;--line:rgba(0,232,255,.22);--text:#e8f7ff;--muted:rgba(200,230,255,.55);--c:#00e8ff;--m:#ff2d9b}
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    html,body{height:100%;width:100%;margin:0;font-family:Rajdhani,Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+    .layout{display:grid;grid-template-columns:280px minmax(0,1fr);height:100dvh;width:100%;max-width:none;margin:0;gap:0}
+    .side{border-right:1px solid var(--line);background:rgba(8,10,24,.95);overflow:auto;height:100dvh}
+    .main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(12,14,28,.9)}
+    .bar h1{margin:0;font-size:16px;letter-spacing:.12em;text-transform:uppercase}
+    .bar h1 span{color:var(--m)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{border:1px solid var(--line);background:rgba(0,232,255,.08);color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;font:inherit;font-weight:700;font-size:12px;text-decoration:none}
+    .btn.primary{background:linear-gradient(135deg,var(--c),var(--m));border:none;color:#041018}
+    iframe{flex:1;width:100%;border:0;background:#04040c;min-height:0}
+    .hint{padding:10px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.side{display:none}}
+  </style>
+</head>
+<body>
+  <div class="layout muzz-desktop-app">
+    <aside class="side" id="muzzNavMount"></aside>
+    <main class="main">
+      <div class="bar">
+        <h1>MUZZ <span>GALAXY</span></h1>
+        <div class="actions">
+          <a class="btn" id="backSocial" href="social.html">  Social</a>
+          <a class="btn primary" id="openFull" target="_blank" rel="noopener">Abrir pantalla completa</a>
+        </div>
+      </div>
+      <div class="hint">Juego embebido desde <code>/MUZZ-GALAXY/www/</code>. Misma sesión wallet del hub.</div>
+      <iframe id="gameFrame" title="MUZZ GALAXY" allow="autoplay; fullscreen; gamepad"></iframe>
+    </main>
+  </div>
+  <script>
+    var session = MuzzShell.renderNav('game');
+    if (!session) { /* redirected */ }
+    else {
+      var src = MuzzShell.PATHS.galaxy + (location.search || '');
+      document.getElementById('gameFrame').src = src;
+      document.getElementById('openFull').href = src;
+      document.getElementById('backSocial').href = MuzzShell.PATHS.social;
+    }
+  </script>
+</body>
+</html>
+

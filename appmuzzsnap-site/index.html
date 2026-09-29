@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MuzzSnap | Login</title>
+  <meta name="theme-color" content="#050505" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="muzzle-username/web/config.js"></script>
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-id.js"></script>
+  <script src="js/muzz-id-mint.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-metamask-bridge.js"></script>
+  <script src="js/muzz-push.js"></script>
+  <script>
+    (function () {
+      try {
+        var firebaseConfig = {
+          apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+          authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+          databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+          projectId: atob('cHVsc2FyaQ=='),
+          appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+        };
+        if (typeof firebase !== 'undefined' && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;800&family=Fira+Code:wght@500&display=swap');
+    :root{
+      --bg:#050505; --red:#ff1f1f; --line:rgba(255,255,255,.1);
+      --muted:#8b93a3; --ok:#4ade80; --bad:#f87171;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;min-height:100vh;display:grid;place-items:center;
+      background:
+        radial-gradient(700px 380px at 50% 18%, rgba(255,30,30,.16), transparent 60%),
+        var(--bg);
+      color:#fff;font-family:Inter,system-ui,sans-serif;padding:24px;
+    }
+    .stage{width:min(400px,100%);text-align:center}
+    .lang{display:flex;gap:8px;justify-content:center;margin-bottom:28px}
+    .lang button{
+      border:1px solid var(--line);background:transparent;color:var(--muted);
+      border-radius:999px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer;
+    }
+    .lang button.active{color:#fff;border-color:rgba(255,31,31,.45);background:rgba(255,31,31,.12)}
+
+    .logo-wrap{
+      position:relative;width:168px;height:168px;margin:0 auto 22px;
+    }
+    .pulse-ring{
+      position:absolute;inset:0;border-radius:38px;
+      border:1px solid rgba(255,31,31,.35);
+      animation:pulseRing 1.6s ease-out infinite;
+      pointer-events:none;
+    }
+    .pulse-ring.d2{animation-delay:.8s}
+    @keyframes pulseRing{
+      0%{transform:scale(.92);opacity:.7}
+      100%{transform:scale(1.28);opacity:0}
+    }
+    .logo{
+      position:relative;z-index:1;width:168px;height:168px;border-radius:38px;
+      display:grid;place-items:center;font-size:64px;overflow:hidden;
+      background:linear-gradient(145deg,#ff3b3b,#7a0000 60%,#2b0000);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 0 40px rgba(255,20,20,.28), 0 18px 50px rgba(0,0,0,.45);
+      animation:heartbeat 1.35s ease-in-out infinite;
+    }
+    .logo img{width:100%;height:100%;object-fit:cover;border-radius:38px}
+    @keyframes heartbeat{
+      0%,100%{transform:scale(1)}
+      14%{transform:scale(1.045)}
+      28%{transform:scale(1)}
+      42%{transform:scale(1.03)}
+      56%{transform:scale(1)}
+    }
+
+    .brand{
+      font-family:Orbitron,sans-serif;font-weight:900;font-style:italic;
+      letter-spacing:-.04em;font-size:28px;margin:0 0 28px;
+    }
+    .brand span{color:var(--red)}
+
+    .actions{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto;max-width:320px;
+    }
+    .btn{
+      border:1px solid rgba(255,31,31,.35);background:rgba(255,31,31,.12);
+      color:#fff;border-radius:14px;padding:12px 10px;cursor:pointer;
+      font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+      transition:.15s ease;
+    }
+    .btn:hover{background:rgba(255,31,31,.2);transform:translateY(-1px)}
+    .btn.ghost{
+      background:rgba(255,255,255,.03);border-color:var(--line);color:#dbe2ee;
+    }
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+    .panel{
+      display:none;margin-top:18px;text-align:left;
+      background:rgba(255,255,255,.03);border:1px solid var(--line);
+      border-radius:18px;padding:14px;
+    }
+    .panel.show{display:block;animation:fade .25s ease}
+    @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .panel h3{margin:0 0 8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+    .mint-row{display:flex;align-items:center;gap:8px}
+    .mint-row .at{color:var(--red);font-weight:900}
+    .mint-row input{
+      flex:1;border:1px dashed rgba(255,31,31,.3);background:rgba(0,0,0,.28);
+      color:#4ade80;border-radius:12px;padding:12px;outline:none;
+      font-family:'Fira Code',monospace;font-size:13px;
+    }
+    .hint{margin:10px 0 0;font-size:11px;color:var(--muted);min-height:1.2em;line-height:1.4}
+    .hint.ok{color:var(--ok)}.hint.bad{color:var(--bad)}
+    .secure{margin-top:10px;font-size:10px;color:#6b7280;line-height:1.45}
+    .loading{
+      display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);
+      align-items:center;justify-content:center;z-index:20;
+    }
+    .loading.show{display:flex}
+    .spin2{width:42px;height:42px;border-radius:50%;border:3px solid transparent;border-top-color:#fff;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .foot{margin-top:22px;font-size:9px;color:#374151;letter-spacing:.16em;text-transform:uppercase;font-family:'Fira Code',monospace}
+  </style>
+</head>
+<body>
+  <div class="loading" id="loadingUI"><div class="spin2"></div></div>
+
+  <div class="stage">
+    <div class="lang">
+      <button type="button" data-set-lang="es" class="active">ES</button>
+      <button type="button" data-set-lang="en">EN</button>
+    </div>
+
+    <div class="logo-wrap" aria-hidden="true">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring d2"></div>
+      <div class="logo" id="logoBox">👻</div>
+    </div>
+
+    <h1 class="brand">MUZZ<span>SNAP</span></h1>
+
+    <div class="actions">
+      <button class="btn" id="btnEnter" type="button">Enter</button>
+      <button class="btn ghost" id="btnMintOpen" type="button">Mint Username</button>
+    </div>
+
+    <!-- ENTER: 2M MUZZ verify -->
+    <div class="panel" id="enterPanel">
+      <h3>Enter · Secure gate</h3>
+      <p class="hint" style="margin-top:0">MetaMask signature + ≥ 2,000,000 MUZZ on contract <code style="color:#fca5a5">0xef3d…B8f0</code></p>
+      <button class="btn" id="btnVerify" type="button" style="width:100%;margin-top:10px">Verify wallet & enter</button>
+      <p class="hint" id="enterHint"></p>
+      <div class="secure">No guest. Signature + nonce/timestamp (24h). Mainnet balance check. Duplicate/fake login blocked.</div>
+    </div>
+
+    <!-- MINT USERNAME -->
+    <div class="panel" id="mintPanel">
+      <h3>Mint Username · MuzzID</h3>
+      <div class="mint-row">
+        <span class="at">@</span>
+        <input id="mintInput" maxlength="64" placeholder="YourName" autocomplete="off" />
+      </div>
+      <button class="btn" id="mintBtn" type="button" style="width:100%;margin-top:10px">Mint MuzzID</button>
+      <p class="hint" id="mintHint">Basic ≈ $2 · Premium ≈ $4 · 100% to dead</p>
+      <div class="secure">Same mint engine as Social. After mint, signature seals entry. Hardhat demo for NFT mint.</div>
+    </div>
+
+    <div class="foot">MuzzleToken · Secure Access</div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    // Always enter the original Social page (user's own sidebar). No app.html shell.
+    function hubUrl() {
+      var host = String(location.hostname || '');
+      if (/\.vercel\.app$/i.test(host) || /muzzsnap\.com$/i.test(host)) {
+        return '/social';
+      }
+      return './social.html';
+    }
+    var SOCIAL = hubUrl();
+    var $ = function (id) { return document.getElementById(id); };
+
+    function tip(el, msg, ok) {
+      el.textContent = msg || '';
+      el.className = 'hint' + (ok === true ? ' ok' : ok === false ? ' bad' : '');
+    }
+    function loading(on) { $('loadingUI').classList.toggle('show', !!on); }
+    function showPanel(which) {
+      $('enterPanel').classList.toggle('show', which === 'enter');
+      $('mintPanel').classList.toggle('show', which === 'mint');
+    }
+
+    // Logo
+    (function () {
+      var img = new Image();
+      img.onload = function () {
+        var box = $('logoBox');
+        box.style.backgroundImage = 'url("' + img.src + '")';
+        box.style.backgroundSize = 'cover';
+        box.textContent = '';
+      };
+      img.src = 'https://img1.wsimg.com/isteam/ip/ac9578cb-a6ce-417e-8ad5-b2d6701462eb/1000030902.png/:/rs=w:400,h:400';
+    })();
+
+    // Lang
+    if (window.MuzzI18n) {
+      document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-set-lang') === MuzzI18n.getLang());
+        b.onclick = function () {
+          MuzzI18n.setLang(b.getAttribute('data-set-lang'));
+          document.querySelectorAll('[data-set-lang]').forEach(function (x) {
+            x.classList.toggle('active', x.getAttribute('data-set-lang') === MuzzI18n.getLang());
+          });
+          var es = MuzzI18n.getLang() === 'es';
+          $('btnEnter').textContent = es ? 'Entrar' : 'Enter';
+          $('btnMintOpen').textContent = es ? 'Crear username' : 'Mint Username';
+        };
+      });
+      if (MuzzI18n.getLang() === 'es') {
+        $('btnEnter').textContent = 'Entrar';
+        $('btnMintOpen').textContent = 'Crear username';
+      }
+    }
+
+    if (window.MuzzAuthGate && MuzzAuthGate.canEnterHub().ok) {
+      location.href = SOCIAL;
+      return;
+    }
+
+    async function finishFromDeepLink(payload) {
+      if (!payload || !window.MuzzAuthGate) return;
+      showPanel('enter');
+      loading(true);
+      tip($('enterHint'), 'Signature received · checking MUZZ…');
+      try {
+        if (!MuzzAuthGate.verifyAuthLocal(payload, payload.address)) {
+          if (window.ethers && ethers.utils && ethers.utils.verifyMessage) {
+            var recovered = ethers.utils.verifyMessage(payload.message, payload.signature);
+            if (String(recovered).toLowerCase() !== String(payload.address).toLowerCase()) {
+              throw new Error('Signature mismatch');
+            }
+          }
+        }
+        sessionStorage.setItem('muzz_auth', JSON.stringify(payload));
+        sessionStorage.setItem('muzz_login_method', 'wallet_signed');
+        sessionStorage.setItem('muzz_wallet_address', payload.address);
+        tip($('enterHint'), 'Reading MUZZ on contract…');
+        var balInfo = await MuzzAuthGate.readMainnetMuzzBalance(payload.address);
+        if (!(balInfo.human >= MuzzAuthGate.MIN_MUZZ)) {
+          MuzzAuthGate.clearSessionSoft();
+          throw new Error('Need ≥ ' + MuzzAuthGate.MIN_MUZZ.toLocaleString() + ' MUZZ. Balance: ' + Math.floor(balInfo.human).toLocaleString());
+        }
+        sessionStorage.setItem('muzz_token_balance', String(balInfo.human));
+        sessionStorage.setItem('muzz_social_gate', 'ok');
+        sessionStorage.setItem('muzz_entry_path', 'muzz_2m');
+        sessionStorage.setItem('muzz_gate_checked_at', String(Date.now()));
+        tip($('enterHint'), 'OK · ' + Math.floor(balInfo.human).toLocaleString() + ' MUZZ · entering…', true);
+        setTimeout(function () { location.href = SOCIAL; }, 500);
+      } catch (e) {
+        tip($('enterHint'), e.message || String(e), false);
+      } finally {
+        loading(false);
+      }
+    }
+
+    // Capacitor deep-link return from MetaMask
+    try {
+      if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App && Capacitor.Plugins.App.addListener) {
+        Capacitor.Plugins.App.addListener('appUrlOpen', function (event) {
+          var payload = window.MuzzMetaMaskBridge && MuzzMetaMaskBridge.parseAuthUrl(event && event.url);
+          if (payload) finishFromDeepLink(payload);
+        });
+        Capacitor.Plugins.App.getLaunchUrl && Capacitor.Plugins.App.getLaunchUrl().then(function (res) {
+          var payload = window.MuzzMetaMaskBridge && MuzzMetaMaskBridge.parseAuthUrl(res && res.url);
+          if (payload) finishFromDeepLink(payload);
+        }).catch(function () {});
+      }
+    } catch (_) {}
+
+    $('btnEnter').onclick = function () {
+      showPanel('enter');
+      tip($('enterHint'), 'Opening MetaMask…');
+      // One tap: start verify (desktop extension or APK bridge)
+      setTimeout(function () {
+        try { $('btnVerify').click(); } catch (_) {}
+      }, 200);
+    };
+
+    $('btnMintOpen').onclick = function () {
+      showPanel('mint');
+      tip($('mintHint'), 'Basic ≈ $2 · Premium ≈ $4 · 100% to dead');
+    };
+
+    $('btnVerify').onclick = async function () {
+      if (!window.MuzzAuthGate) {
+        tip($('enterHint'), 'Auth module missing', false);
+        return;
+      }
+      loading(true);
+      $('btnVerify').disabled = true;
+      try {
+        var res = await MuzzAuthGate.verifyMuzzGate(function (s) { tip($('enterHint'), s); });
+        tip($('enterHint'), 'OK · ' + Math.floor(res.balance).toLocaleString() + ' MUZZ · entering…', true);
+        setTimeout(function () { location.href = SOCIAL; }, 600);
+      } catch (e) {
+        var msg = e.reason || e.message || String(e);
+        if (/user rejected|4001/i.test(msg)) msg = 'Cancelled in MetaMask';
+        // MetaMask heuristic warnings are not app errors — keep tip calm
+        if (/phishing|deceptive|vaciar|drain|malicious|security alert/i.test(msg)) {
+          msg = 'MetaMask showed a security notice. If you trust this site, continue in MetaMask and press Enter again.';
+        }
+        tip($('enterHint'), msg, false);
+      } finally {
+        loading(false);
+        $('btnVerify').disabled = false;
+      }
+    };
+
+    $('mintInput').addEventListener('input', function () {
+      var u = $('mintInput').value.trim();
+      if (!window.MuzzIDMint) return;
+      tip($('mintHint'), !u ? 'Basic ≈ $2 · Premium ≈ $4 · 100% to dead' : (MuzzIDMint.isPremium(u) ? 'Premium ≈ $4' : 'Basic ≈ $2'));
+    });
+
+    $('mintBtn').onclick = async function () {
+      if (!window.MuzzIDMint || !window.MuzzAuthGate) {
+        tip($('mintHint'), 'Modules missing', false);
+        return;
+      }
+      var u = $('mintInput').value.trim();
+      if (!u) {
+        tip($('mintHint'), 'Enter a username', false);
+        return;
+      }
+      loading(true);
+      $('mintBtn').disabled = true;
+      try {
+        var res = await MuzzIDMint.mintUsername(u, {
+          onStatus: function (s) { tip($('mintHint'), s); }
+        });
+        tip($('mintHint'), 'Minted @' + res.username + ' · sealing entry…', true);
+        await MuzzAuthGate.sealMuzzIdEntry(res.address, function (s) { tip($('mintHint'), s); });
+        tip($('mintHint'), 'Access granted via MuzzID', true);
+        setTimeout(function () { location.href = SOCIAL; }, 700);
+      } catch (e) {
+        var msg = e.reason || e.message || String(e);
+        if (/Hardhat|ECONNREFUSED|8545/i.test(msg)) msg = 'Hardhat off. Run ARREGLAR-Y-ABRIR-MUZZID.bat';
+        if (/user rejected|4001/i.test(msg)) msg = 'Cancelled in MetaMask';
+        tip($('mintHint'), msg, false);
+      } finally {
+        loading(false);
+        $('mintBtn').disabled = false;
+      }
+    };
+  })();
+  </script>
+</body>
+</html>

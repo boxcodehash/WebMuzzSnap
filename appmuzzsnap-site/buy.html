@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MuzzSnap · Buy MUZZ</title>
+  <meta name="theme-color" content="#111418" />
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <style>
+    :root{--bg:#20262d;--line:rgba(255,255,255,.08);--text:#eef2f7;--muted:#93a0b3;--red:#ff2b2b;--green:#4ade80}
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    html,body{height:100%;width:100%;margin:0;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at top right,rgba(255,43,43,.1),transparent 28%),var(--bg);color:var(--text)}
+    .layout{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100dvh;height:100dvh;width:100%;max-width:none;margin:0;gap:0}
+    .side{border-right:1px solid var(--line);background:rgba(18,23,29,.96);height:100dvh;overflow:auto}
+    .main{padding:28px 36px;overflow:auto;height:100dvh}
+    .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+    .card{border:1px solid var(--line);border-radius:20px;padding:18px;background:rgba(18,23,29,.85)}
+    h1{margin:0 0 8px;font-size:22px;font-style:italic} h1 span{color:var(--red)}
+    p{color:var(--muted);line-height:1.5}
+    code{color:#fca5a5;word-break:break-all;font-size:12px}
+    .btn{display:inline-block;margin-top:12px;padding:12px 16px;border-radius:14px;background:linear-gradient(145deg,#ff3d3d,#b10f0f);color:#fff;font-weight:800;text-decoration:none;border:none;cursor:pointer}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text)}
+    .ok{color:var(--green)}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.side{display:none}}
+  </style>
+</head>
+<body>
+  <div class="layout muzz-desktop-app">
+    <aside class="side" id="muzzNavMount"></aside>
+    <main class="main">
+      <h1>Buy <span>MUZZ</span></h1>
+      <p>Contrato MuzzleToken (Ethereum):</p>
+      <p><code id="contract">0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0</code></p>
+      <div class="grid" style="margin-top:18px">
+        <div class="card">
+          <h3 style="margin:0 0 8px">Uniswap / DEX</h3>
+          <p>Compra MUZZ en Ethereum mainnet y vuelve a Social / Private (gate 2M).</p>
+          <a class="btn" target="_blank" rel="noopener"
+             href="https://app.uniswap.org/swap?outputCurrency=0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0">Open Uniswap</a>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 8px">Etherscan</h3>
+          <p>Ver contrato, holders y liquidity.</p>
+          <a class="btn ghost" target="_blank" rel="noopener"
+             href="https://etherscan.io/token/0xef3daa5fda8ad7aabff4658f1f78061fd626b8f0">Token page</a>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 8px">Tu sesión</h3>
+          <p id="sess"></p>
+          <a class="btn ghost" href="social.html" id="toSocial">Ir a Social</a>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 8px">Add token to MetaMask</h3>
+          <p>Symbol <b>MUZZ</b> · 18 decimals</p>
+          <button class="btn" id="addToken">Add MUZZ</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    var session = MuzzShell.renderNav('buy');
+    if (session) {
+      document.getElementById('sess').innerHTML =
+        (session.guest ? 'Guest' : 'Wallet') + ': <span class="ok">' +
+        (session.guest ? session.username : MuzzShell.shortAddr(session.wallet)) +
+        '</span><br>Balance cache: ' + (session.balance ? Math.floor(session.balance).toLocaleString() + ' MUZZ' : '');
+      document.getElementById('toSocial').href = MuzzShell.PATHS.social;
+    }
+    document.getElementById('addToken').onclick = async function () {
+      if (!window.ethereum) { alert('MetaMask no detectado'); return; }
+      try {
+        await window.ethereum.request({
+          method: 'wallet_watchAsset',
+          params: {
+            type: 'ERC20',
+            options: {
+              address: '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
+              symbol: 'MUZZ',
+              decimals: 18
+            }
+          }
+        });
+      } catch (e) {
+        alert(e.message || e);
+      }
+    };
+  </script>
+</body>
+</html>
+

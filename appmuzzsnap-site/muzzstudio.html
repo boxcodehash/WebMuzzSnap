@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MuzzSnap · MuzzStudio LIVE</title>
+  <meta name="theme-color" content="#0a0d14" />
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script src="js/muzz-studio-embed.js?v=src-x-fix-3"></script>
+  <style>
+    :root{--bg:#0a0d14;--line:rgba(255,255,255,.1);--text:#eef2f7;--muted:#93a0b3;--red:#ff2b2b}
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none}
+    html,body{height:100%;width:100%;margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;font-size:14pt}
+    .layout{display:grid;grid-template-columns:260px minmax(0,1fr);height:100dvh;width:100%;gap:0}
+    .side{border-right:1px solid var(--line);background:rgba(12,16,24,.98);overflow:auto;height:100dvh}
+    .main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh}
+    .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:rgba(8,12,20,.95)}
+    .bar h1{margin:0;font-size:15px;font-style:italic;font-weight:900}
+    .bar h1 span{color:var(--red)}
+    .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;font:inherit;font-weight:700;font-size:12px;text-decoration:none}
+    .btn.primary{background:linear-gradient(145deg,#ff3d3d,#b10f0f);border:none;color:#fff}
+    .sess{font-size:11px;color:var(--muted)}
+    .hint{padding:8px 16px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);background:rgba(0,0,0,.2)}
+    iframe{flex:1;width:100%;height:100%;border:0;min-height:0;background:#05070d;display:block}
+
+    @media(max-width:1100px){
+      .layout{grid-template-columns:1fr}
+      .side{display:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="layout muzz-desktop-app">
+    <aside class="side" id="muzzNavMount"></aside>
+    <main class="main">
+      <div class="bar">
+        <h1>MUZZ<span>STUDIO</span> LIVE</h1>
+        <div class="actions">
+          <span class="sess" id="sessInfo"></span>
+          <a class="btn" href="social.html" id="backSocial">← Social</a>
+          <button class="btn primary" type="button" id="openDesktop">Open Desktop App</button>
+        </div>
+      </div>
+      <div class="hint" id="studioHint">
+        Abajo: <b>Audio</b> | <b>Sources</b>. Usa <b>+ Source</b>, haz click en una source para verla en Live, y <b>✕</b> para cerrar cámara/pantalla.
+      </div>
+      <iframe id="studioFrame" title="MuzzStudio LIVE" allow="camera; microphone; display-capture; autoplay; fullscreen" allowfullscreen></iframe>
+    </main>
+  </div>
+  <script>
+    var session = MuzzShell.renderNav('studio');
+    if (session) {
+      document.getElementById('sessInfo').textContent =
+        MuzzShell.shortAddr(session.wallet) +
+        (session.balance ? (' · ' + Math.floor(session.balance).toLocaleString() + ' MUZZ') : '');
+      document.getElementById('backSocial').href = MuzzShell.PATHS.social;
+
+      var frame = document.getElementById('studioFrame');
+      frame.src = 'studio-embed-host.html?t=' + Date.now();
+
+      frame.addEventListener('load', function () {
+        setTimeout(function () {
+          try {
+            var inner = frame.contentDocument && frame.contentDocument.getElementById('f');
+            if (inner && window.MuzzStudioEmbed) {
+              MuzzStudioEmbed.bind(inner);
+              MuzzStudioEmbed.inject(inner);
+            }
+          } catch (e) { console.warn(e); }
+        }, 800);
+      });
+
+      document.getElementById('openDesktop').onclick = function () {
+        fetch('/muzzocial/api/launch-studio', { method: 'POST' }).then(function (r) {
+          if (!r.ok) throw new Error('launch failed');
+          document.getElementById('studioHint').textContent = 'Desktop MuzzStudio launching…';
+        }).catch(function () {
+          alert('Open manually:\nD:\\streamingsoftware\\MuzzStudio-LIVE\\START.bat');
+        });
+      };
+    }
+  </script>
+</body>
+</html>

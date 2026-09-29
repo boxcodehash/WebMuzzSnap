@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#050507" />
+  <meta name="description" content="MuzzSnap + MuzzleToken interactive Web3 whitepaper: privacidad, chat, social, games, staking, wallet crypto y MuzzStudio." />
+  <title>MuzzSnap + MuzzleToken | Web3 Interactive Whitepaper</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#050507;
+      --bg2:#0b0b12;
+      --panel:rgba(18,18,28,.72);
+      --panel2:rgba(255,255,255,.055);
+      --line:rgba(255,255,255,.12);
+      --red:#ff1e2d;
+      --red2:#ff4150;
+      --cyan:#00d9ff;
+      --mag:#d600ff;
+      --green:#00ff88;
+      --gold:#ffd166;
+      --txt:#f4f7fb;
+      --muted:#a9b0c3;
+      --shadow:0 0 35px rgba(255,30,45,.18), 0 0 80px rgba(0,217,255,.08);
+      --radius:28px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{
+      font-family:'Rajdhani',system-ui,sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(255,30,45,.17), transparent 34%),
+        radial-gradient(circle at 85% 8%, rgba(0,217,255,.13), transparent 28%),
+        radial-gradient(circle at 50% 90%, rgba(214,0,255,.12), transparent 35%),
+        linear-gradient(180deg,#050507 0%,#090912 42%,#050507 100%);
+      color:var(--txt);
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    body:before{
+      content:"";
+      position:fixed;inset:0;
+      pointer-events:none;z-index:-3;
+      background-image:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size:54px 54px;
+      mask-image:linear-gradient(to bottom, transparent, #000 12%, #000 80%, transparent);
+    }
+
+    body:after{
+      content:"";
+      position:fixed;inset:0;pointer-events:none;z-index:-2;
+      background:
+        linear-gradient(120deg, transparent 0 45%, rgba(255,30,45,.055) 47%, transparent 50%),
+        linear-gradient(60deg, transparent 0 56%, rgba(0,217,255,.045) 58%, transparent 61%);
+      animation:scan 8s linear infinite;
+      opacity:.8;
+    }
+    @keyframes scan{0%{transform:translateX(-8%)}100%{transform:translateX(8%)}}
+
+    .particles{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+    .p{position:absolute;width:3px;height:3px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan);opacity:.45;animation:float 11s linear infinite}
+    .p:nth-child(2n){background:var(--red);box-shadow:0 0 14px var(--red);animation-duration:15s}
+    .p:nth-child(3n){background:var(--mag);box-shadow:0 0 14px var(--mag);animation-duration:18s}
+    @keyframes float{from{transform:translateY(110vh) scale(.55);opacity:.05}50%{opacity:.75}to{transform:translateY(-10vh) scale(1.2);opacity:.02}}
+
+    a{color:inherit;text-decoration:none}
+    .wrap{width:min(1180px,92vw);margin:auto}
+    .nav{
+      position:sticky;top:0;z-index:40;
+      backdrop-filter:blur(18px);
+      background:rgba(5,5,7,.72);
+      border-bottom:1px solid var(--line);
+    }
+    .navin{height:76px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .brand{display:flex;align-items:center;gap:12px;font-family:'Orbitron';font-weight:900;letter-spacing:.08em}
+    .logo{
+      width:46px;height:46px;border-radius:16px;
+      background:
+        radial-gradient(circle at center, #000 0 28%, transparent 30%),
+        conic-gradient(from 10deg,var(--red),#7a0010,var(--cyan),var(--red));
+      box-shadow:0 0 26px rgba(255,30,45,.45), inset 0 0 22px rgba(0,0,0,.9);
+      position:relative;
+    }
+    .logo:after{content:"";position:absolute;inset:11px;border:2px solid rgba(255,255,255,.22);border-radius:50%}
+    .navlinks{display:flex;gap:18px;align-items:center;font-weight:700;color:var(--muted)}
+    .navlinks a{transition:.25s}
+    .navlinks a:hover{color:#fff;text-shadow:0 0 14px var(--cyan)}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;
+      border:1px solid rgba(255,255,255,.15);
+      background:linear-gradient(135deg,rgba(255,30,45,.9),rgba(214,0,255,.45));
+      color:#fff;font-weight:900;letter-spacing:.04em;
+      padding:13px 20px;border-radius:999px;
+      box-shadow:0 0 24px rgba(255,30,45,.32);
+      cursor:pointer;transition:.25s;
+    }
+    .btn:hover{transform:translateY(-2px);box-shadow:0 0 34px rgba(0,217,255,.3),0 0 28px rgba(255,30,45,.35)}
+    .btn.secondary{background:rgba(255,255,255,.06);box-shadow:none}
+
+    .hero{position:relative;min-height:calc(100vh - 76px);display:grid;place-items:center;padding:70px 0 48px}
+    .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:42px;align-items:center}
+    .eyebrow{
+      display:inline-flex;align-items:center;gap:10px;
+      padding:9px 14px;border:1px solid rgba(0,217,255,.25);
+      background:rgba(0,217,255,.07);border-radius:999px;
+      color:#c7f7ff;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
+      box-shadow:0 0 22px rgba(0,217,255,.08);
+    }
+    h1,h2,h3{font-family:'Orbitron',system-ui,sans-serif}
+    h1{
+      font-size:clamp(42px,7vw,92px);line-height:.92;margin:22px 0;
+      letter-spacing:-.05em;text-transform:uppercase;
+      text-shadow:0 0 40px rgba(255,30,45,.22);
+    }
+    .grad{
+      background:linear-gradient(90deg,#fff,var(--cyan),var(--red2),#fff);
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .hero p{font-size:clamp(20px,2vw,27px);color:var(--muted);line-height:1.25;max-width:760px}
+    .hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:34px}
+    .stat,.card{
+      border:1px solid var(--line);
+      background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(16px);
+    }
+    .stat{padding:18px}
+    .stat b{display:block;font-family:'Orbitron';font-size:22px;color:#fff}
+    .stat span{color:var(--muted);font-weight:700}
+
+    .orbital{
+      position:relative;min-height:580px;border-radius:42px;
+      background:
+        radial-gradient(circle at center,rgba(255,30,45,.22),transparent 24%),
+        radial-gradient(circle at 72% 28%,rgba(0,217,255,.14),transparent 20%),
+        rgba(255,255,255,.035);
+      border:1px solid var(--line);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .ring{position:absolute;inset:70px;border:1px solid rgba(255,255,255,.08);border-radius:50%;animation:spin 30s linear infinite}
+    .ring.r2{inset:115px;animation-duration:22s;border-color:rgba(255,30,45,.15)}
+    .ring.r3{inset:35px;animation-duration:42s;border-color:rgba(0,217,255,.12)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .core{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:190px;height:190px;border-radius:50%;
+      display:grid;place-items:center;text-align:center;
+      background:radial-gradient(circle,rgba(255,30,45,.5),rgba(5,5,7,.88) 62%);
+      border:1px solid rgba(255,255,255,.16);
+      box-shadow:0 0 70px rgba(255,30,45,.36), inset 0 0 28px #000;
+      font-family:'Orbitron';font-weight:900;
+    }
+    .node{
+      position:absolute;width:148px;min-height:86px;
+      border:1px solid rgba(255,255,255,.13);
+      background:rgba(8,8,14,.72);
+      border-radius:20px;padding:14px;
+      backdrop-filter:blur(12px);
+      box-shadow:0 0 24px rgba(0,0,0,.4);
+    }
+    .node b{display:block;font-family:'Orbitron';font-size:13px;color:#fff;margin-bottom:6px}
+    .node span{font-size:14px;color:var(--muted);font-weight:700;line-height:1.1}
+    .n1{left:40px;top:70px}.n2{right:42px;top:80px}.n3{left:38px;bottom:90px}.n4{right:42px;bottom:92px}.n5{left:50%;top:28px;transform:translateX(-50%)}.n6{left:50%;bottom:28px;transform:translateX(-50%)}
+
+    section{padding:88px 0;position:relative}
+    .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
+    .kicker{color:var(--cyan);font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+    h2{font-size:clamp(34px,4vw,58px);line-height:1;letter-spacing:-.03em;margin-top:10px}
+    .lead{color:var(--muted);font-size:21px;line-height:1.35;max-width:780px;font-weight:600}
+    .grid{display:grid;gap:18px}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .grid.cols-2{grid-template-columns:repeat(2,1fr)}
+    .card{padding:28px;position:relative;overflow:hidden}
+    .card:before{
+      content:"";position:absolute;left:-25%;top:-25%;width:50%;height:50%;
+      background:radial-gradient(circle,rgba(0,217,255,.13),transparent 70%);
+      pointer-events:none;
+    }
+    .icon{
+      width:54px;height:54px;border-radius:18px;margin-bottom:18px;
+      display:grid;place-items:center;font-size:25px;
+      background:rgba(255,30,45,.12);border:1px solid rgba(255,30,45,.25);
+      box-shadow:0 0 22px rgba(255,30,45,.13);
+    }
+    .card h3{font-size:22px;margin-bottom:10px}
+    .card p,.card li{color:var(--muted);font-size:18px;line-height:1.35;font-weight:600}
+    .card ul{padding-left:20px;margin-top:12px}
+    .badge{
+      display:inline-flex;margin:6px 8px 0 0;padding:8px 12px;border-radius:999px;
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+      color:#dfe8ff;font-weight:800;
+    }
+
+    .ecosystem-map{
+      display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:stretch;
+    }
+    .mega-card{
+      min-height:440px;padding:32px;border-radius:34px;border:1px solid var(--line);
+      background:
+        linear-gradient(135deg,rgba(255,30,45,.13),transparent 38%),
+        linear-gradient(225deg,rgba(0,217,255,.11),transparent 44%),
+        rgba(255,255,255,.045);
+      box-shadow:var(--shadow);backdrop-filter:blur(18px);
+      overflow:hidden;position:relative;
+    }
+    .mega-card h3{font-size:34px;margin-bottom:10px}
+    .feature-list{display:grid;gap:12px;margin-top:24px}
+    .feature{
+      padding:15px 16px;border-radius:18px;background:rgba(0,0,0,.23);border:1px solid rgba(255,255,255,.1);
+      display:flex;gap:14px;align-items:flex-start
+    }
+    .feature strong{display:block;font-family:'Orbitron';font-size:14px}
+    .feature small{display:block;color:var(--muted);font-size:16px;font-weight:700}
+
+    .tokenomics{
+      display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;
+    }
+    .donut{
+      width:min(430px,82vw);aspect-ratio:1;margin:auto;border-radius:50%;
+      background:conic-gradient(var(--red) 0 25.9%, var(--cyan) 25.9% 52.5%, var(--mag) 52.5% 77%, var(--gold) 77% 100%);
+      display:grid;place-items:center;box-shadow:0 0 60px rgba(255,30,45,.22),0 0 80px rgba(0,217,255,.12);
+      position:relative;
+    }
+    .donut:before{content:"";position:absolute;inset:15%;border-radius:50%;background:#07070c;border:1px solid rgba(255,255,255,.12)}
+    .donut .inner{position:relative;text-align:center}
+    .donut .inner b{font-family:'Orbitron';font-size:38px}
+    .rows{display:grid;gap:12px}
+    .row{
+      display:flex;justify-content:space-between;gap:18px;align-items:center;
+      padding:15px 18px;border-radius:18px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);
+      color:var(--muted);font-weight:800;font-size:18px;
+    }
+    .row b{color:#fff}
+
+    .timeline{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;counter-reset:phase}
+    .phase{position:relative;padding-top:48px}
+    .phase:before{
+      counter-increment:phase;content:"0"counter(phase);
+      position:absolute;top:0;left:0;font-family:'Orbitron';font-size:28px;color:rgba(255,255,255,.18);
+    }
+
+    .cta{
+      text-align:center;padding:72px 24px;border-radius:42px;
+      background:
+        radial-gradient(circle at 50% 0,rgba(255,30,45,.26),transparent 38%),
+        radial-gradient(circle at 50% 100%,rgba(0,217,255,.16),transparent 42%),
+        rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      box-shadow:var(--shadow);
+    }
+    .cta h2{font-size:clamp(36px,5vw,68px)}
+    footer{padding:34px 0 60px;color:var(--muted);border-top:1px solid var(--line)}
+    .foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-weight:700}
+    .disclaimer{margin-top:24px;font-size:15px;line-height:1.35;color:#8d95a9}
+
+    .reveal{opacity:0;transform:translateY(24px);transition:opacity .75s ease, transform .75s ease}
+    .reveal.show{opacity:1;transform:none}
+
+    @media (max-width:960px){
+      .hero-grid,.ecosystem-map,.tokenomics,.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .timeline{grid-template-columns:1fr}
+      .navlinks{display:none}
+      .orbital{min-height:640px}
+      .node{width:42%;font-size:12px}
+      .n1{left:16px}.n2{right:16px}.n3{left:16px}.n4{right:16px}
+    }
+    @media (max-width:560px){
+      .hero{padding-top:38px}
+      .stats{grid-template-columns:1fr}
+      .hero-actions{flex-direction:column}
+      .btn{width:100%}
+      .orbital{min-height:720px}
+      .core{width:150px;height:150px}
+      .node{width:78%;left:50%!important;right:auto!important;transform:translateX(-50%)!important}
+      .n1{top:22px}.n2{top:142px}.n5{top:262px}.n3{bottom:260px}.n4{bottom:140px}.n6{bottom:22px}
+      section{padding:62px 0}
+    }
+  </style>
+</head>
+
+<body>
+  <div id="muzzWpBar" style="position:sticky;top:0;z-index:50;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(5,5,7,.92);border-bottom:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px)">
+    <strong style="font-family:Orbitron,sans-serif;letter-spacing:.04em">MUZZ<span style="color:#ff1e2d">SNAP</span> Whitepaper</strong>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="social.html" style="color:#fff;text-decoration:none;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.15);font-size:12px;font-weight:700">  Social</a>
+      <a href="index.html" style="color:#fff;text-decoration:none;padding:8px 12px;border-radius:999px;border:1px solid rgba(255,30,45,.35);font-size:12px;font-weight:700">Login</a>
+    </div>
+  </div>
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script>try{ if(window.MuzzShell && MuzzShell.getWallet()){ /* stay */ } }catch(e){}</script>
+  <div class="particles" aria-hidden="true">
+    <span class="p" style="left:4%;animation-delay:0s"></span><span class="p" style="left:12%;animation-delay:2s"></span>
+    <span class="p" style="left:21%;animation-delay:5s"></span><span class="p" style="left:31%;animation-delay:1s"></span>
+    <span class="p" style="left:43%;animation-delay:3s"></span><span class="p" style="left:55%;animation-delay:6s"></span>
+    <span class="p" style="left:66%;animation-delay:2.8s"></span><span class="p" style="left:78%;animation-delay:4.4s"></span>
+    <span class="p" style="left:88%;animation-delay:1.7s"></span><span class="p" style="left:96%;animation-delay:5.4s"></span>
+  </div>
+
+  <nav class="nav">
+    <div class="wrap navin">
+      <a class="brand" href="#top" aria-label="MuzzSnap Whitepaper">
+        <span class="logo"></span>
+        <span>MUZZSNAP</span>
+      </a>
+      <div class="navlinks">
+       <button class="nav-btn active" onclick="location.href='index.html'"><span class="nav-icon"></span><span>Home</span>
+        <a href="#ecosystem">Ecosystem</a>
+        <a href="#muzzsnap">MuzzSnap</a>
+        <a href="#staking">Staking</a>
+        <a href="#studio">MuzzStudio</a>
+        <a href="#tokenomics">Tokenomics</a>
+      </div>
+      <a class="btn" href="https://app.uniswap.org/swap?chain=mainnet&inputCurrency=NATIVE&outputCurrency=0xef3daa5fda8ad7aabff4658f1f78061fd626b8f0" target="_blank" rel="noopener">BUY MUZZ</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="reveal">
+        <span class="eyebrow">Interactive Web3 Whitepaper</span>
+        <h1><span class="grad">One Token.</span><br>Multiple Experiences.</h1>
+        <p>
+          MuzzleToken powers a Web3 ecosystem built around private communication, social interaction,
+          gaming, staking participation, wallet-native access and creator streaming software.
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href="#ecosystem">Explore Ecosystem</a>
+          <a class="btn secondary" href="https://muzzsnap.com/" target="_blank" rel="noopener">Launch MuzzSnap</a>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>21B</b><span>Max Supply</span></div>
+          <div class="stat"><b>25.90%</b><span>Reported Burn</span></div>
+          <div class="stat"><b>E2EE</b><span>Private Messaging</span></div>
+          <div class="stat"><b>Web3</b><span>Wallet Access</span></div>
+        </div>
+      </div>
+
+      <div class="orbital reveal" aria-label="MUZZ ecosystem orbit">
+        <div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div>
+        <div class="core">MUZZLE<br>TOKEN</div>
+        <div class="node n1"><b>MUZZSNAP</b><span>Web3 social communication app.</span></div>
+        <div class="node n2"><b>PRIVATE</b><span>Encrypted messages for secure interaction.</span></div>
+        <div class="node n3"><b>GAMES</b><span>Retention, engagement and community energy.</span></div>
+        <div class="node n4"><b>STAKING</b><span>Participation, rewards and long-term alignment.</span></div>
+        <div class="node n5"><b>WALLET</b><span>Crypto wallet as Web3 identity.</span></div>
+        <div class="node n6"><b>MUZZSTUDIO</b><span>Multi-platform streaming software.</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="vision">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Vision</div>
+            <h2>The next layer of social Web3 utility.</h2>
+          </div>
+        </div>
+        <div class="grid cols-3">
+          <div class="card reveal"><div class="icon">ï¸</div><h3>Privacy First</h3><p>MuzzSnap gives priority to encrypted private communication, secure community coordination and wallet-based access.</p></div>
+          <div class="card reveal"><div class="icon"></div><h3>Web3 Native</h3><p>The wallet becomes the user identity, connecting access, interaction, staking and ecosystem participation.</p></div>
+          <div class="card reveal"><div class="icon"></div><h3>Built for Growth</h3><p>Social, games, private messaging, staking and creator tools create multiple surfaces for retention and utility.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ecosystem">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Ecosystem Architecture</div>
+            <h2>MuzzleToken is the economic engine.</h2>
+          </div>
+          <p class="lead">MUZZ connects software utility, private communication, social engagement, games, staking and creator tools into a single Web3 ecosystem.</p>
+        </div>
+
+        <div class="ecosystem-map">
+          <div class="mega-card reveal" id="muzzsnap">
+            <h3>MuzzSnap</h3>
+            <p class="lead">A Web3 app experience designed around crypto wallet connection, decentralized access and community communication.</p>
+            <div class="feature-list">
+              <div class="feature"><span></span><div><strong>Chat</strong><small>Public community hub for live interaction, support and engagement.</small></div></div>
+              <div class="feature"><span></span><div><strong>Private</strong><small>Encrypted private messaging focused on privacy, direct support and secure coordination.</small></div></div>
+              <div class="feature"><span></span><div><strong>Social</strong><small>Decentralized social layer with posts, community identity and Web3-native engagement.</small></div></div>
+              <div class="feature"><span></span><div><strong>Games</strong><small>Gaming layer designed to increase retention, activity and ecosystem participation.</small></div></div>
+              <div class="feature"><span></span><div><strong>Crypto Wallet Access</strong><small>No traditional password dependency. The wallet acts as the userâs Web3 identity.</small></div></div>
+            </div>
+          </div>
+
+          <div class="mega-card reveal" id="studio">
+            <h3>MuzzStudio</h3>
+            <p class="lead">Streaming software designed to help creators broadcast across multiple platforms while expanding the MUZZ ecosystem into the creator economy.</p>
+            <div class="feature-list">
+              <div class="feature"><span></span><div><strong>Multi-Platform Streaming</strong><small>Stream once and reach multiple platforms from one production environment.</small></div></div>
+              <div class="feature"><span></span><div><strong>Creator Tools</strong><small>Software layer for creators, communities and future Web3 media experiences.</small></div></div>
+              <div class="feature"><span></span><div><strong>Ecosystem Expansion</strong><small>Transforms MUZZ from a token into a broader software-powered creator ecosystem.</small></div></div>
+              <div class="feature"><span></span><div><strong>Growth Surface</strong><small>Streaming creates new opportunities for visibility, partnerships and community distribution.</small></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="staking">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Staking Layer</div>
+            <h2>Hold. Stake. Participate. Stay.</h2>
+          </div>
+          <p class="lead">MUZZ staking is positioned as a participation layer: rewards, premium access, community alignment and long-term ecosystem retention.</p>
+        </div>
+
+        <div class="grid cols-3">
+          <div class="card reveal"><div class="icon"></div><h3>Long-Term Alignment</h3><p>Staking encourages holders to participate in the ecosystem instead of treating MUZZ as a passive asset.</p></div>
+          <div class="card reveal"><div class="icon">âš¡</div><h3>Incentive Layer</h3><p>Staking may support rewards, participation benefits and future ecosystem experiences tied to MUZZ utility.</p></div>
+          <div class="card reveal"><div class="icon"></div><h3>Premium Access</h3><p>Staked participation can become a gateway to exclusive tools, experiences, content, games or community privileges.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tokenomics">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Tokenomics</div>
+            <h2>Transparent supply. Visible utility.</h2>
+          </div>
+          <p class="lead">This page keeps the strongest public numbers visible while encouraging live verification before formal investor distribution.</p>
+        </div>
+
+        <div class="tokenomics">
+          <div class="donut reveal">
+            <div class="inner"><b>MUZZ</b><br><span>Economic Core</span></div>
+          </div>
+          <div class="rows reveal">
+            <div class="row"><span>Contract</span><b>0xef3d...b8f0</b></div>
+            <div class="row"><span>Max Supply</span><b>21,000,000,000</b></div>
+            <div class="row"><span>Visible / Reported Burn</span><b>~25.90%</b></div>
+            <div class="row"><span>Use Cases</span><b>Access · Staking · Social · Games</b></div>
+            <div class="row"><span>Network</span><b>Ethereum</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="thesis">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Investor Thesis</div>
+            <h2>Utility creates stronger narratives than speculation.</h2>
+          </div>
+        </div>
+        <div class="grid cols-2">
+          <div class="card reveal"><h3>Why MUZZ matters</h3><p>MUZZ is designed to connect real product surfaces: private communication, chat, social, games, staking and streaming software.</p><span class="badge">Product Utility</span><span class="badge">Wallet Access</span><span class="badge">Retention</span></div>
+          <div class="card reveal"><h3>Why the ecosystem can expand</h3><p>MuzzSnap creates the community layer. MuzzStudio opens the creator economy. Staking strengthens long-term participation.</p><span class="badge">Creator Economy</span><span class="badge">Community</span><span class="badge">Web3</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">Roadmap</div>
+            <h2>Build the base. Scale the network.</h2>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="card phase reveal"><h3>Base Product</h3><p>Strengthen wallet access, public chat, private encrypted messaging and app stability.</p></div>
+          <div class="card phase reveal"><h3>Social + Games</h3><p>Expand MuzzSocial and gaming features to increase engagement and community retention.</p></div>
+          <div class="card phase reveal"><h3>Staking Growth</h3><p>Improve staking communication, benefits, participation design and ecosystem alignment.</p></div>
+          <div class="card phase reveal"><h3>MuzzStudio</h3><p>Position multi-platform streaming software as the creator economy layer of the MUZZ ecosystem.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="join">
+      <div class="wrap">
+        <div class="cta reveal">
+          <div class="kicker">Join the ecosystem</div>
+          <h2><span class="grad">MuzzSnap is not only a token.</span><br>It is a Web3 software ecosystem.</h2>
+          <p class="lead" style="margin:22px auto 0">Privacy, social connection, games, staking, wallet identity and creator tools â⬝ powered by MuzzleToken.</p>
+          <div class="hero-actions" style="justify-content:center">
+            <a class="btn" href="https://muzzsnap.com/" target="_blank" rel="noopener">Open MuzzSnap</a>
+            <a class="btn secondary" href="https://x.com/MuzzSnap" target="_blank" rel="noopener">X / Twitter</a>
+            <a class="btn secondary" href="https://t.me/MuzzSnap" target="_blank" rel="noopener">Telegram</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div><strong>MUZZSNAP + MUZZLETOKEN</strong><br>Interactive Web3 Whitepaper</div>
+      <div>Contract: 0xef3daa5fda8ad7aabff4658f1f78061fd626b8f0</div>
+    </div>
+    <div class="wrap disclaimer">
+      Disclaimer: This page is for informational and community presentation purposes only. It does not constitute financial advice, investment advice, an offer of securities or a guarantee of performance. Digital assets involve risk. Always verify contract data, supply, locks, staking conditions and market information through official and public sources before making decisions.
+    </div>
+  </footer>
+
+  <script>
+    const observer = new IntersectionObserver((entries)=>{
+      entries.forEach(entry=>{
+        if(entry.isIntersecting){entry.target.classList.add('show')}
+      })
+    },{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+
+    document.querySelectorAll('a[href^="#"]').forEach(a=>{
+      a.addEventListener('click', e=>{
+        const id=a.getAttribute('href');
+        if(id.length>1){
+          const target=document.querySelector(id);
+          if(target){
+            e.preventDefault();
+            target.scrollIntoView({behavior:'smooth',block:'start'});
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+

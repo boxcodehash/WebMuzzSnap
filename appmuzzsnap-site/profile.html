@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>MuzzSnap · Profile</title>
+  <meta name="theme-color" content="#111418" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script src="js/muzz-follow.js"></script>
+  <script src="js/muzz-notify.js"></script>
+  <style>
+    :root{
+      --bg:#20262d;--panel:#12171d;--soft:#1a2028;--line:rgba(255,255,255,.08);
+      --text:#eef2f7;--muted:#93a0b3;--red:#ff2b2b;--red2:#b10f0f;
+      --green:#4ade80;--blue:#60a5fa;--gold:#fbbf24;
+      --shadow:0 18px 50px rgba(0,0,0,.45);
+      --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+    }
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);font-size:14pt}
+    body{
+      overflow:auto;
+      background:
+        radial-gradient(circle at top right,rgba(255,43,43,.12),transparent 26%),
+        radial-gradient(circle at bottom left,rgba(96,165,250,.08),transparent 22%),
+        var(--bg);
+    }
+
+    /* Overlay full-screen (vuelve a Social al cerrar) */
+    .overlay{
+      min-height:100dvh;display:grid;place-items:center;
+      padding:calc(20px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+      position:relative;
+    }
+    .overlay::before{
+      content:"";position:fixed;inset:0;background:rgba(8,10,14,.55);
+      backdrop-filter:blur(10px);z-index:0;pointer-events:none;
+    }
+
+    /* Tarjeta 3D sutil  misma familia visual que Social */
+    .profile-card{
+      position:relative;z-index:1;width:min(520px,100%);
+      background:linear-gradient(165deg,rgba(28,34,42,.98),rgba(14,18,24,.96));
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:28px;
+      padding:22px 22px 20px;
+      box-shadow:
+        0 2px 0 rgba(255,255,255,.06) inset,
+        0 -1px 0 rgba(0,0,0,.35) inset,
+        0 28px 60px rgba(0,0,0,.55),
+        0 8px 20px rgba(255,43,43,.12);
+      transform:perspective(1200px) rotateX(2.5deg) translateY(-4px);
+      transition:transform .25s ease, box-shadow .25s ease;
+    }
+    .profile-card:hover{
+      transform:perspective(1200px) rotateX(0.5deg) translateY(-8px);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,.08) inset,
+        0 36px 70px rgba(0,0,0,.6),
+        0 12px 28px rgba(255,43,43,.18);
+    }
+
+    .close-btn{
+      position:absolute;top:14px;right:14px;width:42px;height:42px;border-radius:14px;
+      border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);
+      font-size:20px;cursor:pointer;display:grid;place-items:center;z-index:2;
+      transition:.2s;
+    }
+    .close-btn:hover{background:rgba(255,43,43,.18);border-color:rgba(255,43,43,.35)}
+
+    .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-right:48px}
+    .pill{
+      font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+      padding:6px 10px;border-radius:999px;border:1px solid var(--line);
+      background:rgba(255,255,255,.03);color:var(--muted);
+    }
+    .pill.red{color:#fecaca;border-color:rgba(255,43,43,.3);background:rgba(255,43,43,.1)}
+    .pill.green{color:#bbf7d0;border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.1)}
+    .pill.blue{color:#bfdbfe;border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.1)}
+    .pill.gold{color:#fde68a;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.1)}
+
+    .head{display:flex;gap:16px;align-items:flex-start;margin-bottom:18px}
+    .avatar{
+      width:84px;height:84px;border-radius:24px;flex-shrink:0;
+      display:grid;place-items:center;font-weight:900;font-size:28px;
+      background:linear-gradient(145deg,#ff3d3d,#7a0c0c);
+      box-shadow:0 12px 28px rgba(255,43,43,.35), 0 0 0 1px rgba(255,255,255,.08) inset;
+      position:relative;
+    }
+    .avatar .ring{
+      position:absolute;inset:-4px;border-radius:28px;border:1px solid rgba(255,255,255,.12);
+      pointer-events:none;
+    }
+    .meta{min-width:0;flex:1;padding-top:4px}
+    .name{
+      margin:0;font-size:26px;font-weight:900;letter-spacing:-.03em;line-height:1.15;
+      word-break:break-word;
+    }
+    .name .nft-tag{
+      display:inline-block;margin-left:8px;font-size:10px;vertical-align:middle;
+      padding:4px 8px;border-radius:999px;background:linear-gradient(135deg,rgba(251,191,36,.2),rgba(255,43,43,.2));
+      border:1px solid rgba(251,191,36,.35);color:#fde68a;letter-spacing:.12em;
+    }
+    .name .ghost-verified{
+      display:inline-grid;place-items:center;margin-left:8px;width:28px;height:28px;border-radius:10px;
+      font-size:16px;vertical-align:middle;
+      background:linear-gradient(145deg,#ff3d3d,#7a0c0c);
+      box-shadow:0 0 14px rgba(255,43,43,.4);border:1px solid rgba(255,255,255,.15);
+    }
+    .sub{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .sub code{color:#fca5a5;font-size:12px;word-break:break-all}
+
+    .principles{
+      display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 18px;
+    }
+    .principle{
+      text-align:center;padding:12px 8px;border-radius:16px;
+      background:rgba(255,255,255,.03);border:1px solid var(--line);
+    }
+    .principle strong{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:4px}
+    .principle span{font-size:11px;color:var(--muted)}
+
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+    .stat{
+      padding:14px;border-radius:18px;background:rgba(255,255,255,.03);
+      border:1px solid var(--line);
+    }
+    .stat label{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:8px}
+    .stat .val{font-size:20px;font-weight:900;letter-spacing:-.02em}
+    .stat .hint{margin-top:4px;font-size:11px;color:var(--muted)}
+
+    .nft-slot{
+      padding:16px;border-radius:20px;margin-bottom:14px;
+      background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));
+      border:1px dashed rgba(251,191,36,.35);
+    }
+    .nft-slot.has{
+      border-style:solid;border-color:rgba(251,191,36,.45);
+      background:linear-gradient(145deg,rgba(251,191,36,.1),rgba(255,43,43,.06));
+    }
+    .nft-slot h3{margin:0 0 8px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+    .nft-slot p{margin:0;font-size:13px;color:var(--muted);line-height:1.45}
+    .nft-visual{
+      margin-top:12px;height:88px;border-radius:16px;display:grid;place-items:center;
+      background:radial-gradient(circle at 30% 30%,rgba(251,191,36,.25),transparent 50%),
+        linear-gradient(145deg,#1a1510,#0c0a08);
+      border:1px solid rgba(255,255,255,.08);font-size:36px;
+    }
+    .nft-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .btn{
+      border:none;border-radius:14px;padding:11px 14px;font-weight:800;cursor:pointer;font:inherit;font-size:12px;
+    }
+    .btn.primary{background:linear-gradient(145deg,#ff3d3d,#b10f0f);color:#fff;box-shadow:0 10px 24px rgba(255,43,43,.25)}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+
+    .footer-note{margin-top:8px;font-size:11px;color:var(--muted);text-align:center;line-height:1.4}
+    .muzzid-only{display:none}
+    .muzzid-only.show{display:block}
+    .wallet-lock{
+      display:none;margin:0 0 16px;padding:22px 18px;border-radius:20px;text-align:center;
+      background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(0,0,0,.2));
+      border:1px dashed rgba(255,255,255,.16);
+    }
+    .wallet-lock.show{display:block}
+    .wallet-lock .lock-ico{font-size:36px;margin-bottom:10px}
+    .wallet-lock h3{margin:0 0 8px;font-size:16px;font-weight:900}
+    .wallet-lock p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+    .wallet-lock .solo{margin-top:12px;display:inline-block;padding:8px 14px;border-radius:999px;
+      border:1px solid rgba(251,191,36,.4);color:#fde68a;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .follow-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+    .follow-counts{display:flex;gap:18px}
+    .follow-counts .fc{display:flex;flex-direction:column;gap:2px}
+    .follow-counts strong{font-size:18px;font-weight:900}
+    .follow-counts span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
+    #followBtn.following{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);box-shadow:none}
+
+    @media(max-width:480px){
+      .principles{grid-template-columns:1fr}
+      .stats{grid-template-columns:1fr}
+      .profile-card{transform:none;padding:18px}
+      .profile-card:hover{transform:translateY(-2px)}
+      .name{font-size:22px}
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <article class="profile-card" id="profileCard" aria-label="MuzzSnap profile">
+      <button class="close-btn" id="closeBtn" title="Volver a Social" aria-label="Cerrar">S"</button>
+
+      <div class="pill-row">
+        <span class="pill red">Profile</span>
+        <span class="pill green" id="modePill">Anonymous</span>
+      </div>
+
+      <div class="head">
+        <div class="avatar" id="avatar" hidden>MZ<span class="ring"></span></div>
+        <div class="meta">
+          <h1 class="name" id="displayName">……</h1>
+          <p class="sub" id="displaySub">Wallet identity</p>
+        </div>
+      </div>
+
+      <!-- Follow graph (siempre visible: red social) -->
+      <div class="follow-bar" id="followBar">
+        <div class="follow-counts">
+          <div class="fc"><strong id="countFollowing">0</strong><span>Following</span></div>
+          <div class="fc"><strong id="countFollowers">0</strong><span>Followers</span></div>
+        </div>
+        <button type="button" class="btn primary" id="followBtn" style="display:none">Follow</button>
+      </div>
+
+      <!-- Visible solo con wallet (sin MuzzID): resto oculto -->
+      <div class="wallet-lock" id="walletOnlyLock">
+        <div class="lock-ico">x</div>
+        <h3>Perfil limitado</h3>
+        <p>Entraste con wallet + balance MUZZ. Tu identidad pública son solo los <b>6 dígitos</b> de la wallet. Stats, Galaxy, NFT slot y el resto del perfil están bloqueados.</p>
+        <div class="solo">Solo para MuzzID</div>
+      </div>
+
+      <!-- Todo lo demás: SOLO si tiene NFT MuzzID comprado -->
+      <div class="muzzid-only" id="muzzIdOnly">
+        <div class="principles">
+          <div class="principle"><strong>Privacy</strong><span>Sin KYC · wallet = tú</span></div>
+          <div class="principle"><strong>Anonymity</strong><span>Nombre NFT MuzzID</span></div>
+          <div class="principle"><strong>Freedom</strong><span>Gate MUZZ · sin vigilancia</span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <label>Last connected</label>
+            <div class="val" id="lastSeen"></div>
+            <div class="hint" id="lastSeenHint">Firebase presence</div>
+          </div>
+          <div class="stat">
+            <label>MUZZ balance</label>
+            <div class="val" id="muzzBal"></div>
+            <div class="hint">Cached from gate</div>
+          </div>
+          <div class="stat">
+            <label>Galaxy score</label>
+            <div class="val" id="galaxyScore">0</div>
+            <div class="hint" id="galaxyHint">MUZZ Galaxy</div>
+          </div>
+          <div class="stat">
+            <label>Galaxy rank / points</label>
+            <div class="val" id="galaxyPoints">0</div>
+            <div class="hint" id="galaxyRank">Survivor · local</div>
+          </div>
+        </div>
+
+        <div class="nft-slot has" id="nftSlot">
+          <h3>NFT · MuzzID</h3>
+          <p id="nftDesc">MuzzID NFT activo (comprado con MUZZ).</p>
+          <div class="nft-visual" id="nftVisual">S</div>
+          <div class="nft-actions">
+            <button class="btn ghost" id="toMuzzIdInfo">Detalles MuzzID</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn primary" style="width:100%" id="backSocial">Cerrar · volver a Social</button>
+      <p class="footer-note" id="footerNote">Anonimato por defecto. Perfil completo = Solo para MuzzID.</p>
+    </article>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var session = null;
+    if (window.MuzzShell) {
+      session = MuzzShell.requireAuth();
+      if (!session) return;
+    } else {
+      location.href = 'index.html';
+      return;
+    }
+
+    var firebaseConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+
+    function safeKey(v) {
+      return String(v || '').replace(/[.#$/\[\]]/g, '_').toLowerCase();
+    }
+    function walletTail6(wallet) {
+      var w = String(wallet || '').replace(/^0x/i, '');
+      return w.slice(-6).toLowerCase();
+    }
+    /** Nombre visible: MuzzID NFT si existe; si no, últimos 6 de la wallet */
+    function resolveDisplayName(wallet, muzzId) {
+      if (muzzId && (muzzId.name || muzzId.username)) {
+        return {
+          name: String(muzzId.name || muzzId.username),
+          isNft: true,
+          handle: '@' + String(muzzId.name || muzzId.username).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 18)
+        };
+      }
+      var tail = walletTail6(wallet);
+      return {
+        name: tail,
+        isNft: false,
+        handle: '@' + tail
+      };
+    }
+    function fmtWhen(ts) {
+      if (!ts) return '';
+      var d = new Date(typeof ts === 'number' ? ts : Number(ts));
+      if (isNaN(d.getTime())) return '';
+      var diff = Date.now() - d.getTime();
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+      return d.toLocaleString();
+    }
+    function readGalaxyLocal() {
+      try {
+        var raw = localStorage.getItem('muzzgalaxy_commercial_v1');
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) { return null; }
+    }
+
+    function goSocial() {
+      location.href = (MuzzShell.PATHS && MuzzShell.PATHS.social) || 'social.html';
+    }
+    document.getElementById('closeBtn').onclick = goSocial;
+    document.getElementById('backSocial').onclick = goSocial;
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') goSocial();
+    });
+
+    document.getElementById('toMuzzIdInfo').onclick = function () {
+      alert(
+        'MuzzID NFT\n\n' +
+        '• Nombre de perfil comprado solo con MUZZ\n' +
+        '• Desbloquea stats, Galaxy, last seen y opciones del perfil\n' +
+        '• Sin MuzzID solo ves los 6 dígitos de tu wallet'
+      );
+    };
+
+    async function boot() {
+      var qs = new URLSearchParams(location.search);
+      var viewWallet = String(qs.get('w') || session.wallet || '').trim().toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(viewWallet)) viewWallet = session.wallet;
+      var isSelf = viewWallet === String(session.wallet).toLowerCase();
+      var wallet = viewWallet;
+      var userKey = safeKey(wallet);
+      var galaxy = isSelf ? (readGalaxyLocal() || {}) : {};
+      var muzzId = null;
+
+      if (isSelf) {
+        try {
+          var sid = sessionStorage.getItem('muzz_id_nft');
+          if (sid) muzzId = JSON.parse(sid);
+        } catch (e) {}
+      }
+
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      var db = firebase.database();
+      await firebase.auth().signInAnonymously();
+
+      var now = Date.now();
+      var remote = null;
+      try {
+        var snap = await db.ref('social/users/' + userKey).once('value');
+        remote = snap.val() || {};
+        if (remote.muzzId) muzzId = remote.muzzId;
+        if (remote.galaxy) galaxy = Object.assign({}, galaxy, remote.galaxy);
+      } catch (e) {
+        console.warn(e);
+      }
+
+      var identity = resolveDisplayName(wallet, muzzId);
+      var hasMuzzId = !!identity.isNft;
+
+      if (isSelf) {
+        sessionStorage.setItem('muzz_profile_display', identity.name);
+        sessionStorage.setItem('muzz_profile_is_nft', hasMuzzId ? '1' : '0');
+
+        var userUpdate = {
+          wallet: wallet,
+          lastSeen: firebase.database.ServerValue.TIMESTAMP,
+          lastSeenClient: now,
+          displayMode: hasMuzzId ? 'muzzid' : 'wallet_tail6',
+          displayName: identity.name,
+          username: identity.name,
+          privacy: { kyc: false, anonymousPreferred: !hasMuzzId }
+        };
+        if (hasMuzzId) {
+          userUpdate.muzzId = {
+            name: identity.name,
+            username: identity.name,
+            tokenId: (muzzId && muzzId.tokenId) || null,
+            network: (muzzId && muzzId.network) || null,
+            nft: (muzzId && muzzId.nft) || null,
+            wallet: wallet,
+            mintedAt: (muzzId && muzzId.mintedAt) || now,
+            syncedAt: now
+          };
+          userUpdate.galaxy = {
+            highScore: galaxy.highScore | 0,
+            points: galaxy.points | 0,
+            highWave: galaxy.highWave | 0,
+            rankSurvivor: galaxy.rankSurvivor | 0,
+            rankVs: galaxy.rankVs | 0,
+            updatedAt: now
+          };
+          if (window.MuzzID && MuzzID.syncMuzzIdToFirebase) {
+            MuzzID.syncMuzzIdToFirebase(userUpdate.muzzId).catch(function () {});
+          }
+        }
+        try {
+          await db.ref('social/users/' + userKey).update(userUpdate);
+        } catch (e) {
+          console.warn('profile sync', e);
+        }
+      }
+
+      var avatarEl = document.getElementById('avatar');
+      var lock = document.getElementById('walletOnlyLock');
+      var premium = document.getElementById('muzzIdOnly');
+      var modePill = document.getElementById('modePill');
+
+      if (hasMuzzId) {
+        avatarEl.hidden = false;
+        avatarEl.innerHTML =
+          escapeHtml(identity.name.slice(0, 2).toUpperCase()) + '<span class="ring"></span>';
+        document.getElementById('displayName').innerHTML =
+          escapeHtml(identity.name) +
+          '<span class="ghost-verified" title="MuzzID verificado">x</span>' +
+          '<span class="nft-tag">NFT</span>';
+
+        lock.classList.remove('show');
+        premium.classList.add('show');
+        modePill.textContent = isSelf ? 'MuzzID' : 'MuzzID · public';
+        modePill.className = 'pill gold';
+        document.getElementById('displaySub').innerHTML =
+          'Identidad <b>MuzzID NFT</b> · comprado con MUZZ<br><code>' +
+          escapeHtml(MuzzShell.shortAddr(wallet)) + '</code>';
+        document.getElementById('footerNote').textContent = isSelf
+          ? 'Perfil completo desbloqueado con MuzzID NFT.'
+          : 'Perfil público MuzzID.';
+
+        var lastTs = (remote && (remote.lastSeenClient || remote.lastSeen)) || (isSelf ? now : null);
+        document.getElementById('lastSeen').textContent = fmtWhen(lastTs);
+        document.getElementById('lastSeenHint').textContent = isSelf ? 'Online now · synced' : 'Last seen';
+
+        var bal = isSelf
+          ? (session.balance || Number(sessionStorage.getItem('muzz_token_balance') || 0))
+          : (remote && remote.muzzBalance) || 0;
+        document.getElementById('muzzBal').textContent = bal
+          ? Math.floor(bal).toLocaleString() + ' MUZZ'
+          : '';
+
+        document.getElementById('galaxyScore').textContent = Number(galaxy.highScore || 0).toLocaleString();
+        document.getElementById('galaxyPoints').textContent = Number(galaxy.points || galaxy.highScore || 0).toLocaleString();
+        document.getElementById('galaxyHint').textContent = 'High score · wave ' + (galaxy.highWave || 1);
+        document.getElementById('galaxyRank').textContent =
+          'Survivor #' + (galaxy.rankSurvivor || '') + ' · VS #' + (galaxy.rankVs || '');
+
+        document.getElementById('nftDesc').textContent =
+          'MuzzID activo: "' + identity.name + '". NFT adquirido con MUZZ.';
+        document.getElementById('nftVisual').textContent = 'S';
+      } else {
+        avatarEl.hidden = true;
+        avatarEl.innerHTML = '';
+        document.getElementById('displayName').textContent = identity.name;
+        premium.classList.remove('show');
+        lock.classList.add('show');
+        modePill.textContent = isSelf ? 'Wallet only' : 'Anonymous';
+        modePill.className = 'pill green';
+        document.getElementById('displaySub').innerHTML =
+          'Usuario anónimo · <b>6 dígitos</b> de wallet<br>' +
+          '<span style="color:#fde68a;font-size:12px">Solo para MuzzID  avatar y el resto del perfil están ocultos</span>';
+        document.getElementById('walletOnlyLock').querySelector('p').innerHTML = isSelf
+          ? 'Entraste con wallet + balance MUZZ. Tu identidad pública son solo los <b>6 dígitos</b> de la wallet. Stats, Galaxy, NFT slot y el resto del perfil están bloqueados.'
+          : 'Este usuario no tiene MuzzID NFT. Solo se muestra su id anónimo de <b>6 dígitos</b>.';
+        document.getElementById('footerNote').textContent =
+          'Solo para MuzzID. Compra / activa MuzzID (MUZZ) para avatar y perfil completo.';
+      }
+
+      // Follow / Following (grafo social)
+      await refreshFollowUI(wallet, identity.name, isSelf);
+    }
+
+    var followBusy = false;
+    async function refreshFollowUI(targetWallet, targetDisplayName, isSelf) {
+      if (!window.MuzzFollow) return;
+      var counts = await MuzzFollow.getCounts(targetWallet);
+      document.getElementById('countFollowing').textContent = String(counts.following);
+      document.getElementById('countFollowers').textContent = String(counts.followers);
+
+      var btn = document.getElementById('followBtn');
+      if (isSelf) {
+        btn.style.display = 'none';
+        return;
+      }
+      btn.style.display = 'inline-block';
+      var on = await MuzzFollow.isFollowing(session.wallet, targetWallet);
+      btn.textContent = on ? 'Following' : 'Follow';
+      btn.classList.toggle('following', on);
+      btn.onclick = async function () {
+        if (followBusy) return;
+        followBusy = true;
+        btn.disabled = true;
+        try {
+          var myName = sessionStorage.getItem('muzz_profile_display') ||
+            String(session.wallet || '').replace(/^0x/i, '').slice(-6);
+          if (on) {
+            await MuzzFollow.unfollow(session.wallet, targetWallet);
+          } else {
+            await MuzzFollow.follow(session.wallet, targetWallet, {
+              displayName: targetDisplayName || '',
+              myDisplayName: myName
+            });
+            if (window.MuzzNotify) {
+              MuzzNotify.push({
+                type: 'follow',
+                toWallet: targetWallet,
+                fromWallet: session.wallet,
+                fromName: myName
+              }).catch(function () {});
+            }
+          }
+          await refreshFollowUI(targetWallet, targetDisplayName, false);
+        } catch (e) {
+          alert('Follow error: ' + (e.message || e));
+        } finally {
+          followBusy = false;
+          btn.disabled = false;
+        }
+      };
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, function (m) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m];
+      });
+    }
+
+    boot().catch(function (e) {
+      console.error(e);
+      document.getElementById('displaySub').textContent = 'Error cargando perfil: ' + (e.message || e);
+    });
+  })();
+  </script>
+</body>
+</html>
+

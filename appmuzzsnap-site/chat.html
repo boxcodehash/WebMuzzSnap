@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MuzzSnap · Chat</title>
+  <meta name="theme-color" content="#111418" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script src="js/muzz-emoji.js"></script>
+  <style>
+    :root{--bg:#20262d;--line:rgba(255,255,255,.08);--text:#eef2f7;--muted:#93a0b3;--red:#ff2b2b;--soft:#1a2028;--green:#4ade80}
+    *{box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    html,body{height:100%;width:100%;margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;font-size:14pt}
+    .layout{display:grid;grid-template-columns:280px minmax(0,1fr);height:100dvh;width:100%;max-width:none;margin:0;gap:0}
+    .side{border-right:1px solid var(--line);background:rgba(18,23,29,.96);height:100dvh;overflow:auto}
+    .main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh}
+    .top{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+    .channels{display:flex;gap:8px;flex-wrap:wrap}
+    .ch{border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);padding:8px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:13pt;font-weight:700}
+    .ch.active{background:rgba(255,43,43,.16);border-color:rgba(255,43,43,.35)}
+    .status{font-size:12pt;color:var(--muted);display:flex;align-items:center;gap:8px;font-weight:700}
+    .status.ok{color:var(--green)}
+    .status.err{color:#fca5a5}
+    .status .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);flex-shrink:0}
+    .status.err .dot{background:#f87171;box-shadow:0 0 10px #f87171}
+    .msgs{flex:1;min-height:0;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
+    .bubble{max-width:min(720px,85%);padding:12px 14px;border-radius:16px;background:var(--soft);border:1px solid var(--line);line-height:1.45;font-size:14pt;word-break:break-word}
+    .bubble.me{align-self:flex-end;background:linear-gradient(145deg,#ff3d3d,#b10f0f);border:none}
+    .meta{font-size:12pt;color:var(--muted);margin-bottom:4px;font-weight:700;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .bubble.me .meta{color:rgba(255,255,255,.75)}
+    .role{font-size:10pt;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:999px;border:1px solid rgba(255,255,255,.15)}
+    .composer{display:flex;gap:10px;padding:14px 18px;border-top:1px solid var(--line);flex:0 0 auto;background:rgba(12,16,22,.9);align-items:center}
+    .composer input{flex:1;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);border-radius:14px;padding:12px;outline:none;font:inherit;font-size:14pt}
+    .composer button#send{border:none;border-radius:14px;padding:12px 16px;font-weight:800;background:linear-gradient(145deg,#ff3d3d,#b10f0f);color:#fff;cursor:pointer;font-size:14pt}
+    .composer button#send:disabled{opacity:.5;cursor:wait}
+    .empty{color:var(--muted);text-align:center;padding:40px 16px;line-height:1.5;font-size:14pt}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.side{display:none}}
+  </style>
+</head>
+<body>
+  <div class="layout muzz-desktop-app">
+    <aside class="side" id="muzzNavMount"></aside>
+    <main class="main">
+      <div class="top">
+        <div class="channels" id="channels"></div>
+        <div class="status online-live" id="connStatus"><span class="dot"></span> <span id="onlineCount"> online</span></div>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <div class="composer">
+        <button type="button" class="emoji-btn" data-emoji-for="input" title="Emoji">=</button>
+        <input id="input" maxlength="500" data-i18n-placeholder="chat.placeholder" placeholder="Write in public chat…" autocomplete="off" />
+        <button id="send" data-i18n="chat.send">Send</button>
+      </div>
+    </main>
+  </div>
+  <script>
+  (function () {
+    var session = MuzzShell.renderNav('chat');
+    if (!session) return;
+    if (window.MuzzEmoji) MuzzEmoji.init();
+    if (window.MuzzI18n) MuzzI18n.apply(document);
+
+    // Una sola sala: Global (Firebase path sigue siendo messages/general)
+    var ROOM_ID = 'general';
+    function roomLabel() { return window.MuzzI18n ? MuzzI18n.t('chat.global') : 'Global'; }
+    var ROOM_LABEL = roomLabel();
+    var ONLINE_MAX_AGE_MS = 3 * 60 * 1000; // 3 min
+    var firebaseConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+    var unsub = null;
+    var sendBusy = false;
+    var presenceRef = null;
+    var onlineCount = 0;
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, function (m) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m];
+      });
+    }
+
+    function msgBody(m) {
+      return m.content || m.text || m.message || m.body || '';
+    }
+    function msgTime(m) {
+      return Number(m.timestamp || m.createdAt || m.serverAt || 0) || 0;
+    }
+    function fmtTime(ts) {
+      if (!ts) return '';
+      try {
+        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch (e) { return ''; }
+    }
+    function setOnlineUI(n, kind) {
+      onlineCount = n;
+      var el = document.getElementById('connStatus');
+      var label = document.getElementById('onlineCount');
+      var onlineWord = window.MuzzI18n ? MuzzI18n.t('chat.online') : 'online';
+      label.textContent = n + ' ' + onlineWord;
+      el.className = 'status online-live' + (kind ? ' ' + kind : ' ok');
+    }
+
+    function renderChannels() {
+      document.getElementById('channels').innerHTML =
+        '<button type="button" class="ch active" data-id="' + ROOM_ID + '">' + roomLabel() + '</button>';
+    }
+
+    function listen() {
+      if (unsub) { try { unsub(); } catch (e) {} }
+      var box = document.getElementById('msgs');
+      box.innerHTML = '<div class="empty">' + (window.MuzzI18n ? MuzzI18n.t('chat.loading') : 'Loading&') + '</div>';
+
+      var ref = db.ref('messages/' + ROOM_ID).limitToLast(100);
+      var handler = function (snap) {
+        var val = snap.val();
+        if (!val) {
+          box.innerHTML = '<div class="empty">' + (window.MuzzI18n ? MuzzI18n.t('chat.empty').replace(/\n/g, '<br>') : 'No messages yet.') + '</div>';
+          return;
+        }
+        var arr = Object.keys(val).map(function (id) {
+          return Object.assign({ id: id }, val[id]);
+        });
+        arr.sort(function (a, b) { return msgTime(a) - msgTime(b); });
+
+        box.innerHTML = arr.map(function (m) {
+          var body = msgBody(m);
+          var mine = (m.wallet && String(m.wallet).toLowerCase() === String(session.wallet).toLowerCase()) ||
+            (m.username && m.username === session.username);
+          var role = m.role && m.role !== 'user' && m.role !== 'guest'
+            ? '<span class="role">' + esc(m.role) + '</span>'
+            : '';
+          return '<div class="bubble ' + (mine ? 'me' : '') + '">' +
+            '<div class="meta"><span>' + esc(m.username || 'user') + '</span>' + role +
+            '<span>' + esc(fmtTime(msgTime(m))) + '</span></div>' +
+            esc(body) +
+            '</div>';
+        }).join('');
+        box.scrollTop = box.scrollHeight;
+      };
+
+      var onErr = function (err) {
+        console.error('chat listen', err);
+        box.innerHTML = '<div class="empty">No se pudieron cargar mensajes.<br>' + esc(err && err.message ? err.message : err) + '</div>';
+        setOnlineUI(onlineCount, 'err');
+      };
+
+      ref.on('value', handler, onErr);
+      unsub = function () { ref.off('value', handler); };
+    }
+
+    function startPresence(uid) {
+      var key = 'chat_' + String(session.wallet || uid).replace(/[.#$/\[\]]/g, '_').toLowerCase();
+      presenceRef = db.ref('status/' + key);
+      var payload = {
+        uid: uid,
+        wallet: session.wallet || null,
+        username: session.username,
+        source: 'chat-global',
+        lastSeen: Date.now(),
+        at: firebase.database.ServerValue.TIMESTAMP
+      };
+      presenceRef.set(payload);
+      presenceRef.onDisconnect().remove();
+      // heartbeat
+      setInterval(function () {
+        if (presenceRef) presenceRef.update({ lastSeen: Date.now() }).catch(function () {});
+      }, 30000);
+
+      db.ref('status').on('value', function (snap) {
+        var val = snap.val() || {};
+        var now = Date.now();
+        var n = 0;
+        Object.keys(val).forEach(function (k) {
+          var u = val[k] || {};
+          var t = Number(u.lastSeen || u.at || 0);
+          // Si no hay timestamp usable, contar si el nodo existe (onDisconnect limpia)
+          if (!t || (now - t) <= ONLINE_MAX_AGE_MS || u.source) n++;
+        });
+        // Evitar doble-conteo raro: mínimo 1 si estamos aquí
+        if (n < 1) n = 1;
+        setOnlineUI(n, 'ok');
+      }, function (err) {
+        console.warn('online listen', err);
+        setOnlineUI(1, 'ok');
+      });
+    }
+
+    async function send() {
+      if (sendBusy) return;
+      var input = document.getElementById('input');
+      var text = input.value.trim();
+      if (!text) return;
+      var btn = document.getElementById('send');
+      sendBusy = true;
+      btn.disabled = true;
+      try {
+        if (!firebase.auth().currentUser) {
+          await firebase.auth().signInAnonymously();
+        }
+        var now = Date.now();
+        await db.ref('messages/' + ROOM_ID).push({
+          content: text,
+          text: text,
+          username: session.username,
+          wallet: session.wallet || null,
+          role: session.role || 'user',
+          identityKey: 'wallet_' + String(session.wallet || '').replace(/[.#$/\[\]]/g, '_').toLowerCase(),
+          timestamp: now,
+          createdAt: now,
+          serverAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        input.value = '';
+      } catch (e) {
+        console.error(e);
+        alert('No se pudo enviar: ' + (e.message || e));
+      } finally {
+        sendBusy = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    document.getElementById('send').onclick = send;
+    document.getElementById('input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') send();
+    });
+
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (!user) return;
+      renderChannels();
+      listen();
+      startPresence(user.uid);
+    });
+
+    firebase.auth().signInAnonymously().catch(function (e) {
+      setOnlineUI(0, 'err');
+      document.getElementById('msgs').innerHTML =
+        '<div class="empty">Firebase auth failed.<br>' + esc(e.message || e) + '</div>';
+    });
+  })();
+  </script>
+</body>
+</html>
+

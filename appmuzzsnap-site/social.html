@@ -1,0 +1,2673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>MuzzSnap Social</title>
+  <meta name="theme-color" content="#111418" />
+  <link rel="stylesheet" href="css/muzz-desktop.css" />
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="muzzle-username/web/config.js"></script>
+  <script src="js/muzz-i18n.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-id.js"></script>
+  <script src="js/muzz-id-mint.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script src="js/muzz-emoji.js"></script>
+  <script src="js/muzz-follow.js"></script>
+  <script src="js/muzz-notify.js"></script>
+  <script src="js/muzz-push.js"></script>
+
+  <style>
+    :root{
+      --bg:#20262d;--panel:#12171d;--soft:#1a2028;--soft-2:#232b35;
+      --line:rgba(255,255,255,.08);--text:#eef2f7;--muted:#93a0b3;
+      --red:#ff2b2b;--red-soft:rgba(255,43,43,.14);--green:#4ade80;--blue:#60a5fa;
+      --shadow:0 18px 50px rgba(0,0,0,.35);--radius:22px;
+      --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(circle at top right,rgba(255,43,43,.10),transparent 24%),
+      radial-gradient(circle at bottom left,rgba(96,165,250,.07),transparent 20%),var(--bg);
+      color:var(--text);overflow:hidden;font-size:14pt;
+    }
+    button,input,textarea{font:inherit} a{text-decoration:none;color:inherit}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden}
+    /* scrollbar oculto; scroll con mouse/teclado intacto */
+    *{scrollbar-width:none;-ms-overflow-style:none}
+    *::-webkit-scrollbar{width:0;height:0;display:none;background:transparent}
+    .app{display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:0;height:100dvh;width:100%;max-width:none;margin:0;padding:0}
+    .card{background:rgba(18,23,29,.96);border:1px solid var(--line);border-radius:0;box-shadow:none;backdrop-filter:blur(10px)}
+    .sidebar,.rightbar,.feed-shell{min-height:0;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+    .sidebar,.rightbar{padding:16px 14px;overflow:auto;-webkit-overflow-scrolling:touch}
+    .rightbar .widget{overflow:hidden;min-width:0}
+    .rightbar .trend{align-items:flex-start}
+    .rightbar .trend > div{min-width:0;flex:1}
+    .rightbar .trend small{word-break:break-word;overflow-wrap:anywhere;line-height:1.35}
+    .brand{display:flex;align-items:center;gap:12px;padding:6px 4px 18px;margin-bottom:8px}
+    .brand-badge{width:48px;height:48px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(145deg,#ff3b3b,#9d1111);box-shadow:0 0 24px rgba(255,43,43,.25);font-size:20px}
+    .brand h1{margin:0;font-size:24px;letter-spacing:-.04em;font-weight:900;font-style:italic}.brand span{color:var(--red)}
+    .nav{display:flex;flex-direction:column;gap:8px;margin:6px 0 16px;overflow:auto}
+    .nav-btn{border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:14px;padding:12px 13px;border-radius:18px;cursor:pointer;transition:.2s ease;text-align:left;width:100%}
+    .nav-btn:hover,.nav-btn.active{background:var(--red-soft);color:#fff}
+    .nav-icon{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:15px;flex-shrink:0}
+    .compose-main{margin:10px 0 18px;padding:14px 18px;border:none;border-radius:18px;font-weight:800;color:#fff;background:linear-gradient(145deg,#ff3d3d,#b10f0f);cursor:pointer;box-shadow:0 12px 30px rgba(255,43,43,.22)}
+    .profile-mini{margin-top:auto;display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;background:var(--soft);border:1px solid var(--line)}
+    .avatar{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#3a4552,#19202a);border:1px solid rgba(255,255,255,.08);font-weight:800;flex-shrink:0}
+    .profile-mini .name{font-weight:800}.profile-mini .sub{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+    .feed-shell{overflow:hidden}.feed-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:rgba(18,23,29,.84);backdrop-filter:blur(14px);border-top-left-radius:var(--radius);border-top-right-radius:var(--radius);flex-wrap:wrap}
+    .feed-top-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-width:0}
+    .feed-top h2{margin:0;font-size:16pt;letter-spacing:-.03em;font-weight:900}
+    .feed-tabs{display:flex;gap:6px;background:rgba(255,255,255,.03);padding:4px;border-radius:999px;border:1px solid var(--line)}
+    .feed-tab{border:none;background:transparent;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer;font:inherit;font-size:13pt;font-weight:800}
+    .feed-tab.active{background:rgba(255,43,43,.18);color:#fff}
+    .ghost-btn{border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);padding:10px 16px;border-radius:14px;cursor:pointer;font-size:14pt;font-weight:700}
+    .notif-wrap{position:relative}
+    .notif-btn{position:relative;display:inline-flex;align-items:center;gap:6px}
+    .notif-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ff2b2b;color:#fff;font-size:11px;font-weight:900;display:grid;place-items:center;line-height:1}
+    .notif-panel{position:absolute;right:0;top:calc(100% + 8px);width:min(360px,92vw);max-height:420px;overflow:auto;z-index:40;background:rgba(18,23,29,.98);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+    .notif-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(18,23,29,.98)}
+    .notif-head strong{font-size:13pt}
+    .notif-clear{border:none;background:transparent;color:var(--blue);cursor:pointer;font:inherit;font-size:12pt;font-weight:700}
+    .notif-list{padding:6px}
+    .notif-item{display:block;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:12px;border-radius:14px;cursor:pointer;font:inherit}
+    .notif-item:hover{background:rgba(255,255,255,.05)}
+    .notif-item.unread{background:rgba(255,43,43,.08)}
+    .notif-item .n-main{font-size:13pt;font-weight:700;line-height:1.35}
+    .notif-item .n-sub{font-size:11pt;color:var(--muted);margin-top:4px}
+    .notif-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:13pt}
+    .feed-scroll{overflow:auto;padding:18px;display:flex;flex-direction:column;gap:16px;min-height:0}
+    .composer{padding:22px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));width:100%}
+    .composer-head{display:flex;gap:14px;align-items:flex-start}
+    .composer textarea{width:100%;min-height:140px;resize:vertical;border:none;outline:none;background:transparent;color:var(--text);font-size:14pt;line-height:1.5;font-family:inherit}
+    .composer-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+    .tools-left{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .tool-pill{padding:9px 12px;border-radius:999px;background:rgba(96,165,250,.12);color:#bfdbfe;font-size:13pt;border:1px solid rgba(96,165,250,.18)}
+    .emoji-btn,.media-btn{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);width:44px;height:44px;border-radius:14px;cursor:pointer;font-size:18pt;display:grid;place-items:center;flex-shrink:0}
+    .emoji-btn:hover,.media-btn:hover{background:rgba(255,43,43,.12);border-color:rgba(255,43,43,.3)}
+    .media-preview{margin-top:12px;position:relative;display:none;max-width:100%}
+    .media-preview.show{display:block}
+    .media-preview img{max-width:100%;max-height:320px;border-radius:18px;border:1px solid var(--line);display:block;object-fit:cover}
+    .media-preview .media-remove{position:absolute;top:8px;right:8px;border:none;border-radius:999px;background:rgba(0,0,0,.7);color:#fff;width:32px;height:32px;cursor:pointer;font-weight:900}
+    .media-hint{margin-top:6px;font-size:11pt;color:var(--muted)}
+    .post-media{margin:10px 0 14px 62px}
+    .post-media img{max-width:100%;max-height:480px;border-radius:18px;border:1px solid var(--line);display:block;object-fit:cover;background:rgba(0,0,0,.25)}
+    .post-media .media-wait{padding:28px;border-radius:18px;border:1px dashed var(--line);color:var(--muted);text-align:center;font-size:12pt}
+    @media(max-width:980px){.post-media{margin-left:0}}
+    .post-btn{border:none;padding:14px 22px;border-radius:14px;color:#fff;font-weight:800;font-size:14pt;background:linear-gradient(145deg,#ff3d3d,#b10f0f);cursor:pointer}.post-btn:disabled{opacity:.5;cursor:wait}
+    .count{color:var(--muted);font-size:13pt}
+    /* chips técnicos ocultos; tools-left visible para emoji */
+    .status-bar,.chip{display:none!important}
+    .tool-pill{display:none!important}
+    .post-badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0 60px}
+    .badge.sig-ok{color:#86efac;border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.1)}
+    .badge.sig-bad{color:#fca5a5;border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.1)}
+    .badge.sig-wait{color:#fbbf24;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08)}
+    .badge.hash{color:#bfdbfe;border-color:rgba(96,165,250,.25)}
+    .repost-banner{font-size:14pt;color:var(--muted);font-weight:700;margin:0 0 10px 62px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .repost-banner .rt-user{color:#fff;font-weight:900}
+    .repost-banner .rt-label{color:var(--green);font-size:12pt;letter-spacing:.08em;text-transform:uppercase}
+    @media(max-width:980px){.repost-banner{margin-left:0}}
+    .post{border:1px solid var(--line);border-radius:24px;padding:22px;background:rgba(255,255,255,.02);margin-bottom:16px;width:100%}
+    .post-head{display:flex;gap:14px;align-items:flex-start}.post-meta{min-width:0;flex:1}.post-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+    .post-name{font-weight:900;font-size:14pt}.post-handle,.post-time{color:var(--muted);font-size:13pt}
+    .verified{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--blue);color:#07111d;font-size:11px;font-weight:900}
+    .verified.muzzid{
+      width:22px;height:22px;border-radius:8px;font-size:14px;background:linear-gradient(145deg,#ff3d3d,#7a0c0c);
+      box-shadow:0 0 12px rgba(255,43,43,.35);color:#fff;border:1px solid rgba(255,255,255,.15);
+    }
+    .muzzid-mark{display:inline-flex;align-items:center;gap:6px}
+    .post-badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0 62px}
+    .badge{font-size:10pt;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.04);color:var(--muted);border:1px solid var(--line)}
+    .badge.e2ee{color:#bfdbfe;border-color:rgba(96,165,250,.25)}.badge.p2p{color:var(--green);border-color:rgba(74,222,128,.25)}.badge.ttl{color:#fbbf24;border-color:rgba(251,191,36,.25)}
+    .post-text{margin:14px 0 16px 62px;color:#edf2f7;line-height:1.55;font-size:14pt;white-space:pre-wrap;word-wrap:break-word}
+    .post-text.locked{color:var(--muted);font-style:italic}
+    .post-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-left:62px}
+    .action-btn{border:none;background:transparent;color:var(--muted);padding:12px;border-radius:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:.2s ease;font-size:14pt}
+    .action-btn:hover{background:rgba(255,255,255,.04);color:#fff}.action-btn.liked{color:#ff7b95;background:rgba(255,123,149,.12)}.action-btn.reposted{color:var(--green);background:rgba(74,222,128,.12)}.action-btn.shared{color:#bfdbfe;background:rgba(96,165,250,.12)}
+    .comments{margin:14px 0 0 62px;border-top:1px solid var(--line);padding-top:12px;display:none}.comments.open{display:block}.comment{padding:12px 0;border-top:1px solid rgba(255,255,255,.05)}.comment:first-child{border-top:none}.comment strong{font-size:14pt}.comment p{margin:6px 0 0;color:#dbeafe;font-size:14pt;line-height:1.5}
+    .comment-box{display:flex;gap:8px;margin-top:12px;align-items:center}.comment-box input{flex:1;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);border-radius:14px;padding:12px 14px;outline:none;font-size:14pt}.comment-box .reply-btn,.comment-box button[data-act="reply"]{border:none;border-radius:14px;background:linear-gradient(145deg,#ff3d3d,#b10f0f);color:white;font-weight:800;padding:12px 16px;cursor:pointer;font-size:14pt}
+    .emoji-pop{
+      position:fixed;z-index:120;width:min(340px,92vw);max-height:280px;overflow:auto;
+      background:rgba(18,23,29,.98);border:1px solid var(--line);border-radius:18px;
+      box-shadow:0 18px 50px rgba(0,0,0,.5);padding:10px;display:none;
+    }
+    .emoji-pop.open{display:block}
+    .emoji-pop .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+    .emoji-pop button{border:none;background:transparent;font-size:22px;padding:6px;border-radius:10px;cursor:pointer;line-height:1}
+    .emoji-pop button:hover{background:rgba(255,255,255,.08)}
+    .emoji-pop .emoji-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:4px 6px 8px}
+    .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.24em;color:var(--muted);margin:0 0 14px;font-weight:800}
+    .search{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:var(--soft);border:1px solid var(--line);margin-bottom:16px}.search input{width:100%;border:none;outline:none;background:transparent;color:var(--text)}
+    .widget{padding:16px;border-radius:20px;background:var(--soft);border:1px solid var(--line);margin-bottom:16px}.trend{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid rgba(255,255,255,.06)}.trend:first-of-type{border-top:none;padding-top:0}.trend small{display:block;color:var(--muted);margin-top:4px}.follow-btn{border:none;border-radius:999px;padding:10px 14px;font-weight:800;cursor:pointer;background:#fff;color:#111}
+    .empty{padding:48px 28px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:24px;background:rgba(255,255,255,.02);max-width:920px;margin:12px auto}
+    .empty h3{margin:0 0 8px;color:var(--text);font-size:14pt;font-weight:900}
+    .empty p{margin:0;line-height:1.5;font-size:14pt}
+    .toast{font-size:14pt!important}
+    .author-link{cursor:pointer;border:none;background:none;padding:0;font:inherit;color:inherit;text-align:left}
+    .author-link:hover .post-name{text-decoration:underline;color:#fff}
+    .avatar.author-link{cursor:pointer}
+    .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:rgba(15,20,26,.96);border:1px solid rgba(255,255,255,.12);color:#fff;padding:12px 18px;border-radius:999px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:90vw;opacity:0;pointer-events:none;transition:.25s;font-size:13px;font-weight:700;letter-spacing:.01em}.toast.show{opacity:1}
+    .mobile-bottom{display:none;position:fixed;left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;background:rgba(18,23,29,.92);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:10px;grid-template-columns:repeat(6,1fr);gap:6px}.mobile-bottom button{border:none;background:transparent;color:var(--muted);padding:10px 6px;border-radius:14px;cursor:pointer;font-size:11px}.mobile-bottom button.active{background:var(--red-soft);color:#fff}
+    .fab{display:none;position:fixed;right:calc(18px + env(safe-area-inset-right,0px));bottom:calc(86px + env(safe-area-inset-bottom,0px));width:64px;height:64px;border-radius:22px;border:none;color:#fff;font-size:22px;background:linear-gradient(145deg,#ff3d3d,#b10f0f);box-shadow:0 14px 34px rgba(255,43,43,.28);z-index:31;cursor:pointer}
+    /* MuzzID panel */
+    .muzzid-panel{display:none;flex-direction:column;gap:14px;padding:18px 18px 28px;overflow:auto;flex:1;min-height:0}
+    .muzzid-panel.show{display:flex}
+    .feed-scroll.hide-for-muzzid{display:none!important}
+    .muzzid-hero{padding:18px;border-radius:20px;border:1px solid var(--line);background:linear-gradient(145deg,rgba(255,43,43,.12),rgba(255,255,255,.03))}
+    .muzzid-hero h3{margin:0 0 6px;font-size:20px;font-weight:900}
+    .muzzid-hero p{margin:0;color:var(--muted);line-height:1.45}
+    .muzzid-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+    .muzzid-card{padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--soft)}
+    .muzzid-card h4{margin:0 0 10px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+    .muzzid-status{font-size:22px;font-weight:900;margin:0 0 4px}
+    .muzzid-status .ghost{opacity:.55}
+    .muzzid-meta{font-size:12px;color:var(--muted)}
+    .muzzid-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+    .muzzid-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px;border-radius:14px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.06)}
+    .muzzid-row strong{font-size:14px}
+    .muzzid-row small{display:block;color:var(--muted);margin-top:3px;font-size:11px}
+    .muzzid-row .tid{color:#93c5fd;font-size:11px;font-family:ui-monospace,monospace}
+    .muzzid-mint-row{display:flex;gap:8px;margin-top:10px}
+    .muzzid-mint-row input{flex:1;border:1px solid var(--line);background:rgba(0,0,0,.28);color:#fff;border-radius:12px;padding:12px 14px;outline:none}
+    .muzzid-mint-row button,.muzzid-actions button{border:none;border-radius:12px;padding:12px 14px;font-weight:800;cursor:pointer}
+    .muzzid-mint-row .mint{background:linear-gradient(145deg,#ff3d3d,#b10f0f);color:#fff}
+    .muzzid-mint-row .faucet{background:rgba(255,255,255,.08);color:#fff}
+    .muzzid-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .muzzid-actions .ghost{background:rgba(255,255,255,.06);color:#fff}
+    .muzzid-hint{font-size:12px;color:var(--muted);margin-top:8px;min-height:1.2em}
+    .muzzid-hint.ok{color:var(--green)}
+    .muzzid-hint.bad{color:#f87171}
+    .muzzid-empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+    @media(max-width:900px){.muzzid-grid{grid-template-columns:1fr}}
+    @media(max-width:1180px){.app{grid-template-columns:260px minmax(0,1fr) 300px}}
+    @media(max-width:980px){body{overflow:auto}.app{height:auto;min-height:100dvh;grid-template-columns:1fr;padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) calc(104px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px));gap:12px}.sidebar,.rightbar{display:none}.feed-shell{min-height:0;height:auto;border-radius:var(--radius)}.mobile-bottom{display:grid}.fab{display:block}.post-text,.post-actions,.comments,.post-badges{margin-left:0}.feed-top{position:sticky}}
+  </style>
+</head>
+<body>
+  <div class="app muzz-desktop-app social-layout">
+    <aside class="sidebar card">
+      <div id="muzzNavMount"></div>
+      <button class="compose-main" id="openComposer" data-i18n="social.post">Post something</button>
+      <!-- profile filled by page + shell; keep ids for social.js -->
+      <div class="profile-mini" style="display:none">
+        <div class="avatar" id="meAvatar">MZ</div>
+        <div style="min-width:0;flex:1">
+          <div class="name" id="meName">Muzz User</div>
+          <div class="sub" id="meHandle">@muzzuser</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="feed-shell card">
+      <div class="feed-top">
+        <div class="feed-top-left">
+          <h2 data-i18n="social.title">Social</h2>
+          <div class="feed-tabs" id="feedTabs">
+            <button type="button" class="feed-tab active" data-feed="global" data-i18n="social.tab.global">Global</button>
+            <button type="button" class="feed-tab" data-feed="following" data-i18n="social.tab.following">Following</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="notif-wrap" id="notifWrap">
+            <button type="button" class="ghost-btn notif-btn" id="notifBtn" title="Notifications">🔔 <span class="notif-badge" id="notifBadge" hidden>0</span></button>
+            <div class="notif-panel" id="notifPanel" hidden>
+              <div class="notif-head">
+                <strong data-i18n="social.notifications">Notifications</strong>
+                <button type="button" class="notif-clear" id="notifMarkAll" data-i18n="social.markAll">Mark all read</button>
+              </div>
+              <div class="notif-list" id="notifList"><div class="notif-empty" data-i18n="social.noNotifs">No notifications yet</div></div>
+            </div>
+          </div>
+          <button class="ghost-btn" id="webBtn" type="button" title="muzzletoken.com">WEB</button>
+          <button class="ghost-btn" id="syncP2PBtn" style="display:none" title="Sincronizar réplicas P2P">P2P Sync</button>
+        </div>
+      </div>
+      <!-- MuzzID section (owner-only nicks + mint) -->
+      <div class="muzzid-panel" id="muzzidPanel" hidden>
+        <div class="muzzid-hero">
+          <h3>🪪 <span data-i18n="muzzid.title">MuzzID</span></h3>
+          <p data-i18n="muzzid.hero">Tu username NFT on-chain. Solo tú ves tu listado privado. El pago MUZZ va 100% a dead wallet.</p>
+        </div>
+        <div class="muzzid-grid">
+          <div class="muzzid-card">
+            <h4 data-i18n="muzzid.identity">Tu identidad</h4>
+            <div class="muzzid-status" id="muzzidCurrent"><span class="ghost" data-i18n="muzzid.none">Sin MuzzID</span></div>
+            <div class="muzzid-meta" id="muzzidCurrentMeta">—</div>
+            <div class="muzzid-actions">
+              <button type="button" class="ghost" id="muzzidRefreshBtn" data-i18n="muzzid.refresh">Refresh NFT</button>
+              <button type="button" class="ghost" id="muzzidBackFeedBtn" data-i18n="muzzid.back">← Volver al feed</button>
+            </div>
+          </div>
+          <div class="muzzid-card">
+            <h4 data-i18n="muzzid.create">Crear MuzzID (mint)</h4>
+            <div class="muzzid-mint-row">
+              <input id="muzzidMintInput" maxlength="64" data-i18n-placeholder="muzzid.placeholder" placeholder="@TuNick o 🔥Nick" autocomplete="off" />
+            </div>
+            <div class="muzzid-mint-row">
+              <button type="button" class="mint" id="muzzidMintBtn" data-i18n="muzzid.mint" style="flex:1">Mint NFT</button>
+            </div>
+            <div class="muzzid-hint" id="muzzidMintHint" data-i18n="muzzid.hint">Basic ≈ $2 · Premium emoji ≈ $4 · 1 confirmación</div>
+          </div>
+        </div>
+        <div class="muzzid-card">
+          <h4 data-i18n="muzzid.private">Mis nicks NFT · privado</h4>
+          <p class="muzzid-meta" style="margin-bottom:10px" data-i18n="muzzid.private.sub">Solo visible para el dueño de esta wallet</p>
+          <div class="muzzid-list" id="muzzidPrivateList">
+            <div class="muzzid-empty">Cargando…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feed-scroll" id="feedScroll">
+        <div class="status-bar" id="statusBar">
+          <span class="chip" id="chipAuth">Auth…</span>
+          <span class="chip" id="chipE2EE">E2EE 3-key</span>
+          <span class="chip" id="chipP2P">P2P idle</span>
+          <span class="chip" id="chipTTL">TTL 48h</span>
+        </div>
+        <section class="composer" id="composerCard">
+          <div class="composer-head">
+            <div class="avatar" id="composerAvatar">MZ</div>
+            <div style="flex:1;min-width:0">
+              <textarea id="postInput" maxlength="280" data-i18n-placeholder="social.composer.placeholder" placeholder="What's happening in MUZZ world?"></textarea>
+              <div class="media-preview" id="mediaPreview">
+                <img id="mediaPreviewImg" alt="preview" />
+                <button type="button" class="media-remove" id="mediaRemoveBtn" title="Remove">✕</button>
+                <div class="media-hint">Imagen local · se reparte por P2P (Firebase solo puente)</div>
+              </div>
+              <input type="file" id="mediaFileInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+              <div class="composer-tools">
+                <div class="tools-left">
+                  <button type="button" class="emoji-btn" data-emoji-for="postInput" title="Emoji">😀</button>
+                  <button type="button" class="media-btn" id="mediaPickBtn" title="Add image (local/P2P)">🖼</button>
+                  <span class="tool-pill">Sign · free</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <span class="count" id="charCount">0 / 280</span>
+                  <button class="post-btn" id="publishBtn">Sign & Post</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div id="feed"></div>
+      </div>
+    </main>
+
+
+
+    <aside class="rightbar card">
+      <div class="search"><span>🔎</span><input type="text" placeholder="Search Muzz Social" id="searchInput"></div>
+      <section class="widget">
+        <p class="section-title">Live counters</p>
+        <div class="trend"><div><strong id="postTotal">0 posts</strong><small>Synced feed</small></div><span style="color:var(--muted)">LIVE</span></div>
+        <div class="trend"><div><strong id="actionTotal">0 actions</strong><small>Likes · RT · Share</small></div><span style="color:var(--muted)">REAL</span></div>
+        <div class="trend" style="display:none"><div><strong id="p2pTotal">0 replicas</strong><small>Local vault</small></div></div>
+        <div class="trend" style="display:none"><div><strong id="ttlTotal">0 expired</strong><small>Expired</small></div></div>
+      </section>
+      <section class="widget">
+        <p class="section-title">Access</p>
+        <div class="trend"><div><strong>MUZZ gate</strong><small>Min. 2M MUZZ · same as Private</small></div></div>
+        <div class="trend"><div><strong>Network</strong><small>Ethereum · ERC-20</small></div></div>
+      </section>
+      <section class="widget">
+        <p class="section-title">Official Links</p>
+        <div class="trend"><div><strong>X.com</strong><small>@MuzzleToken</small></div><button class="follow-btn" onclick="window.open('https://x.com/MuzzleToken','_blank')">Open</button></div>
+        <div class="trend"><div><strong>Telegram</strong><small>MuzzSnap community</small></div><button class="follow-btn" onclick="window.open('https://t.me/MuzzSnap','_blank')">Open</button></div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="mobile-bottom">
+    <button type="button" id="mobSocial" class="active">Social</button>
+    <button type="button" id="mobMuzzId">MuzzID</button>
+    <button type="button" onclick="location.href='chat.html'">Chat</button>
+    <button type="button" onclick="location.href='private.html'">Private</button>
+    <button type="button" onclick="location.href='game.html'">Game</button>
+    <button type="button" onclick="location.href='muzzstudio.html'">Studio</button>
+  </div>
+  <button class="fab" id="fabBtn">＋</button>
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* ═══════════════════════════════════════════════════════════
+       CONFIG
+    ═══════════════════════════════════════════════════════════ */
+    // TTL real = 48h. Para pruebas: social.html?ttlMinutes=1  o  ?ttlSeconds=30
+    const _qs = new URLSearchParams(location.search);
+    const TTL_MS = _qs.has('ttlSeconds')
+      ? Math.max(5, Number(_qs.get('ttlSeconds'))) * 1000
+      : _qs.has('ttlMinutes')
+        ? Math.max(1, Number(_qs.get('ttlMinutes'))) * 60 * 1000
+        : 48 * 60 * 60 * 1000;
+    const SWEEP_EVERY_MS = 30 * 1000;             // barrido TTL
+    const OFFLOAD_AFTER_MS = _qs.has('offloadSeconds')
+      ? Math.max(5, Number(_qs.get('offloadSeconds'))) * 1000
+      : 5 * 60 * 1000;                            // offload payload del servidor tras réplica
+    const MAX_POSTS = 150;
+    const IDB_NAME = 'muzz_social_p2p';
+    const IDB_STORE = 'posts';
+    const IDB_MEDIA = 'media';
+    const BC_NAME = 'muzz-social-p2p';
+    const MEDIA_MAX_EDGE = 1280;
+    const MEDIA_JPEG_Q = 0.72;
+    const MEDIA_MAX_BYTES = 900 * 1024; // ~900KB after compress
+
+    const firebaseConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
+      messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    /* ═══════════════════════════════════════════════════════════
+       SESSION / AUTH — mismo gate que MuzzSnap live + MuzzStudio
+       Contrato MuzzleToken (Ethereum): 0xef3d…B8f0
+       Social: ≥ 2,000,000 MUZZ (igual que Private)
+    ═══════════════════════════════════════════════════════════ */
+    const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
+    const TEAM_FINANCE_STAKING = '0xd6A07b8065f9e8386A9a5bBA6A754a10A9CD1074';
+    const MIN_MUZZ_SOCIAL = 2_000_000; // igual que Private Chat
+    const CHAIN_ID_HEX = '0x1';
+    const ERC20_ABI = [
+      'function balanceOf(address) view returns (uint256)',
+      'function decimals() view returns (uint8)'
+    ];
+    const ADMIN_WALLETS = [
+      '0x208157b5ec396759e8754058108ecf53e32392ff',
+      '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
+      '0xfab5835ca14fb3f9f478c5e4d733734e6394e03f',
+      '0x875c5a7794b601f273da58e3c1d10671d16130ec',
+      '0xf0809b8d23485f82245b777a28469e735e8430ce',
+      '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a'
+    ].map(a => a.toLowerCase());
+
+    function normalizeAddress(a) { return String(a || '').trim().toLowerCase(); }
+    function isAdminWallet(a) { return ADMIN_WALLETS.includes(normalizeAddress(a)); }
+    function isEthAddress(a) { return /^0x[a-fA-F0-9]{40}$/.test(a || ''); }
+
+    let wallet = sessionStorage.getItem('muzz_wallet_address');
+    let loginMethod = sessionStorage.getItem('muzz_login_method') || '';
+    // Único acceso: wallet + ≥2M MUZZ (sin guest)
+    wallet = normalizeAddress(wallet || '');
+    if (!wallet || wallet.startsWith('guest_') || loginMethod === 'guest') {
+      location.href = (window.MuzzShell && MuzzShell.PATHS.login) || 'index.html';
+      return;
+    }
+    const _bal = Number(sessionStorage.getItem('muzz_token_balance') || 0);
+    const _admin = isAdminWallet(wallet) || sessionStorage.getItem('muzz_is_admin') === 'true';
+    const _gate = sessionStorage.getItem('muzz_social_gate') === 'ok';
+    if (!_admin && !_gate && _bal < MIN_MUZZ_SOCIAL) {
+      location.href = (window.MuzzShell && MuzzShell.PATHS.login) || 'index.html';
+      return;
+    }
+    if (!loginMethod) {
+      loginMethod = 'wallet';
+      sessionStorage.setItem('muzz_login_method', loginMethod);
+    }
+    if (window.MuzzI18n) {
+      MuzzI18n.apply(document);
+      MuzzI18n.onChange(function () {
+        MuzzI18n.apply(document);
+        if (window.MuzzIDPanel && location.hash === '#muzzid' && MuzzIDPanel.refresh) MuzzIDPanel.refresh();
+      });
+    }
+    if (window.MuzzShell) {
+      try {
+        MuzzShell.renderNav(location.hash === '#muzzid' ? 'muzzid' : 'social');
+      } catch (e) { console.warn(e); }
+    }
+
+    const safeKey = v => String(v || '').replace(/[.#$/\[\]]/g, '_').toLowerCase();
+    const userKey = safeKey(wallet);
+    const peerId = userKey + '_' + Math.random().toString(36).slice(2, 8);
+    const savedName = sessionStorage.getItem('muzz_username');
+    const isGuest = false;
+    const isAdmin = _admin;
+    let socialAllowed = true; // pasó el gate de entrada
+    let muzzBalance = _bal;
+
+    function walletTail6(w) {
+      return String(w || '').replace(/^0x/i, '').slice(-6).toLowerCase();
+    }
+    function readMyMuzzId() {
+      try {
+        const raw = sessionStorage.getItem('muzz_id_nft');
+        if (raw) {
+          const j = JSON.parse(raw);
+          if (j && (j.name || j.username)) return String(j.name || j.username);
+        }
+      } catch (_) {}
+      if (sessionStorage.getItem('muzz_profile_is_nft') === '1') {
+        return sessionStorage.getItem('muzz_profile_display') || '';
+      }
+      return '';
+    }
+    /** Nombre público: MuzzID NFT o últimos 6 de la wallet (anonimato) */
+    function publicDisplayName(opts) {
+      opts = opts || {};
+      if (opts.muzzIdName) return { name: String(opts.muzzIdName), isNft: true };
+      if (opts.displayMode === 'muzzid' && opts.displayName) return { name: String(opts.displayName), isNft: true };
+      const w = opts.wallet || '';
+      if (w && !String(w).startsWith('guest_')) {
+        return { name: walletTail6(w), isNft: false };
+      }
+      const u = String(opts.username || '').trim();
+      if (/^Node_/i.test(u) && w) return { name: walletTail6(w), isNft: false };
+      return { name: u || 'anon', isNft: false };
+    }
+    function profileUrlFor(w) {
+      const base = (window.MuzzShell && MuzzShell.PATHS.profile) || 'profile.html';
+      if (!w || normalizeAddress(w) === normalizeAddress(wallet)) return base;
+      return base + '?w=' + encodeURIComponent(normalizeAddress(w));
+    }
+
+    // Bootstrap from session (instant UI), then verify on-chain NFT
+    const myMuzzId = readMyMuzzId();
+    let meName = myMuzzId || walletTail6(wallet);
+    let meHandle = '@' + meName.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 18);
+    let meIsNft = !!myMuzzId;
+
+    function applyMyIdentity(name, isNft, meta) {
+      meName = name || walletTail6(wallet);
+      meIsNft = !!isNft;
+      meHandle = '@' + meName.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 18);
+      sessionStorage.setItem('muzz_profile_display', meName);
+      sessionStorage.setItem('muzz_profile_is_nft', meIsNft ? '1' : '0');
+      const nameEl = document.getElementById('meName');
+      const handleEl = document.getElementById('meHandle');
+      const av = document.getElementById('meAvatar');
+      const cav = document.getElementById('composerAvatar');
+      if (nameEl) nameEl.textContent = meName;
+      if (handleEl) {
+        handleEl.textContent = meIsNft
+          ? ('MuzzID NFT' + (meta && meta.source === 'chain' ? ' · on-chain' : ''))
+          : (wallet.slice(0, 6) + '…' + wallet.slice(-4));
+      }
+      if (av) av.textContent = meName.slice(0, 2).toUpperCase();
+      if (cav) {
+        cav.textContent = meName.slice(0, 2).toUpperCase();
+        cav.style.opacity = meIsNft ? '1' : '0.55';
+      }
+      // Sync NFT identity to Firebase for Profile / other sessions
+      if (meIsNft && window.MuzzID && MuzzID.syncMuzzIdToFirebase) {
+        MuzzID.syncMuzzIdToFirebase({
+          name: meName,
+          username: meName,
+          wallet: wallet,
+          tokenId: meta && meta.tokenId,
+          network: meta && meta.network,
+          nft: meta && meta.nft,
+          mintedAt: (meta && meta.mintedAt) || Date.now()
+        }).catch(() => {});
+      }
+    }
+
+    applyMyIdentity(meName, meIsNft, { source: myMuzzId ? 'session' : 'wallet' });
+
+    // Resolve NFT ownership from Hardhat / configured networks
+    (async function resolveOnChainMuzzId() {
+      if (!window.MuzzID || !wallet || String(wallet).startsWith('guest_')) return;
+      try {
+        const info = await MuzzID.resolveMuzzId(wallet);
+        if (info && info.name) {
+          applyMyIdentity(info.name, true, info);
+          console.info('[MuzzID] recognized', info.name, 'via', info.source, info.network || '');
+        } else if (meIsNft) {
+          console.info('[MuzzID] no on-chain NFT; keeping session name if any');
+        }
+      } catch (e) {
+        console.warn('[MuzzID] resolve failed', e);
+      }
+      if (window.MuzzIDPanel) MuzzIDPanel.refresh();
+    })();
+
+    // ——— MuzzID panel (private list + mint) ———
+    window.MuzzIDPanel = (function () {
+      const panel = document.getElementById('muzzidPanel');
+      const feed = document.getElementById('feedScroll');
+      const topTitle = document.querySelector('.feed-top-left h2');
+      const currentEl = document.getElementById('muzzidCurrent');
+      const currentMeta = document.getElementById('muzzidCurrentMeta');
+      const listEl = document.getElementById('muzzidPrivateList');
+      const hintEl = document.getElementById('muzzidMintHint');
+      const inputEl = document.getElementById('muzzidMintInput');
+
+      function setHint(msg, cls) {
+        if (!hintEl) return;
+        hintEl.textContent = msg || '';
+        hintEl.className = 'muzzid-hint' + (cls ? ' ' + cls : '');
+      }
+
+      function show() {
+        if (panel) {
+          panel.hidden = false;
+          panel.classList.add('show');
+        }
+        if (feed) feed.classList.add('hide-for-muzzid');
+        if (topTitle) topTitle.textContent = (window.MuzzI18n ? MuzzI18n.t('muzzid.title') : 'MuzzID');
+        location.hash = 'muzzid';
+        if (window.MuzzShell) {
+          try { MuzzShell.renderNav('muzzid'); } catch (_) {}
+        }
+        if (window.MuzzI18n) MuzzI18n.apply(panel || document);
+        refresh();
+      }
+
+      function hide() {
+        if (panel) {
+          panel.hidden = true;
+          panel.classList.remove('show');
+        }
+        if (feed) feed.classList.remove('hide-for-muzzid');
+        if (topTitle) topTitle.textContent = (window.MuzzI18n ? MuzzI18n.t('social.title') : 'Social');
+        if (location.hash === '#muzzid') {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+        if (window.MuzzShell) {
+          try { MuzzShell.renderNav('social'); } catch (_) {}
+        }
+        if (window.MuzzI18n) MuzzI18n.apply(document);
+      }
+
+      async function refresh() {
+        if (!currentEl || !listEl) return;
+        if (!wallet || String(wallet).startsWith('guest_')) {
+          currentEl.innerHTML = '<span class="ghost">No wallet</span>';
+          listEl.innerHTML = '<div class="muzzid-empty">Conecta una wallet</div>';
+          return;
+        }
+
+        currentEl.textContent = meIsNft ? ('@' + meName) : 'Sin MuzzID';
+        currentEl.className = 'muzzid-status' + (meIsNft ? '' : '');
+        if (!meIsNft) currentEl.innerHTML = '<span class="ghost">Sin MuzzID</span>';
+        if (currentMeta) {
+          currentMeta.textContent = meIsNft
+            ? ('NFT verificado · wallet ' + wallet.slice(0, 6) + '…' + wallet.slice(-4))
+            : 'Mintea un nick para usarlo en Social';
+        }
+
+        listEl.innerHTML = '<div class="muzzid-empty">Cargando nicks privados…</div>';
+        if (!window.MuzzID || !MuzzID.listMyNfts) {
+          listEl.innerHTML = '<div class="muzzid-empty">MuzzID module missing</div>';
+          return;
+        }
+        try {
+          // Owner-only: always the connected session wallet
+          const mine = await MuzzID.listMyNfts(wallet);
+          if (!mine.length) {
+            listEl.innerHTML = '<div class="muzzid-empty">Aún no tienes nicks NFT en esta wallet.<br/>Crea uno abajo.</div>';
+            return;
+          }
+          var createdLbl = window.MuzzI18n ? MuzzI18n.t('muzzid.created') : 'Created';
+          listEl.innerHTML = mine.map(function (row) {
+            return (
+              '<div class="muzzid-row">' +
+              '<div><strong>@' + escapeHtml(row.username) + '</strong>' +
+              '<small>' + createdLbl + ': ' + escapeHtml(row.createdAt) +
+              (row.network ? (' · ' + row.network) : '') + '</small></div>' +
+              '<div class="tid">#' + escapeHtml(row.tokenId) + '</div>' +
+              '</div>'
+            );
+          }).join('');
+
+          // Sync primary identity if chain has names
+          if (!meIsNft && mine[0]) {
+            applyMyIdentity(mine[0].username, true, { source: 'chain', network: mine[0].network });
+            currentEl.textContent = '@' + meName;
+            if (currentMeta) currentMeta.textContent = 'NFT verificado · #' + mine[0].tokenId;
+          }
+        } catch (e) {
+          console.warn(e);
+          listEl.innerHTML = '<div class="muzzid-empty">No se pudo leer la chain (¿Hardhat apagado?). Ejecuta ARREGLAR-Y-ABRIR-MUZZID.bat</div>';
+        }
+      }
+
+      async function mint() {
+        const username = String(inputEl && inputEl.value || '').trim();
+        if (!username) {
+          setHint('Escribe un username', 'bad');
+          return;
+        }
+        if (!window.MuzzIDMint) {
+          setHint('MuzzIDMint module missing', 'bad');
+          return;
+        }
+        try {
+          const res = await MuzzIDMint.mintUsername(username, {
+            requireWallet: wallet,
+            onStatus: function (s) { setHint(s, ''); }
+          });
+          if (window.MuzzID && MuzzID.saveSessionMuzzId) {
+            MuzzID.saveSessionMuzzId({
+              name: res.username,
+              wallet: normalizeAddress(res.address),
+              network: 'demo',
+              nft: res.network && res.network.nft,
+              mintedAt: Date.now()
+            });
+          }
+          applyMyIdentity(res.username, true, { source: 'chain', network: 'demo' });
+          setHint('¡@' + res.username + ' minteado! 100% MUZZ → dead', 'ok');
+          if (typeof toast === 'function') toast('MuzzID @' + res.username + ' created');
+          inputEl.value = '';
+          await refresh();
+        } catch (e) {
+          console.error(e);
+          const msg = e.reason || e.message || String(e);
+          if (/Hardhat|ECONNREFUSED|8545/i.test(msg)) {
+            setHint((window.MuzzI18n ? MuzzI18n.t('muzzid.hardhatOff') : 'Hardhat off. Run ARREGLAR-Y-ABRIR-MUZZID.bat'), 'bad');
+          } else if (/user rejected|4001/i.test(msg)) {
+            setHint('Cancelado en MetaMask', 'bad');
+          } else {
+            setHint(String(msg).slice(0, 160), 'bad');
+          }
+        }
+      }
+
+      // Wire buttons
+      const btnRefresh = document.getElementById('muzzidRefreshBtn');
+      const btnBack = document.getElementById('muzzidBackFeedBtn');
+      const btnMint = document.getElementById('muzzidMintBtn');
+      if (btnRefresh) btnRefresh.onclick = refresh;
+      if (btnBack) btnBack.onclick = hide;
+      if (btnMint) btnMint.onclick = mint;
+
+      const mobSocial = document.getElementById('mobSocial');
+      const mobMuzzId = document.getElementById('mobMuzzId');
+      if (mobMuzzId) {
+        mobMuzzId.onclick = function () {
+          show();
+          if (mobSocial) mobSocial.classList.remove('active');
+          mobMuzzId.classList.add('active');
+        };
+      }
+      if (mobSocial) {
+        mobSocial.onclick = function () {
+          hide();
+          mobSocial.classList.add('active');
+          if (mobMuzzId) mobMuzzId.classList.remove('active');
+        };
+      }
+
+      if (inputEl) {
+        inputEl.addEventListener('input', function () {
+          const u = inputEl.value.trim();
+          if (!u) return setHint('Basic ≈ $2 · Premium emoji ≈ $4 · 1 confirmación', '');
+          const premium = /[^A-Za-z0-9]/.test(u);
+          setHint(premium ? 'Premium ≈ $4 (emoji/símbolos)' : 'Basic ≈ $2 (letras/números)', '');
+        });
+      }
+
+      // Open if hash
+      if (location.hash === '#muzzid') show();
+      window.addEventListener('hashchange', function () {
+        if (location.hash === '#muzzid') show();
+        else if (panel && panel.classList.contains('show')) hide();
+      });
+
+      return { show: show, hide: hide, refresh: refresh };
+    })();
+
+    function pickInjectedProvider() {
+      const eth = window.ethereum;
+      if (!eth) return null;
+      if (Array.isArray(eth.providers) && eth.providers.length) {
+        return eth.providers.find(p => p && p.isMetaMask && !p.isBraveWallet)
+          || eth.providers.find(p => p && p.isMetaMask)
+          || eth.providers[0];
+      }
+      return eth;
+    }
+
+    function waitForEthereum(timeoutMs) {
+      timeoutMs = timeoutMs == null ? 4000 : timeoutMs;
+      return new Promise(resolve => {
+        if (pickInjectedProvider()) return resolve(pickInjectedProvider());
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearInterval(poll);
+          clearTimeout(timer);
+          window.removeEventListener('ethereum#initialized', finish);
+          resolve(pickInjectedProvider());
+        };
+        const poll = setInterval(() => { if (pickInjectedProvider()) finish(); }, 100);
+        const timer = setTimeout(finish, timeoutMs);
+        window.addEventListener('ethereum#initialized', finish);
+      });
+    }
+
+    async function ensureMainnet(eth) {
+      eth = eth || pickInjectedProvider();
+      if (!eth) return;
+      const chainId = await eth.request({ method: 'eth_chainId' });
+      if (chainId === CHAIN_ID_HEX || Number(chainId) === 1) return;
+      await eth.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: CHAIN_ID_HEX }]
+      });
+    }
+
+    async function readMuzzBalance(userAddr) {
+      if (typeof ethers === 'undefined') throw new Error('NO_WALLET');
+      let eth = pickInjectedProvider() || await waitForEthereum(3500);
+      if (!eth) throw new Error('NO_WALLET');
+      try { await ensureMainnet(eth); } catch (_) {}
+      const provider = new ethers.providers.Web3Provider(eth, 'any');
+      const token = new ethers.Contract(MUZZ_TOKEN, ERC20_ABI, provider);
+      const [raw, decimals] = await Promise.all([
+        token.balanceOf(userAddr),
+        token.decimals().catch(() => 18)
+      ]);
+      return parseFloat(ethers.utils.formatUnits(raw, decimals));
+    }
+
+    async function hasStakedEnough(userAddr, minHuman) {
+      try {
+        const eth = pickInjectedProvider();
+        if (!eth) return false;
+        const provider = new ethers.providers.Web3Provider(eth, 'any');
+        const token = new ethers.Contract(MUZZ_TOKEN, ERC20_ABI, provider);
+        const decimals = await token.decimals().catch(() => 18);
+        const minRaw = ethers.BigNumber.from(String(minHuman)).mul(ethers.BigNumber.from(10).pow(decimals));
+        const latest = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latest - 50000);
+        const logs = await Promise.race([
+          provider.getLogs({
+            address: MUZZ_TOKEN,
+            fromBlock,
+            toBlock: 'latest',
+            topics: [
+              ethers.utils.id('Transfer(address,address,uint256)'),
+              ethers.utils.hexZeroPad(userAddr, 32),
+              ethers.utils.hexZeroPad(TEAM_FINANCE_STAKING, 32)
+            ]
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))
+        ]);
+        let total = ethers.BigNumber.from(0);
+        for (const log of logs) if (log.data) total = total.add(ethers.BigNumber.from(log.data));
+        return total.gte(minRaw);
+      } catch (e) {
+        console.warn('stake check', e);
+        return false;
+      }
+    }
+
+    /** Verifica gate on-chain (balance o stake ≥ 2M MUZZ, igual Private). Admins ok. Guest never. */
+    async function verifySocialGate() {
+      if (isAdmin) {
+        socialAllowed = true;
+        sessionStorage.setItem('muzz_social_gate', 'ok');
+        return { ok: true, reason: 'admin' };
+      }
+      if (isGuest || !isEthAddress(wallet)) {
+        socialAllowed = false;
+        sessionStorage.setItem('muzz_social_gate', 'deny');
+        return { ok: false, reason: 'guest' };
+      }
+      try {
+        const human = await readMuzzBalance(wallet);
+        muzzBalance = human;
+        sessionStorage.setItem('muzz_token_balance', String(human));
+        if (human >= MIN_MUZZ_SOCIAL) {
+          socialAllowed = true;
+          sessionStorage.setItem('muzz_social_gate', 'ok');
+          return { ok: true, reason: 'balance', balance: human };
+        }
+        const staked = await hasStakedEnough(wallet, MIN_MUZZ_SOCIAL);
+        if (staked) {
+          socialAllowed = true;
+          sessionStorage.setItem('muzz_social_gate', 'ok');
+          return { ok: true, reason: 'stake', balance: human };
+        }
+        socialAllowed = false;
+        sessionStorage.setItem('muzz_social_gate', 'deny');
+        return { ok: false, reason: 'insufficient', balance: human };
+      } catch (e) {
+        console.error(e);
+        // Si ya pasó el gate en login y no hay RPC, no echar al usuario de golpe
+        if (sessionStorage.getItem('muzz_social_gate') === 'ok') {
+          socialAllowed = true;
+          return { ok: true, reason: 'cached', error: e.message };
+        }
+        socialAllowed = false;
+        return { ok: false, reason: 'rpc', error: e.message };
+      }
+    }
+
+    function requireSocialWrite() {
+      if (socialAllowed) return true;
+      if (isGuest) {
+        toast('Guest es solo lectura. Conecta wallet con ≥ 2M MUZZ (igual que Private).');
+      } else {
+        toast('Se requieren 2,000,000 MUZZ (balance o stake Team Finance), igual que Private.');
+      }
+      return false;
+    }
+
+    function disconnectWallet() {
+      if (window.MuzzShell) MuzzShell.disconnect();
+      else { sessionStorage.clear(); location.href = 'index.html'; }
+    }
+    window.disconnectWallet = disconnectWallet;
+
+    /* ═══════════════════════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════════════════════ */
+    let posts = {};                 // metadata + payload desde Firebase
+    let commentsByPost = {};
+    let actionsByPost = {};
+    let decryptedCache = {};        // postId -> plaintext
+    let localVault = {};            // postId -> full encrypted post from IDB
+    let chainTip = null;            // último contentHash de la cadena local
+    let searchTerm = '';
+    let openComments = new Set();
+    let draftComments = {};
+    let expiredPurged = 0;
+    let rendering = false;
+    let publishBusy = false;
+    let p2pStatus = 'idle';
+    let bc = null;
+    let feedMode = 'global';        // 'global' | 'following'
+    let followingWallets = new Set(); // lowercase wallets I follow
+    let stopFollowWatch = null;
+
+    /* ═══════════════════════════════════════════════════════════
+       UI HELPERS
+    ═══════════════════════════════════════════════════════════ */
+    function toast(msg, ms = 2800) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    function setChip() { /* UI técnica oculta a propósito */ }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[m]));
+    }
+
+    function shortTime(ts) {
+      if (!ts) return 'now';
+      const diff = Date.now() - ts;
+      if (diff < 60000) return 'now';
+      if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+      return Math.floor(diff / 86400000) + 'd';
+    }
+
+    function ttlLeft(lastInteractionAt) {
+      const left = TTL_MS - (Date.now() - (lastInteractionAt || 0));
+      if (left <= 0) return 'expiring';
+      const h = Math.floor(left / 3600000);
+      const m = Math.floor((left % 3600000) / 60000);
+      return h + 'h ' + m + 'm';
+    }
+
+    function count(obj) { return obj ? Object.keys(obj).length : 0; }
+
+    function isMineAction(postId, type) {
+      return !!(actionsByPost[postId] && actionsByPost[postId][type] && actionsByPost[postId][type][userKey]);
+    }
+
+    function goToChat(e) { if (e) e.preventDefault(); location.href = 'chat.html'; }
+    function goComposer() {
+      document.getElementById('composerCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('postInput').focus();
+    }
+    function showMuzzLogin() {
+      const bal = muzzBalance ? (muzzBalance.toLocaleString() + ' MUZZ') : '—';
+      toast((isGuest ? 'Guest' : 'Wallet') + ' · ' + (wallet.slice(0, 10) + '…') + ' · ' + bal + (socialAllowed ? ' · Social OK' : ' · Gate locked'));
+    }
+    function requireWalletPage(page) {
+      if (!sessionStorage.getItem('muzz_wallet_address')) {
+        location.href = 'index.html';
+        return;
+      }
+      location.href = page;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CRYPTO — E2EE 3 llaves (A creador, B servidor, C lector)
+       El servidor ALMACENA las 3 llaves (requisito de producto).
+    ═══════════════════════════════════════════════════════════ */
+    const te = new TextEncoder();
+    const td = new TextDecoder();
+
+    function b64(buf) {
+      const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+      let s = '';
+      for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+      return btoa(s);
+    }
+
+    function fromB64(str) {
+      const bin = atob(str);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    function randomBytes(n) {
+      const a = new Uint8Array(n);
+      crypto.getRandomValues(a);
+      return a;
+    }
+
+    async function sha256Hex(data) {
+      const buf = typeof data === 'string' ? te.encode(data) : data;
+      const hash = await crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       FASE A — Firma off-chain (gratis, sin gas)
+       personal_sign del hash del post → garantía de autoría
+    ═══════════════════════════════════════════════════════════ */
+    const sigCache = {}; // postId -> { ok, signer, reason }
+
+    function buildSignMessage({ postId, walletAddr, contentHash, chainPrev }) {
+      return [
+        'MuzzSnap Social Post',
+        'Version: 1',
+        'Hash: ' + contentHash,
+        'Author: ' + normalizeAddress(walletAddr),
+        'Post: ' + postId,
+        'Prev: ' + (chainPrev || 'genesis')
+      ].join('\n');
+    }
+
+    async function signPostMessage(message) {
+      const eth = pickInjectedProvider();
+      if (!eth) throw new Error('MetaMask no detectado. Abre http://localhost:5500/muzzocial/');
+      if (typeof ethers === 'undefined') throw new Error('ethers.js no cargó');
+
+      // Asegurar cuenta correcta
+      const accounts = await eth.request({ method: 'eth_requestAccounts' });
+      const from = normalizeAddress(accounts[0] || '');
+      if (from !== normalizeAddress(wallet)) {
+        throw new Error('La wallet de MetaMask no coincide con la sesión (' + shortAddr(wallet) + '). Cambia de cuenta y reintenta.');
+      }
+
+      // eth_signTypedData no hace falta: personal_sign es gratis (sin gas)
+      const provider = new ethers.providers.Web3Provider(eth, 'any');
+      const signer = provider.getSigner();
+      const signature = await signer.signMessage(message);
+      return { signature, signer: from, message };
+    }
+
+    function verifyPostSignature(post, plaintext) {
+      if (!post || !post.signature || !post.contentHash) {
+        return { ok: false, reason: 'unsigned' };
+      }
+      if (typeof ethers === 'undefined') {
+        return { ok: false, reason: 'no-ethers' };
+      }
+      try {
+        const msg = buildSignMessage({
+          postId: post.id,
+          walletAddr: post.signer || post.wallet,
+          contentHash: post.contentHash,
+          chainPrev: post.chainPrev || null
+        });
+        const recovered = normalizeAddress(ethers.utils.verifyMessage(msg, post.signature));
+        const expected = normalizeAddress(post.signer || post.wallet);
+        if (!expected || recovered !== expected) {
+          return { ok: false, reason: 'mismatch', signer: recovered };
+        }
+        // Opcional: rehash del plaintext si ya está descifrado
+        if (plaintext) {
+          // hash canónico usado al firmar: text|postId|prev
+          // se verifica async fuera; aquí solo firma
+        }
+        return { ok: true, signer: recovered, reason: 'valid' };
+      } catch (e) {
+        return { ok: false, reason: 'invalid', error: e.message };
+      }
+    }
+
+    async function verifyPostHash(post, plaintext) {
+      if (!post || !post.contentHash || plaintext == null) return null;
+      const expected = await sha256Hex(plaintext + '|' + post.id + '|' + (post.chainPrev || 'genesis'));
+      return expected === post.contentHash;
+    }
+
+    function shortAddr(a) {
+      a = String(a || '');
+      if (a.length < 12) return a;
+      return a.slice(0, 6) + '…' + a.slice(-4);
+    }
+
+    /** Deriva keyB del servidor: material determinista + sal del proyecto (servidor "conoce" B). */
+    async function deriveServerKeyB(postId) {
+      const material = te.encode('MUZZ_SERVER_KEY_B_V1|' + postId + '|' + firebaseConfig.projectId);
+      const digest = await crypto.subtle.digest('SHA-256', material);
+      return new Uint8Array(digest);
+    }
+
+    /** Combina A+B+C → AES-GCM-256 (las 3 son necesarias; el servidor las tiene). */
+    async function deriveContentKey(keyA, keyB, keyC) {
+      const combined = new Uint8Array(96);
+      combined.set(keyA, 0);
+      combined.set(keyB, 32);
+      combined.set(keyC, 64);
+      const baseKey = await crypto.subtle.importKey('raw', combined, 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: te.encode('muzz-social-salt-v1'), info: te.encode('muzz-e2ee-post-v1') },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptPostText(plaintext, postId) {
+      const keyA = randomBytes(32);                         // Punto A — creador
+      const keyB = await deriveServerKeyB(postId);          // Punto B — servidor
+      const keyC = randomBytes(32);                         // Punto C — lector/red
+      const aesKey = await deriveContentKey(keyA, keyB, keyC);
+      const iv = randomBytes(12);
+      const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, te.encode(plaintext));
+      return {
+        ciphertext: b64(cipherBuf),
+        iv: b64(iv),
+        keys: {
+          keyA: b64(keyA),
+          keyB: b64(keyB),
+          keyC: b64(keyC)
+        }
+      };
+    }
+
+    async function decryptPostPayload(post) {
+      if (!post || !post.ciphertext || !post.iv || !post.keys) return null;
+      try {
+        const keyA = fromB64(post.keys.keyA);
+        const keyB = fromB64(post.keys.keyB);
+        const keyC = fromB64(post.keys.keyC);
+        // Servidor debe tener las 3 — verificamos que existan
+        if (keyA.length !== 32 || keyB.length !== 32 || keyC.length !== 32) return null;
+        const aesKey = await deriveContentKey(keyA, keyB, keyC);
+        const plainBuf = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: fromB64(post.iv) },
+          aesKey,
+          fromB64(post.ciphertext)
+        );
+        return td.decode(plainBuf);
+      } catch (e) {
+        console.warn('decrypt failed', post.id || post, e);
+        return null;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       INDEXEDDB — vault P2P local (el post vive en dispositivos)
+    ═══════════════════════════════════════════════════════════ */
+    function openIDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 2);
+        req.onupgradeneeded = () => {
+          const idb = req.result;
+          if (!idb.objectStoreNames.contains(IDB_STORE)) {
+            idb.createObjectStore(IDB_STORE, { keyPath: 'id' });
+          }
+          if (!idb.objectStoreNames.contains(IDB_MEDIA)) {
+            idb.createObjectStore(IDB_MEDIA, { keyPath: 'hash' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    /* ── Media local (IndexedDB) + puente P2P ── */
+    let pendingMedia = null; // { hash, mime, width, height, blob, dataUrl }
+    const mediaUrlCache = {}; // hash -> objectURL
+    const mediaWaiters = {}; // hash -> Set of img elements / callbacks
+
+    async function mediaPut(record) {
+      if (!record || !record.hash || !record.blob) return;
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_MEDIA, 'readwrite');
+        tx.objectStore(IDB_MEDIA).put({
+          hash: record.hash,
+          mime: record.mime || 'image/jpeg',
+          width: record.width || 0,
+          height: record.height || 0,
+          blob: record.blob,
+          vaultedAt: Date.now()
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function mediaGet(hash) {
+      if (!hash) return null;
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_MEDIA, 'readonly');
+        const req = tx.objectStore(IDB_MEDIA).get(hash);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function mediaUrl(hash) {
+      if (!hash) return null;
+      if (mediaUrlCache[hash]) return mediaUrlCache[hash];
+      const rec = await mediaGet(hash);
+      if (!rec || !rec.blob) return null;
+      const url = URL.createObjectURL(rec.blob);
+      mediaUrlCache[hash] = url;
+      return url;
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+    }
+
+    function dataUrlToBlob(dataUrl) {
+      const parts = String(dataUrl).split(',');
+      const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+      const bin = atob(parts[1] || '');
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    }
+
+    async function compressImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) throw new Error('Archivo no es imagen');
+      // GIF: keep as-is if small enough
+      if (file.type === 'image/gif' && file.size <= MEDIA_MAX_BYTES) {
+        const buf = await file.arrayBuffer();
+        const hash = await sha256Hex(new Uint8Array(buf));
+        return { hash, mime: 'image/gif', width: 0, height: 0, blob: file };
+      }
+      const bmp = await createImageBitmap(file);
+      let w = bmp.width;
+      let h = bmp.height;
+      const scale = Math.min(1, MEDIA_MAX_EDGE / Math.max(w, h));
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bmp, 0, 0, w, h);
+      try { bmp.close(); } catch (_) {}
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', MEDIA_JPEG_Q));
+      if (!blob) throw new Error('No se pudo comprimir la imagen');
+      if (blob.size > MEDIA_MAX_BYTES) throw new Error('Imagen demasiado grande tras comprimir (máx ~900KB)');
+      const buf = await blob.arrayBuffer();
+      const hash = await sha256Hex(new Uint8Array(buf));
+      return { hash, mime: 'image/jpeg', width: w, height: h, blob };
+    }
+
+    async function announceMediaHoldings() {
+      // merge into peer announce
+      try {
+        const idb = await openIDB();
+        const hashes = await new Promise((resolve, reject) => {
+          const tx = idb.transaction(IDB_MEDIA, 'readonly');
+          const req = tx.objectStore(IDB_MEDIA).getAllKeys();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+        await db.ref('social/p2p_peers/' + peerId).update({
+          mediaHolds: (hashes || []).slice(0, 200),
+          mediaCount: (hashes || []).length,
+          at: firebase.database.ServerValue.TIMESTAMP
+        });
+      } catch (_) {}
+    }
+
+    async function fetchMediaFromNetwork(hash) {
+      if (!hash) return null;
+      let local = await mediaGet(hash);
+      if (local && local.blob) return local;
+
+      if (bc) {
+        bc.postMessage({ type: 'media_request', hash, from: peerId });
+        await sleep(500);
+        local = await mediaGet(hash);
+        if (local && local.blob) return local;
+      }
+
+      const reqRef = db.ref('social/p2p_media_requests/' + hash + '/' + peerId);
+      await reqRef.set({ from: peerId, userKey, at: Date.now() });
+      try { reqRef.onDisconnect().remove(); } catch (_) {}
+
+      const payload = await new Promise((resolve) => {
+        const respRef = db.ref('social/p2p_media_responses/' + hash + '/' + peerId);
+        let done = false;
+        const finish = async (val) => {
+          if (done) return;
+          done = true;
+          respRef.off();
+          clearTimeout(timer);
+          try { await respRef.remove(); } catch (_) {}
+          try { await reqRef.remove(); } catch (_) {}
+          resolve(val);
+        };
+        const timer = setTimeout(() => finish(null), 8000);
+        respRef.on('value', snap => {
+          const v = snap.val();
+          if (v && v.dataUrl) finish(v);
+        });
+      });
+
+      if (payload && payload.dataUrl) {
+        const blob = dataUrlToBlob(payload.dataUrl);
+        const rec = {
+          hash,
+          mime: payload.mime || blob.type || 'image/jpeg',
+          width: payload.width || 0,
+          height: payload.height || 0,
+          blob
+        };
+        await mediaPut(rec);
+        if (bc) bc.postMessage({ type: 'media_put', media: { hash, mime: rec.mime, width: rec.width, height: rec.height, dataUrl: payload.dataUrl }, from: peerId });
+        return rec;
+      }
+      return null;
+    }
+
+    function listenMediaP2PRequests() {
+      db.ref('social/p2p_media_requests').on('child_added', (hashGroup) => {
+        const hash = hashGroup.key;
+        hashGroup.ref.on('child_added', async (snap) => {
+          const req = snap.val() || {};
+          if (!req.from || req.from === peerId) return;
+          const local = await mediaGet(hash);
+          if (!local || !local.blob) return;
+          try {
+            const dataUrl = await blobToDataUrl(local.blob);
+            // Solo puente temporal — se borra tras unos segundos
+            await db.ref('social/p2p_media_responses/' + hash + '/' + req.from).set({
+              dataUrl,
+              mime: local.mime,
+              width: local.width || 0,
+              height: local.height || 0,
+              fromPeer: peerId,
+              at: Date.now()
+            });
+            setTimeout(() => {
+              db.ref('social/p2p_media_responses/' + hash + '/' + req.from).remove().catch(() => {});
+            }, 10000);
+          } catch (e) {
+            console.warn('media relay', e);
+          }
+        });
+      });
+    }
+
+    async function ensurePostMedia(hash, imgEl) {
+      if (!hash || !imgEl) return;
+      let url = await mediaUrl(hash);
+      if (url) {
+        imgEl.src = url;
+        imgEl.hidden = false;
+        const wait = imgEl.parentElement && imgEl.parentElement.querySelector('.media-wait');
+        if (wait) wait.hidden = true;
+        return;
+      }
+      const got = await fetchMediaFromNetwork(hash);
+      if (got) {
+        url = await mediaUrl(hash);
+        if (url) {
+          imgEl.src = url;
+          imgEl.hidden = false;
+          const wait = imgEl.parentElement && imgEl.parentElement.querySelector('.media-wait');
+          if (wait) wait.hidden = true;
+          return;
+        }
+      }
+      const wait = imgEl.parentElement && imgEl.parentElement.querySelector('.media-wait');
+      if (wait) wait.textContent = '🖼 Buscando imagen en la red P2P…';
+    }
+
+    async function vaultPut(post) {
+      if (!post || !post.id) return;
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put({ ...post, vaultedAt: Date.now() });
+        tx.oncomplete = () => { localVault[post.id] = post; resolve(); };
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function vaultGet(id) {
+      if (localVault[id]) return localVault[id];
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(id);
+        req.onsuccess = () => {
+          if (req.result) localVault[id] = req.result;
+          resolve(req.result || null);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function vaultDelete(id) {
+      delete localVault[id];
+      delete decryptedCache[id];
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function vaultAll() {
+      const idb = await openIDB();
+      return new Promise((resolve, reject) => {
+        const tx = idb.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).getAll();
+        req.onsuccess = () => {
+          const list = req.result || [];
+          list.forEach(p => { localVault[p.id] = p; });
+          resolve(list);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function vaultCount() {
+      const all = await vaultAll();
+      return all.length;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       P2P — BroadcastChannel + Firebase peer registry + relay
+       Objetivo: transferir posts entre dispositivos y liberar
+       payload del servidor sin borrar el post de la red.
+    ═══════════════════════════════════════════════════════════ */
+    function initBroadcast() {
+      try {
+        bc = new BroadcastChannel(BC_NAME);
+        bc.onmessage = async (ev) => {
+          const msg = ev.data || {};
+          if (msg.type === 'media_request' && msg.hash && msg.from !== peerId) {
+            const local = await mediaGet(msg.hash);
+            if (local && local.blob) {
+              const dataUrl = await blobToDataUrl(local.blob);
+              bc.postMessage({
+                type: 'media_put',
+                media: { hash: msg.hash, mime: local.mime, width: local.width, height: local.height, dataUrl },
+                from: peerId
+              });
+            }
+          }
+          if (msg.type === 'media_put' && msg.media && msg.media.hash && msg.media.dataUrl) {
+            const exists = await mediaGet(msg.media.hash);
+            if (!exists) {
+              await mediaPut({
+                hash: msg.media.hash,
+                mime: msg.media.mime,
+                width: msg.media.width,
+                height: msg.media.height,
+                blob: dataUrlToBlob(msg.media.dataUrl)
+              });
+              scheduleRender();
+            }
+          }
+          if (msg.type === 'vault_put' && msg.post) {
+            await vaultPut(msg.post);
+            if (!posts[msg.post.id]) {
+              posts[msg.post.id] = stripHeavy(msg.post);
+            }
+            await ensureDecrypted(msg.post.id);
+            scheduleRender();
+          }
+          if (msg.type === 'vault_request' && msg.postId && msg.from !== peerId) {
+            const local = await vaultGet(msg.postId);
+            if (local && local.ciphertext) {
+              bc.postMessage({ type: 'vault_put', post: local, from: peerId });
+            }
+          }
+          if (msg.type === 'vault_purge' && msg.postId) {
+            await vaultDelete(msg.postId);
+            delete posts[msg.postId];
+            scheduleRender();
+          }
+        };
+        p2pStatus = 'broadcast';
+        setChip('chipP2P', 'P2P broadcast', 'ok');
+      } catch (e) {
+        p2pStatus = 'local-only';
+        setChip('chipP2P', 'P2P local only', 'warn');
+      }
+    }
+
+    function stripHeavy(post) {
+      // Copia ligera para feed si el payload ya está en vault
+      return { ...post };
+    }
+
+    async function announcePeerHoldings() {
+      const ids = Object.keys(localVault);
+      await db.ref('social/p2p_peers/' + peerId).set({
+        userKey,
+        username: meName,
+        holds: ids.slice(0, 200),
+        count: ids.length,
+        at: firebase.database.ServerValue.TIMESTAMP
+      });
+      db.ref('social/p2p_peers/' + peerId).onDisconnect().remove();
+    }
+
+    /** Si el servidor no tiene ciphertext, pedir a peers (BC + relay Firebase). */
+    async function fetchPayloadFromNetwork(postId, meta) {
+      // 1) vault local
+      let local = await vaultGet(postId);
+      if (local && local.ciphertext) return local;
+
+      // 2) BroadcastChannel
+      if (bc) {
+        bc.postMessage({ type: 'vault_request', postId, from: peerId });
+        await sleep(400);
+        local = await vaultGet(postId);
+        if (local && local.ciphertext) return local;
+      }
+
+      // 3) Relay Firebase: publicar request; peers responden con payload temporal
+      const reqRef = db.ref('social/p2p_requests/' + postId + '/' + peerId);
+      await reqRef.set({ from: peerId, userKey, at: Date.now() });
+      reqRef.onDisconnect().remove();
+
+      const payload = await new Promise((resolve) => {
+        const respRef = db.ref('social/p2p_responses/' + postId + '/' + peerId);
+        let done = false;
+        const finish = async (val) => {
+          if (done) return;
+          done = true;
+          respRef.off();
+          clearTimeout(timer);
+          try { await respRef.remove(); } catch (_) {}
+          try { await reqRef.remove(); } catch (_) {}
+          resolve(val);
+        };
+        const timer = setTimeout(() => finish(null), 4000);
+        respRef.on('value', snap => {
+          const v = snap.val();
+          if (v && v.ciphertext) finish(v);
+        });
+      });
+
+      if (payload && payload.ciphertext) {
+        const full = { ...(meta || posts[postId] || {}), ...payload, id: postId };
+        await vaultPut(full);
+        if (bc) bc.postMessage({ type: 'vault_put', post: full, from: peerId });
+        return full;
+      }
+      return null;
+    }
+
+    /** Responder requests P2P de otros peers con payload del vault. */
+    function listenP2PRequests() {
+      db.ref('social/p2p_requests').on('child_added', reqGroup => {
+        const postId = reqGroup.key;
+        reqGroup.ref.on('child_added', async snap => {
+          const req = snap.val() || {};
+          if (!req.from || req.from === peerId) return;
+          const local = await vaultGet(postId);
+          if (!local || !local.ciphertext) return;
+          await db.ref('social/p2p_responses/' + postId + '/' + req.from).set({
+            ciphertext: local.ciphertext,
+            iv: local.iv,
+            keys: local.keys,
+            contentHash: local.contentHash,
+            chainPrev: local.chainPrev || null,
+            username: local.username,
+            handle: local.handle,
+            wallet: local.wallet,
+            userKey: local.userKey,
+            createdAt: local.createdAt,
+            lastInteractionAt: local.lastInteractionAt,
+            fromPeer: peerId,
+            at: Date.now()
+          });
+          // Limpieza diferida de la respuesta (transferencia efímera)
+          setTimeout(() => {
+            db.ref('social/p2p_responses/' + postId + '/' + req.from).remove().catch(() => {});
+          }, 8000);
+        });
+      });
+    }
+
+    /**
+     * Offload: si hay réplica local y el post es "viejo", quitar ciphertext
+     * del servidor para liberar espacio. Metadata + keys + hash se quedan.
+     * El post NO desaparece de la red: vive en vaults P2P.
+     */
+    async function maybeOffloadServerPayload(postId, post) {
+      if (!post || post.payloadOffloaded) return;
+      if (!post.ciphertext) return;
+      const age = Date.now() - (post.createdAt || 0);
+      if (age < OFFLOAD_AFTER_MS) return;
+
+      // Solo offload si al menos este peer ya vaulted el payload
+      const local = await vaultGet(postId);
+      if (!local || !local.ciphertext) return;
+
+      // Registrar réplica en cadena
+      await db.ref('social/replicas/' + postId + '/' + userKey).set({
+        peerId,
+        contentHash: post.contentHash || local.contentHash,
+        at: firebase.database.ServerValue.TIMESTAMP
+      });
+
+      // Liberar espacio en servidor: quitar payload cifrado (keys se quedan)
+      await db.ref('social/posts/' + postId).update({
+        ciphertext: null,
+        iv: null,
+        payloadOffloaded: true,
+        storageMode: 'p2p',
+        offloadedAt: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    /* ═══════════════════════════════════════════════════════════
+       INTERACTION CLOCK — solo cuenta interacción de OTROS users
+    ═══════════════════════════════════════════════════════════ */
+    async function bumpInteraction(postId, actorKey) {
+      const post = posts[postId];
+      if (!post) return;
+      // Solo otros usuarios reinician el reloj de 48h
+      if (actorKey && post.userKey && actorKey === post.userKey) return;
+      await db.ref('social/posts/' + postId).update({
+        lastInteractionAt: firebase.database.ServerValue.TIMESTAMP,
+        lastInteractor: actorKey || userKey
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TTL 48h — borrar en Firebase + vault + UI
+    ═══════════════════════════════════════════════════════════ */
+    async function purgePostEverywhere(postId, reason) {
+      try {
+        await Promise.all([
+          db.ref('social/posts/' + postId).remove(),
+          db.ref('social/actions/' + postId).remove(),
+          db.ref('social/comments/' + postId).remove(),
+          db.ref('social/replicas/' + postId).remove(),
+          db.ref('social/p2p_requests/' + postId).remove(),
+          db.ref('social/p2p_responses/' + postId).remove()
+        ]);
+      } catch (e) {
+        console.warn('purge firebase', postId, e);
+      }
+      await vaultDelete(postId);
+      delete posts[postId];
+      delete commentsByPost[postId];
+      delete actionsByPost[postId];
+      if (bc) bc.postMessage({ type: 'vault_purge', postId, from: peerId, reason });
+      expiredPurged++;
+    }
+
+    async function sweepExpiredPosts() {
+      const now = Date.now();
+      const entries = Object.entries(posts || {});
+      let purged = 0;
+      for (const [id, p] of entries) {
+        const last = p.lastInteractionAt || p.createdAt || 0;
+        if (last && (now - last) > TTL_MS) {
+          await purgePostEverywhere(id, 'ttl-48h-no-interaction');
+          purged++;
+        }
+      }
+      // También purgar vault local huérfano expirado
+      const vaulted = await vaultAll();
+      for (const p of vaulted) {
+        const last = p.lastInteractionAt || p.createdAt || 0;
+        if (last && (now - last) > TTL_MS) {
+          await vaultDelete(p.id);
+          if (bc) bc.postMessage({ type: 'vault_purge', postId: p.id, from: peerId });
+        }
+      }
+      if (purged) {
+        toast(purged + ' post(s) eliminados (48h sin interacción de otros)');
+        scheduleRender();
+      }
+      document.getElementById('ttlTotal').textContent = expiredPurged + ' expired';
+      setChip('chipTTL', 'TTL 48h · ok', 'ok');
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       DECRYPT + HYDRATE
+    ═══════════════════════════════════════════════════════════ */
+    async function ensureDecrypted(postId) {
+      if (decryptedCache[postId]) return decryptedCache[postId];
+
+      let post = posts[postId];
+      let payload = post;
+
+      // Si no hay ciphertext en servidor, traer de P2P
+      if (!post || !post.ciphertext) {
+        const fromNet = await fetchPayloadFromNetwork(postId, post);
+        if (fromNet) payload = fromNet;
+      }
+
+      if (payload && payload.ciphertext) {
+        // Guardar en vault (cadena P2P)
+        await vaultPut({ ...post, ...payload, id: postId });
+        const text = await decryptPostPayload({ ...payload, id: postId });
+        if (text != null) {
+          decryptedCache[postId] = text;
+          // Compat: posts legacy en claro
+        } else if (post && post.text) {
+          decryptedCache[postId] = post.text;
+        }
+      } else if (post && post.text) {
+        // Legacy demo sin cifrado
+        decryptedCache[postId] = post.text;
+      }
+
+      return decryptedCache[postId] || null;
+    }
+
+    async function hydrateAllTexts() {
+      const ids = Object.keys(posts);
+      await Promise.all(ids.map(id => ensureDecrypted(id).catch(() => null)));
+      // Fase A: verificar hash del contenido descifrado
+      for (const id of ids) {
+        const p = posts[id];
+        if (!p) continue;
+        const plain = decryptedCache[id];
+        const sig = verifyPostSignature({ ...p, id }, plain);
+        if (plain != null && p.contentHash) {
+          sig.hashOk = await verifyPostHash({ ...p, id }, plain);
+        }
+        sigCache[id] = sig;
+        maybeOffloadServerPayload(id, p).catch(() => {});
+      }
+      scheduleRender();
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       RENDER
+    ═══════════════════════════════════════════════════════════ */
+    let renderTimer = null;
+    function scheduleRender() {
+      clearTimeout(renderTimer);
+      renderTimer = setTimeout(renderPosts, 50);
+    }
+
+    function captureUiState() {
+      openComments = new Set();
+      draftComments = {};
+      document.querySelectorAll('.comments.open').forEach(el => {
+        const id = el.id.replace('comments-', '');
+        openComments.add(id);
+      });
+      document.querySelectorAll('[id^="comment-input-"]').forEach(inp => {
+        const id = inp.id.replace('comment-input-', '');
+        if (inp.value) draftComments[id] = inp.value;
+      });
+    }
+
+    function renderPosts() {
+      if (rendering) return;
+      rendering = true;
+      try {
+        captureUiState();
+
+        let arr = Object.entries(posts || {}).map(([id, p]) => ({ id, ...p }))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        if (feedMode === 'following') {
+          const me = normalizeAddress(wallet);
+          arr = arr.filter(p => {
+            const author = normalizeAddress(p.type === 'repost' ? (p.originalWallet || p.wallet) : p.wallet);
+            const actor = normalizeAddress(p.wallet);
+            // Ver posts de gente que sigues + tus propios posts/RTs
+            return followingWallets.has(author) || followingWallets.has(actor) || author === me || actor === me;
+          });
+        }
+
+        if (searchTerm) {
+          arr = arr.filter(p => {
+            const text = (decryptedCache[p.id] || p.text || p.originalText || '').toLowerCase();
+            const dn = (p.displayName || p.muzzIdName || p.username || '').toLowerCase();
+            return text.includes(searchTerm) || dn.includes(searchTerm) ||
+              (p.handle || '').toLowerCase().includes(searchTerm);
+          });
+        }
+
+        document.getElementById('postTotal').textContent = arr.length + ' posts';
+
+        let totalActions = 0;
+        Object.values(actionsByPost || {}).forEach(a => {
+          totalActions += count(a.likes) + count(a.reposts) + count(a.shares);
+        });
+        document.getElementById('actionTotal').textContent = totalActions + ' actions';
+        document.getElementById('p2pTotal').textContent = Object.keys(localVault).length + ' replicas';
+        document.getElementById('ttlTotal').textContent = expiredPurged + ' expired';
+
+        if (!arr.length) {
+          document.getElementById('feed').innerHTML = feedMode === 'following'
+            ? '<div class="empty"><h3>Following vacío</h3><p>Sigue cuentas desde su Profile.<br>Luego verás aquí sus posts y R/T.</p></div>'
+            : '<div class="empty"><h3>No posts yet</h3><p>Sé el primero en publicar.<br>Cada post se firma con tu wallet (gratis · sin gas).</p></div>';
+          return;
+        }
+
+        document.getElementById('feed').innerHTML = arr.map(post => {
+          // En R/T, likes/comments cuentan sobre el original (como X)
+          const actionId = (post.type === 'repost' && post.originalId) ? post.originalId : post.id;
+          const a = actionsByPost[actionId] || {};
+          const comments = commentsByPost[actionId] || {};
+          const likes = count(a.likes);
+          const reposts = count(a.reposts);
+          const shares = count(a.shares);
+          const commentCount = count(comments);
+          const liked = isMineAction(actionId, 'likes');
+          const reposted = isMineAction(actionId, 'reposts');
+          const shared = isMineAction(actionId, 'shares');
+          const plain = post.type === 'repost'
+            ? (decryptedCache[post.originalId] || post.originalText || decryptedCache[post.id])
+            : decryptedCache[post.id];
+          const hasVault = !!localVault[post.id];
+          const offloaded = !!post.payloadOffloaded;
+          const lastIx = post.lastInteractionAt || post.createdAt;
+          const commentsOpen = openComments.has(actionId);
+          const draft = draftComments[actionId] || '';
+
+          const commentsHtml = Object.entries(comments)
+            .sort((x, y) => (x[1].createdAt || 0) - (y[1].createdAt || 0))
+            .map(([, c]) => {
+              const cId = publicDisplayName({
+                wallet: c.wallet,
+                username: c.username,
+                muzzIdName: c.muzzIdName,
+                displayName: c.displayName,
+                displayMode: c.displayMode
+              });
+              return `
+              <div class="comment">
+                <strong>${escapeHtml(cId.name)}</strong>${cId.isNft ? ' <span class="verified muzzid" title="MuzzID" style="display:inline-grid;vertical-align:middle;width:18px;height:18px;font-size:11px">👻</span>' : ''}
+                <span class="post-time"> · ${shortTime(c.createdAt)}</span>
+                <p>${escapeHtml(c.text)}</p>
+              </div>`;
+            }).join('');
+
+          const textHtml = plain != null
+            ? escapeHtml(plain)
+            : (post.ciphertext || offloaded
+              ? '🔒 Cargando desde red P2P / descifrando…'
+              : escapeHtml(post.text || ''));
+
+          // Fase A — verificación de firma (sync; hash async se completa en hydrate)
+          let sig = sigCache[post.id];
+          if (!sig) {
+            sig = verifyPostSignature({ ...post, id: post.id }, plain);
+            sigCache[post.id] = sig;
+          }
+          const sigBadge = !post.signature
+            ? '<span class="badge sig-wait" title="Post legacy sin firma">○ unsigned</span>'
+            : sig.ok
+              ? '<span class="badge sig-ok" title="Firma válida · ' + escapeHtml(sig.signer || '') + '">✓ signed</span>'
+              : '<span class="badge sig-bad" title="' + escapeHtml(sig.reason || 'invalid') + '">✗ bad sig</span>';
+          const hashBadge = post.contentHash
+            ? '<span class="badge hash" title="' + escapeHtml(post.contentHash) + '">#' + escapeHtml(String(post.contentHash).slice(0, 8)) + '</span>'
+            : '';
+          const hashOkBadge = (sig.hashOk === true)
+            ? '<span class="badge sig-ok">hash ✓</span>'
+            : (sig.hashOk === false)
+              ? '<span class="badge sig-bad">hash ✗</span>'
+              : '';
+
+          const isRt = post.type === 'repost';
+          const authorWallet = isRt ? (post.originalWallet || post.wallet || '') : (post.wallet || '');
+          const authorId = publicDisplayName({
+            wallet: authorWallet,
+            username: isRt ? (post.originalUsername || post.username) : post.username,
+            muzzIdName: isRt ? post.originalMuzzIdName : post.muzzIdName,
+            displayName: isRt ? post.originalDisplayName : post.displayName,
+            displayMode: isRt ? post.originalDisplayMode : post.displayMode
+          });
+          const reposterId = publicDisplayName({
+            wallet: post.wallet,
+            username: post.username,
+            muzzIdName: post.muzzIdName,
+            displayName: post.displayName,
+            displayMode: post.displayMode
+          });
+          const displayName = authorId.name;
+          const displayHandle = '@' + displayName;
+          const displayText = isRt
+            ? escapeHtml(plain || post.originalText || post.text || '')
+            : textHtml;
+          const avatarHtml = authorId.isNft
+            ? `<button type="button" class="avatar author-link" data-profile="${escapeHtml(authorWallet)}" title="Open profile">${escapeHtml((displayName || 'MU').slice(0, 2).toUpperCase())}</button>`
+            : `<button type="button" class="avatar author-link" data-profile="${escapeHtml(authorWallet)}" title="Open profile" style="opacity:.55;background:linear-gradient(145deg,#2a313b,#12171d)">${escapeHtml((displayName || 'MU').slice(0, 2).toUpperCase())}</button>`;
+
+          return `
+            <article class="post" id="post-${post.id}" data-id="${post.id}">
+              ${isRt ? `<div class="repost-banner"><span class="rt-label">🔁 R/T</span><button type="button" class="author-link rt-user" data-profile="${escapeHtml(post.wallet || '')}">${escapeHtml(reposterId.name)}</button>${reposterId.isNft ? '<span class="verified muzzid" title="MuzzID">👻</span>' : ''}<span>reposted</span></div>` : ''}
+              <div class="post-head">
+                ${avatarHtml}
+                <div class="post-meta">
+                  <div class="post-name-row">
+                    <button type="button" class="author-link" data-profile="${escapeHtml(authorWallet)}">
+                      <span class="post-name muzzid-mark">${escapeHtml(displayName)}${authorId.isNft ? '' : ''}</span>
+                    </button>
+                    ${authorId.isNft
+                      ? '<span class="verified muzzid" title="MuzzID verificado · NFT MUZZ">👻</span>'
+                      : (!isRt && sig.ok
+                        ? '<span class="verified" title="Post firmado por wallet">✓</span>'
+                        : '')}
+                    <span class="post-handle">${escapeHtml(displayHandle)}</span>
+                    <span class="post-time">· ${shortTime(post.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="post-badges">
+                ${isRt ? '<span class="badge hash">R/T</span>' : `${sigBadge}${hashBadge}${hashOkBadge}`}
+              </div>
+              <div class="post-text ${!isRt && plain == null && (post.ciphertext || offloaded) ? 'locked' : ''}">${displayText || (post.mediaHash ? '' : '')}</div>
+              ${(() => {
+                const mh = isRt ? (post.originalMediaHash || post.mediaHash) : post.mediaHash;
+                if (!mh) return '';
+                return `<div class="post-media" data-media-hash="${escapeHtml(mh)}">
+                  <div class="media-wait">🖼 Cargando imagen (P2P)…</div>
+                  <img alt="post media" hidden data-media-img="${escapeHtml(mh)}" />
+                </div>`;
+              })()}
+              <div class="post-actions">
+                <button class="action-btn" data-act="comments" data-id="${actionId}" title="Reply">💬 <span>${commentCount}</span></button>
+                <button class="action-btn ${reposted ? 'reposted' : ''}" data-act="reposts" data-id="${actionId}" title="Repost / R/T">🔁${reposted ? ' <span style="font-size:12pt;font-weight:800">' + escapeHtml(meName) + '</span>' : ''} <span>${reposts}</span></button>
+                <button class="action-btn ${liked ? 'liked' : ''}" data-act="likes" data-id="${actionId}" title="Like">❤ <span>${likes}</span></button>
+                <button class="action-btn ${shared ? 'shared' : ''}" data-act="share" data-id="${actionId}" title="Share">↗ <span>${shares}</span></button>
+              </div>
+              <div class="comments ${commentsOpen ? 'open' : ''}" id="comments-${actionId}">
+                ${commentsHtml || '<div class="comment"><p>No comments yet. Sé el primero en responder.</p></div>'}
+                <div class="comment-box">
+                  <button type="button" class="emoji-btn" data-emoji-for="comment-input-${actionId}" title="Emoji">😀</button>
+                  <input id="comment-input-${actionId}" maxlength="280" placeholder="Post your reply…" value="${escapeHtml(draft)}">
+                  <button data-act="reply" data-id="${actionId}" class="reply-btn">Reply</button>
+                </div>
+              </div>
+            </article>
+          `;
+        }).join('');
+
+        // Cargar imágenes locales o pedirlas por P2P
+        document.querySelectorAll('[data-media-img]').forEach((img) => {
+          const hash = img.getAttribute('data-media-img');
+          ensurePostMedia(hash, img).catch(() => {});
+        });
+      } finally {
+        rendering = false;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       ACTIONS — like, repost, share, comment
+    ═══════════════════════════════════════════════════════════ */
+    async function toggleAction(postId, type) {
+      if (!requireSocialWrite()) return;
+      if (!['likes', 'reposts', 'shares'].includes(type)) return;
+      const ref = db.ref(`social/actions/${postId}/${type}/${userKey}`);
+      try {
+        const snap = await ref.once('value');
+        if (snap.exists()) {
+          await ref.remove();
+          if (type === 'reposts') {
+            // Quitar tarjeta R/T del feed (si existe)
+            const rid = 'rt_' + userKey + '_' + postId;
+            await db.ref('social/posts/' + rid).remove().catch(() => {});
+            toast('Repost eliminado');
+          }
+        } else {
+          await ref.set({
+            wallet,
+            username: meName,
+            handle: meHandle,
+            at: firebase.database.ServerValue.TIMESTAMP
+          });
+          await bumpInteraction(postId, userKey);
+          const original = posts[postId] || {};
+          const authorWallet = original.wallet;
+          if (type === 'likes') {
+            toast('Liked ❤');
+            if (window.MuzzNotify && authorWallet) {
+              MuzzNotify.push({
+                type: 'like',
+                toWallet: authorWallet,
+                fromWallet: wallet,
+                fromName: meName,
+                postId: postId,
+                preview: (decryptedCache[postId] || original.text || '').slice(0, 80)
+              }).catch(() => {});
+            }
+          }
+          if (type === 'reposts') {
+            // Como X: el R/T aparece en el feed
+            const plain = decryptedCache[postId] || original.text || '';
+            const rid = 'rt_' + userKey + '_' + postId;
+            await db.ref('social/posts/' + rid).set({
+              type: 'repost',
+              originalId: postId,
+              originalUsername: original.displayName || original.muzzIdName || original.username || '',
+              originalHandle: original.handle || '',
+              originalWallet: original.wallet || '',
+              originalDisplayName: original.displayName || null,
+              originalDisplayMode: original.displayMode || null,
+              originalMuzzIdName: original.muzzIdName || null,
+              originalMediaHash: original.mediaHash || null,
+              originalText: plain ? String(plain).slice(0, 280) : '',
+              username: meName,
+              handle: meHandle,
+              displayName: meName,
+              displayMode: meIsNft ? 'muzzid' : 'wallet_tail6',
+              muzzIdName: meIsNft ? meName : null,
+              wallet,
+              userKey,
+              createdAt: firebase.database.ServerValue.TIMESTAMP,
+              lastInteractionAt: firebase.database.ServerValue.TIMESTAMP,
+              text: plain ? String(plain).slice(0, 280) : '(encrypted post)',
+              contentHash: original.contentHash || null,
+              chainPrev: original.contentHash || null,
+              signer: wallet,
+              signScheme: 'repost_mirror_v1'
+            });
+            toast('Reposted 🔁');
+            if (window.MuzzNotify && authorWallet) {
+              MuzzNotify.push({
+                type: 'repost',
+                toWallet: authorWallet,
+                fromWallet: wallet,
+                fromName: meName,
+                postId: postId,
+                preview: plain.slice(0, 80)
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        toast('No se pudo actualizar ' + type);
+      }
+    }
+
+    async function sharePost(postId) {
+      if (!requireSocialWrite()) return;
+      try {
+        await db.ref(`social/actions/${postId}/shares/${userKey}`).set({
+          wallet,
+          username: meName,
+          handle: meHandle,
+          at: firebase.database.ServerValue.TIMESTAMP
+        });
+        await bumpInteraction(postId, userKey);
+
+        const text = decryptedCache[postId] || posts[postId]?.text || '';
+        const post = posts[postId];
+        const shareBody = (post ? (post.username + ': ') : '') + text + '\n\nMuzzSnap Social';
+        if (navigator.share) {
+          await navigator.share({ title: 'MuzzSnap Social', text: shareBody }).catch(() => {});
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareBody);
+          toast('Post copiado al portapapeles');
+        } else {
+          toast(shareBody, 4000);
+        }
+      } catch (e) {
+        console.error(e);
+        toast('Share falló');
+      }
+    }
+
+    function toggleComments(postId) {
+      const el = document.getElementById('comments-' + postId);
+      if (!el) return;
+      el.classList.toggle('open');
+      if (el.classList.contains('open')) openComments.add(postId);
+      else openComments.delete(postId);
+    }
+
+    async function addComment(postId) {
+      if (!requireSocialWrite()) return;
+      const input = document.getElementById('comment-input-' + postId);
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+      try {
+        await db.ref('social/comments/' + postId).push({
+          username: meName,
+          handle: meHandle,
+          displayName: meName,
+          displayMode: meIsNft ? 'muzzid' : 'wallet_tail6',
+          muzzIdName: meIsNft ? meName : null,
+          wallet,
+          userKey,
+          text,
+          createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        await bumpInteraction(postId, userKey);
+        input.value = '';
+        delete draftComments[postId];
+        openComments.add(postId);
+        toast('Reply posted');
+        const authorWallet = (posts[postId] && posts[postId].wallet) || null;
+        if (window.MuzzNotify && authorWallet) {
+          MuzzNotify.push({
+            type: 'reply',
+            toWallet: authorWallet,
+            fromWallet: wallet,
+            fromName: meName,
+            postId: postId,
+            preview: text.slice(0, 80)
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.error(e);
+        toast('No se pudo comentar');
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       PUBLISH — crea post cifrado + cadena blockchain-like
+    ═══════════════════════════════════════════════════════════ */
+    function clearPendingMedia() {
+      pendingMedia = null;
+      const box = document.getElementById('mediaPreview');
+      const img = document.getElementById('mediaPreviewImg');
+      if (box) box.classList.remove('show');
+      if (img) img.removeAttribute('src');
+      const fi = document.getElementById('mediaFileInput');
+      if (fi) fi.value = '';
+    }
+
+    async function publishPost() {
+      if (publishBusy) return;
+      if (!requireSocialWrite()) return;
+      const input = document.getElementById('postInput');
+      const text = input.value.trim();
+      if (!text && !pendingMedia) {
+        toast('Escribe algo o añade una imagen');
+        return;
+      }
+
+      publishBusy = true;
+      const btn = document.getElementById('publishBtn');
+      btn.disabled = true;
+
+      try {
+        const ref = db.ref('social/posts').push();
+        const postId = ref.key;
+        const prev = chainTip || null;
+        const signBody = (text || '') + (pendingMedia ? ('|media:' + pendingMedia.hash) : '');
+        const contentHash = await sha256Hex(signBody + '|' + postId + '|' + (prev || 'genesis'));
+        const signMessage = buildSignMessage({
+          postId,
+          walletAddr: wallet,
+          contentHash,
+          chainPrev: prev
+        });
+
+        // FASE A: firma MetaMask (gratis, sin gas) — obligatorio
+        btn.textContent = 'Sign in MetaMask…';
+        toast('Firma el post en MetaMask (gratis · sin gas)');
+        const signed = await signPostMessage(signMessage);
+
+        btn.textContent = 'Encrypting…';
+        const plainForEnc = text || (pendingMedia ? '🖼' : '');
+        const enc = await encryptPostText(plainForEnc, postId);
+
+        // Media solo local + hash en Firebase (puente)
+        let mediaMeta = null;
+        if (pendingMedia) {
+          await mediaPut(pendingMedia);
+          mediaMeta = {
+            mediaHash: pendingMedia.hash,
+            mediaMime: pendingMedia.mime,
+            mediaWidth: pendingMedia.width || 0,
+            mediaHeight: pendingMedia.height || 0,
+            mediaLocal: true
+          };
+          if (bc) {
+            const dataUrl = await blobToDataUrl(pendingMedia.blob);
+            bc.postMessage({
+              type: 'media_put',
+              media: {
+                hash: pendingMedia.hash,
+                mime: pendingMedia.mime,
+                width: pendingMedia.width,
+                height: pendingMedia.height,
+                dataUrl
+              },
+              from: peerId
+            });
+          }
+        }
+
+        const record = {
+          username: meName,
+          handle: meHandle,
+          displayName: meName,
+          displayMode: meIsNft ? 'muzzid' : 'wallet_tail6',
+          muzzIdName: meIsNft ? meName : null,
+          wallet,
+          userKey,
+          createdAt: firebase.database.ServerValue.TIMESTAMP,
+          lastInteractionAt: firebase.database.ServerValue.TIMESTAMP,
+          // cifrado texto
+          ciphertext: enc.ciphertext,
+          iv: enc.iv,
+          keys: enc.keys,
+          // cadena + firma Fase A
+          contentHash,
+          chainPrev: prev,
+          signature: signed.signature,
+          signer: signed.signer,
+          signScheme: 'personal_sign_v1',
+          signMessage: signMessage,
+          storageMode: 'hybrid',
+          payloadOffloaded: false,
+          cryptoVersion: 1,
+          // media: SOLO metadatos en Firebase (no blob)
+          ...(mediaMeta || {})
+        };
+
+        await ref.set(record);
+
+        const localRecord = {
+          id: postId,
+          ...record,
+          createdAt: Date.now(),
+          lastInteractionAt: Date.now()
+        };
+        await vaultPut(localRecord);
+        decryptedCache[postId] = plainForEnc;
+        sigCache[postId] = { ok: true, signer: signed.signer, reason: 'valid', hashOk: true };
+        chainTip = contentHash;
+        try { localStorage.setItem('muzz_chain_tip', chainTip); } catch (_) {}
+
+        if (bc) bc.postMessage({ type: 'vault_put', post: localRecord, from: peerId });
+        await announcePeerHoldings();
+        await announceMediaHoldings();
+
+        input.value = '';
+        clearPendingMedia();
+        updateCount();
+        document.getElementById('feedScroll').scrollTo({ top: 0, behavior: 'smooth' });
+        toast(mediaMeta
+          ? 'Post + imagen ✓ · media en tu vault P2P · #' + contentHash.slice(0, 8)
+          : 'Post firmado ✓ · E2EE · #' + contentHash.slice(0, 8));
+        scheduleRender();
+      } catch (e) {
+        console.error(e);
+        const msg = (e && e.message) ? e.message : String(e);
+        if (/reject|denied|4001/i.test(msg)) toast('Firma cancelada · el post no se publicó');
+        else toast('Error al publicar: ' + msg);
+      } finally {
+        publishBusy = false;
+        btn.disabled = false;
+        btn.textContent = 'Sign & Post';
+      }
+    }
+
+    function updateCount() {
+      document.getElementById('charCount').textContent =
+        document.getElementById('postInput').value.length + ' / 280';
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       EVENT DELEGATION (evita re-bind y problemas de re-render)
+    ═══════════════════════════════════════════════════════════ */
+    document.getElementById('feed').addEventListener('click', (e) => {
+      const author = e.target.closest('[data-profile]');
+      if (author) {
+        const w = author.getAttribute('data-profile');
+        location.href = profileUrlFor(w);
+        return;
+      }
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const act = btn.getAttribute('data-act');
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+      if (act === 'comments') toggleComments(id);
+      else if (act === 'likes') toggleAction(id, 'likes');
+      else if (act === 'reposts') toggleAction(id, 'reposts');
+      else if (act === 'share') sharePost(id);
+      else if (act === 'reply') addComment(id);
+    });
+
+    document.getElementById('feed').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.id && e.target.id.startsWith('comment-input-')) {
+        const id = e.target.id.replace('comment-input-', '');
+        addComment(id);
+      }
+    });
+
+    /* ═══════════════════════════════════════════════════════════
+       FIREBASE LISTENERS
+    ═══════════════════════════════════════════════════════════ */
+    async function boot() {
+      setChip('chipAuth', 'Auth…', 'warn');
+      try { chainTip = localStorage.getItem('muzz_chain_tip') || null; } catch (_) {}
+
+      await vaultAll();
+      initBroadcast();
+      document.getElementById('p2pTotal').textContent = Object.keys(localVault).length + ' replicas';
+
+      // Gate MuzzleToken (mismo contrato que MuzzStudio / MuzzSnap)
+      setChip('chipAuth', 'Checking MUZZ…', 'warn');
+      const gate = await verifySocialGate();
+      if (gate.ok) {
+        setChip('chipAuth', isAdmin ? 'Admin · gate OK' : ('MUZZ · ' + (muzzBalance ? Math.floor(muzzBalance).toLocaleString() : 'OK')), 'ok');
+      } else if (gate.reason === 'guest') {
+        setChip('chipAuth', 'Guest · read-only', 'warn');
+        toast('Guest: solo lectura. Social write requiere wallet + 2M MUZZ.');
+      } else if (gate.reason === 'insufficient') {
+        setChip('chipAuth', 'Need 2M MUZZ', 'warn');
+        toast('Balance insuficiente: ' + (gate.balance || 0).toLocaleString() + ' MUZZ. Requiere 2,000,000 (igual Private).');
+      } else {
+        setChip('chipAuth', 'Wallet/RPC issue', 'warn');
+        toast('No se pudo verificar MUZZ on-chain. Abre en MetaMask / Web3 browser.');
+      }
+
+      // Composer locked si no hay gate
+      const pub = document.getElementById('publishBtn');
+      const ta = document.getElementById('postInput');
+      if (!socialAllowed) {
+        pub.disabled = true;
+        pub.textContent = isGuest ? 'Wallet required' : 'Need 2M MUZZ';
+        ta.placeholder = isGuest
+          ? 'Guest is read-only. Connect MetaMask with MuzzleToken…'
+          : 'Hold or stake ≥ 2,000,000 MUZZ to post (same as Private)…';
+      }
+
+      const authCred = await firebase.auth().signInAnonymously();
+      const fbUid = authCred.user.uid;
+      setChip('chipE2EE', 'E2EE 3-key', 'ok');
+
+      // FCM device token (APK) → devices/{wallet}/tokens → Vercel /api/push
+      try {
+        if (window.MuzzPush && MuzzPush.register && wallet && !String(wallet).startsWith('guest_')) {
+          MuzzPush.register(wallet).then(function (r) {
+            if (r && r.ok) console.log('[MuzzPush] registered');
+            else console.warn('[MuzzPush]', r && r.reason);
+          }).catch(function (e) { console.warn('[MuzzPush]', e); });
+        }
+      } catch (_) {}
+
+      // Cargar perfil desde Firebase (social/* primero; walletRegistry raíz puede estar bloqueado)
+      async function softGet(path) {
+        try { return (await db.ref(path).once('value')).val(); }
+        catch (e) { console.warn('read', path, e.message || e); return null; }
+      }
+      async function softUp(path, data) {
+        try { await db.ref(path).update(data); return true; }
+        catch (e) { console.warn('write', path, e.message || e); return false; }
+      }
+      async function softSet(path, data) {
+        try { await db.ref(path).set(data); return true; }
+        catch (e) { console.warn('write', path, e.message || e); return false; }
+      }
+
+      try {
+        let reg = null;
+        if (!isGuest && isEthAddress(wallet)) {
+          reg = (await softGet('social/walletRegistry/' + wallet))
+            || (await softGet('walletRegistry/' + wallet));
+        }
+        const su = await softGet('social/users/' + userKey);
+        const src = su || reg;
+        if (src) {
+          if (src.muzzId && (src.muzzId.name || src.muzzId.username)) {
+            meName = String(src.muzzId.name || src.muzzId.username);
+            meIsNft = true;
+            meHandle = '@' + meName.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 18);
+            sessionStorage.setItem('muzz_id_nft', JSON.stringify(src.muzzId));
+            sessionStorage.setItem('muzz_profile_display', meName);
+            sessionStorage.setItem('muzz_profile_is_nft', '1');
+            document.getElementById('meName').textContent = meName;
+            document.getElementById('meHandle').textContent = 'MuzzID NFT';
+            document.getElementById('meAvatar').textContent = meName.slice(0, 2).toUpperCase();
+            document.getElementById('composerAvatar').textContent = meName.slice(0, 2).toUpperCase();
+            document.getElementById('composerAvatar').style.opacity = '1';
+          } else if (src.displayMode === 'muzzid' && src.displayName) {
+            meName = String(src.displayName);
+            meIsNft = true;
+            document.getElementById('meName').textContent = meName;
+            document.getElementById('composerAvatar').textContent = meName.slice(0, 2).toUpperCase();
+          }
+          // Si no hay MuzzID, NO restaurar username legacy tipo Node_xxxx
+          if (src.muzzBalance != null) muzzBalance = Number(src.muzzBalance) || muzzBalance;
+          if (src.socialGate === 'ok' || src.isAdmin || src.socialAllowed) {
+            socialAllowed = true;
+            sessionStorage.setItem('muzz_social_gate', 'ok');
+          }
+        }
+      } catch (e) {
+        console.warn('profile load', e);
+      }
+
+      // Si sesión local ya pasó el gate con balance ≥ 2M, respetarlo
+      if (sessionStorage.getItem('muzz_social_gate') === 'ok') socialAllowed = true;
+      if (!socialAllowed && muzzBalance >= MIN_MUZZ_SOCIAL) {
+        socialAllowed = true;
+        sessionStorage.setItem('muzz_social_gate', 'ok');
+      }
+
+      const profileUpdate = {
+        wallet,
+        username: meName,
+        handle: meHandle,
+        displayName: meName,
+        displayMode: meIsNft ? 'muzzid' : 'wallet_tail6',
+        peerId,
+        loginMethod,
+        isAdmin: !!isAdmin,
+        isWallet: !isGuest,
+        socialAllowed: !!socialAllowed,
+        socialGate: socialAllowed ? 'ok' : 'deny',
+        muzzBalance: muzzBalance || 0,
+        tokenContract: MUZZ_TOKEN,
+        firebaseUid: fbUid,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP,
+        active: true
+      };
+      if (meIsNft) {
+        let sessNft = null;
+        try { sessNft = JSON.parse(sessionStorage.getItem('muzz_id_nft') || 'null'); } catch (_) {}
+        profileUpdate.muzzId = {
+          name: meName,
+          username: meName,
+          tokenId: (sessNft && sessNft.tokenId) || null,
+          network: (sessNft && sessNft.network) || null,
+          nft: (sessNft && sessNft.nft) || null,
+          wallet: wallet,
+          mintedAt: (sessNft && sessNft.mintedAt) || Date.now(),
+          syncedAt: Date.now()
+        };
+      }
+
+      await softUp('social/users/' + userKey, profileUpdate);
+      await softUp('social/sessions/' + userKey, { ...profileUpdate, at: firebase.database.ServerValue.TIMESTAMP });
+
+      if (!isGuest && isEthAddress(wallet)) {
+        const regData = {
+          wallet,
+          username: profileUpdate.username,
+          isWallet: true,
+          isAdmin: !!isAdmin,
+          muzzBalance: muzzBalance || 0,
+          socialGate: socialAllowed ? 'ok' : 'deny',
+          tokenContract: MUZZ_TOKEN,
+          firebaseUid: fbUid,
+          lastLogin: firebase.database.ServerValue.TIMESTAMP,
+          lastSeen: firebase.database.ServerValue.TIMESTAMP,
+          active: true,
+          source: 'social'
+        };
+        await softUp('social/walletRegistry/' + wallet, regData);
+        await softUp('walletRegistry/' + wallet, regData); // puede fallar por rules — ok
+      }
+
+      const st = {
+        uid: fbUid,
+        username: profileUpdate.username,
+        wallet: isGuest ? null : wallet,
+        identityKey: isGuest ? ('guest_' + userKey) : ('wallet_' + userKey),
+        lastSeen: Date.now(),
+        source: 'social'
+      };
+      await softSet('social/status/' + fbUid, st);
+      await softSet('status/' + fbUid, st);
+      try { db.ref('social/status/' + fbUid).onDisconnect().remove(); } catch (_) {}
+
+      listenP2PRequests();
+      listenMediaP2PRequests();
+      await announcePeerHoldings();
+      await announceMediaHoldings();
+      setInterval(announceMediaHoldings, 90 * 1000);
+      setInterval(announcePeerHoldings, 60 * 1000);
+
+      db.ref('social/posts').limitToLast(MAX_POSTS).on('value', async snap => {
+        posts = snap.val() || {};
+        await hydrateAllTexts();
+        await sweepExpiredPosts();
+        scheduleRender();
+      });
+
+      db.ref('social/actions').on('value', snap => {
+        actionsByPost = snap.val() || {};
+        scheduleRender();
+      });
+
+      db.ref('social/comments').on('value', snap => {
+        commentsByPost = snap.val() || {};
+        scheduleRender();
+      });
+
+      setInterval(sweepExpiredPosts, SWEEP_EVERY_MS);
+
+      if (TTL_MS < 48 * 60 * 60 * 1000) {
+        setChip('chipTTL', 'TTL test ' + Math.round(TTL_MS / 1000) + 's', 'warn');
+        toast('Modo prueba TTL: ' + Math.round(TTL_MS / 1000) + 's sin interacción de otros');
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       WIRE UI
+    ═══════════════════════════════════════════════════════════ */
+    document.getElementById('publishBtn').addEventListener('click', publishPost);
+    document.getElementById('postInput').addEventListener('input', updateCount);
+    document.getElementById('postInput').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') publishPost();
+    });
+    document.getElementById('mediaPickBtn').addEventListener('click', () => {
+      document.getElementById('mediaFileInput').click();
+    });
+    document.getElementById('mediaRemoveBtn').addEventListener('click', clearPendingMedia);
+    document.getElementById('mediaFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        toast('Comprimiendo imagen…');
+        const packed = await compressImageFile(file);
+        pendingMedia = packed;
+        const url = URL.createObjectURL(packed.blob);
+        const img = document.getElementById('mediaPreviewImg');
+        img.src = url;
+        document.getElementById('mediaPreview').classList.add('show');
+        toast('Imagen lista · se guardará en tu dispositivo / P2P');
+      } catch (err) {
+        clearPendingMedia();
+        toast(err.message || 'No se pudo cargar la imagen');
+      }
+    });
+    document.getElementById('openComposer').addEventListener('click', goComposer);
+    document.getElementById('fabBtn').addEventListener('click', goComposer);
+    document.getElementById('webBtn').addEventListener('click', () => {
+      window.open('https://muzzletoken.com/', '_blank', 'noopener,noreferrer');
+    });
+
+    document.getElementById('feedTabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.feed-tab');
+      if (!tab) return;
+      feedMode = tab.getAttribute('data-feed') || 'global';
+      document.querySelectorAll('.feed-tab').forEach(t => t.classList.toggle('active', t === tab));
+      scheduleRender();
+    });
+
+    if (window.MuzzEmoji) MuzzEmoji.init();
+
+    // Live following set para filtro del feed
+    if (window.MuzzFollow && wallet) {
+      stopFollowWatch = MuzzFollow.watchFollowing(wallet, (list) => {
+        followingWallets = new Set((list || []).map(w => normalizeAddress(w)));
+        if (feedMode === 'following') scheduleRender();
+      });
+    }
+
+    /* ── Notifications UI ── */
+    let notifList = [];
+    let stopNotifWatch = null;
+    const notifBtn = document.getElementById('notifBtn');
+    const notifPanel = document.getElementById('notifPanel');
+    const notifBadge = document.getElementById('notifBadge');
+    const notifListEl = document.getElementById('notifList');
+
+    function notifTime(ts) {
+      if (!ts) return '';
+      const diff = Date.now() - ts;
+      if (diff < 60000) return 'now';
+      if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+      return Math.floor(diff / 86400000) + 'd';
+    }
+
+    function renderNotifs(list) {
+      notifList = list || [];
+      const unread = notifList.filter(n => !n.read).length;
+      if (unread > 0) {
+        notifBadge.hidden = false;
+        notifBadge.textContent = unread > 99 ? '99+' : String(unread);
+      } else {
+        notifBadge.hidden = true;
+      }
+      if (!notifList.length) {
+        notifListEl.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+        return;
+      }
+      notifListEl.innerHTML = notifList.map(n => {
+        const icon = n.type === 'follow' ? '👤' : n.type === 'like' ? '❤' : n.type === 'reply' ? '💬' : n.type === 'repost' ? '🔁' : '🔔';
+        const main = escapeHtml((window.MuzzNotify && MuzzNotify.label(n)) || 'Update');
+        const sub = (n.preview ? escapeHtml(n.preview) + ' · ' : '') + notifTime(n.atClient || n.at);
+        return `<button type="button" class="notif-item ${n.read ? '' : 'unread'}" data-nid="${escapeHtml(n.id)}" data-npost="${escapeHtml(n.postId || '')}" data-nfrom="${escapeHtml(n.fromWallet || '')}" data-ntype="${escapeHtml(n.type || '')}">
+          <div class="n-main">${icon} ${main}</div>
+          <div class="n-sub">${sub}</div>
+        </button>`;
+      }).join('');
+    }
+
+    notifBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifPanel.hidden = !notifPanel.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#notifWrap')) notifPanel.hidden = true;
+    });
+    document.getElementById('notifMarkAll').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (window.MuzzNotify) await MuzzNotify.markAllRead(wallet);
+    });
+    notifListEl.addEventListener('click', async (e) => {
+      const item = e.target.closest('.notif-item');
+      if (!item) return;
+      const nid = item.getAttribute('data-nid');
+      const npost = item.getAttribute('data-npost');
+      const nfrom = item.getAttribute('data-nfrom');
+      const ntype = item.getAttribute('data-ntype');
+      if (window.MuzzNotify && nid) await MuzzNotify.markRead(wallet, nid);
+      notifPanel.hidden = true;
+      if (ntype === 'follow' && nfrom) {
+        location.href = profileUrlFor(nfrom);
+        return;
+      }
+      if (npost) {
+        const el = document.getElementById('post-' + npost);
+        const target = el || document.querySelector('article.post[data-id="' + npost.replace(/"/g, '') + '"]');
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (ntype === 'reply') {
+            openComments.add(npost);
+            const c = document.getElementById('comments-' + npost);
+            if (c) c.classList.add('open');
+          }
+        } else {
+          toast('Post not in current feed');
+        }
+      }
+    });
+
+    if (window.MuzzNotify && wallet) {
+      stopNotifWatch = MuzzNotify.watch(wallet, renderNotifs);
+    }
+    document.getElementById('syncP2PBtn').addEventListener('click', async () => {
+      setChip('chipP2P', 'P2P syncing…', 'warn');
+      const ids = Object.keys(posts);
+      for (const id of ids) {
+        if (!posts[id].ciphertext && !localVault[id]) {
+          await fetchPayloadFromNetwork(id, posts[id]);
+        } else if (posts[id].ciphertext) {
+          await vaultPut({ id, ...posts[id] });
+        }
+        await ensureDecrypted(id);
+      }
+      if (bc) {
+        Object.values(localVault).forEach(p => bc.postMessage({ type: 'vault_put', post: p, from: peerId }));
+      }
+      await announcePeerHoldings();
+      setChip('chipP2P', 'P2P synced', 'ok');
+      scheduleRender();
+      toast('Sincronización P2P completa · ' + Object.keys(localVault).length + ' en vault');
+    });
+    document.getElementById('searchInput').addEventListener('input', e => {
+      searchTerm = e.target.value.trim().toLowerCase();
+      scheduleRender();
+    });
+    updateCount();
+
+    // globals para nav legacy
+    window.goToChat = goToChat;
+    window.showMuzzLogin = showMuzzLogin;
+    window.requireWalletPage = requireWalletPage;
+    window.toggleAction = toggleAction;
+    window.sharePost = sharePost;
+    window.toggleComments = toggleComments;
+    window.addComment = addComment;
+
+    boot().catch(err => {
+      console.error(err);
+      setChip('chipAuth', 'Auth failed', 'warn');
+      alert('Firebase auth failed. Activa Anonymous Auth en Firebase Console.\n\n' + (err.message || err));
+    });
+  })();
+  </script>
+</body>
+</html>

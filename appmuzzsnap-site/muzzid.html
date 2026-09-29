@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MuzzID | Create Username NFT</title>
+  <meta name="theme-color" content="#050505" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="js/muzz-i18n.js"></script>
+  <script src="./muzzle-username/web/config.js"></script>
+  <script src="js/muzz-id.js"></script>
+  <script src="js/muzz-id-mint.js"></script>
+  <script src="js/muzz-auth-gate.js"></script>
+  <script src="js/muzz-shell.js"></script>
+  <script>
+    // Same Firebase project as Social hub — needed to sync MuzzID after mint
+    (function () {
+      try {
+        var firebaseConfig = {
+          apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+          authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+          databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+          projectId: atob('cHVsc2FyaQ=='),
+          appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+        };
+        if (typeof firebase !== 'undefined' && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      } catch (e) { console.warn('firebase init', e); }
+    })();
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Fira+Code:wght@400;600&family=Inter:wght@400;600;800&display=swap');
+    :root{--bg:#050505;--red:#ff0000;--line:rgba(255,255,255,.08);--muted:#6b7280;--green:#39ff14;--card:rgba(255,255,255,.02)}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 12%,rgba(255,0,0,.12),transparent 42%),var(--bg);color:#fff;font-family:Inter,system-ui,sans-serif;padding:24px}
+    .wrap{width:min(440px,100%);margin:0 auto}
+    a.back{display:inline-block;margin-bottom:18px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;text-decoration:none}
+    a.back:hover{color:var(--red)}
+    .logo{width:88px;height:88px;border-radius:22px;margin:0 auto 16px;display:grid;place-items:center;font-size:40px;border:1px solid rgba(255,255,255,.1);box-shadow:0 0 36px rgba(255,0,0,.22);background:linear-gradient(145deg,#ff2b2b,#6b0000)}
+    h1{font-family:Orbitron,sans-serif;font-weight:900;font-style:italic;letter-spacing:-.04em;font-size:26px;margin:0 0 6px;text-align:center}
+    h1 span{color:var(--red)}
+    .status{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.18em;margin:0 0 18px;text-align:center;line-height:1.5}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+    .card h2{margin:0 0 8px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+    .card p{margin:0;font-size:12px;line-height:1.5;color:#9ca3af}
+    .card code{color:#fca5a5;font-family:'Fira Code',monospace;font-size:10px;word-break:break-all}
+    .prices{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    .price-box{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(0,0,0,.28)}
+    .price-box.hot{border-color:rgba(255,0,0,.35);background:rgba(255,0,0,.06)}
+    .price-box strong{display:block;font-size:16px;margin:4px 0}
+    .price-box small{color:var(--muted);font-size:10px}
+    .username-field{display:flex;align-items:center;border:1px dashed rgba(255,0,0,.28);background:rgba(255,255,255,.03);border-radius:14px;overflow:hidden;margin:8px 0}
+    .username-field .at{padding:0 12px;color:var(--red);font-weight:800;font-family:Orbitron,sans-serif}
+    .username-field input{flex:1;border:0;outline:0;background:transparent;color:var(--green);font-family:'Fira Code',monospace;font-size:14px;padding:14px 12px 14px 0}
+    .hint{font-size:11px;color:#6b7280;margin:6px 0 0;line-height:1.4;min-height:1.2em}
+    .hint.ok{color:#86efac}.hint.bad{color:#f87171}
+    .btn-primary{width:100%;border:1px solid rgba(255,0,0,.35);background:rgba(255,0,0,.12);color:#fff;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:14px;border-radius:14px;cursor:pointer;font-size:12px;margin-top:10px}
+    .btn-primary:hover{background:rgba(255,0,0,.2)}
+    .btn-primary:disabled{opacity:.55;cursor:not-allowed}
+    .btn-ghost{width:100%;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:10px;padding:12px;border-radius:14px;cursor:pointer;margin-top:8px}
+    .kv{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:11px}
+    .kv:last-child{border-bottom:0}.kv span{color:var(--muted)}.kv strong,.kv code{color:#93c5fd;font-family:'Fira Code',monospace;font-size:10px}
+    .log{margin-top:10px;padding:10px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid var(--line);font-family:'Fira Code',monospace;font-size:10px;color:#9ca3af;white-space:pre-wrap;word-break:break-word;min-height:3em}
+    .pill{display:inline-block;margin-left:6px;font-size:9px;padding:3px 8px;border-radius:999px;border:1px solid rgba(57,255,20,.3);color:var(--green);letter-spacing:.1em}
+    .lang{display:flex;gap:8px;justify-content:center;margin:0 0 12px}
+    .lang button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer}
+    .lang button.active{color:#fff;border-color:rgba(255,0,0,.4);background:rgba(255,0,0,.12)}
+    .foot{font-size:9px;color:#374151;font-family:'Fira Code',monospace;letter-spacing:.14em;text-transform:uppercase;margin-top:16px;text-align:center}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">← MuzzSnap</a>
+    <div class="logo">👻</div>
+    <h1>MUZZ<span>ID</span></h1>
+    <div class="lang">
+      <button type="button" data-set-lang="es">ES</button>
+      <button type="button" data-set-lang="en">EN</button>
+    </div>
+    <p class="status" id="statusText" data-i18n="muzzid.page.status">Create your on-chain username NFT</p>
+
+    <div class="card">
+      <h2 data-i18n="muzzid.page.what">What is MuzzID</h2>
+      <p data-i18n="muzzid.page.what.desc">Your nick as an NFT. Pay with MUZZ. 100% goes to burn dead wallet.</p>
+      <div class="prices">
+        <div class="price-box"><small>BASIC</small><strong>≈ $2</strong><small>800,000 MUZZ · A–Z / 0–9</small></div>
+        <div class="price-box hot"><small>PREMIUM</small><strong>≈ $4</strong><small>1,600,000 MUZZ · emoji / symbols</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="muzzid.page.wallet">1 · Wallet <span class="pill">DEMO</span></h2>
+      <button class="btn-primary" id="btnConnect" type="button" data-i18n="muzzid.page.connect">Connect MetaMask · Sign</button>
+      <div id="walletInfo" class="hidden" style="margin-top:10px">
+        <div class="kv"><span>Address</span><code id="addr">—</code></div>
+        <div class="kv"><span>Balance</span><strong id="bal">—</strong></div>
+        <div class="kv"><span>Network</span><strong id="chainNow">—</strong></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="muzzid.page.username">2 · Choose username <span class="pill" id="priceHint">BASIC ≈ $2</span></h2>
+      <div class="username-field">
+        <span class="at">@</span>
+        <input id="username" maxlength="64" placeholder="YourName or 🔥Name" autocomplete="off" />
+      </div>
+      <p class="hint" id="nameStatus">Connect wallet first</p>
+      <button class="btn-primary" id="btnMint" type="button" disabled>Mint MuzzID</button>
+      <div class="log" id="log">Ready.</div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="muzzid.page.burn">Burn destination</h2>
+      <p>100% MUZZ → <code>0x000000000000000000000000000000000000dEaD</code></p>
+    </div>
+    <div class="foot">· MuzzleToken · MuzzID · MuzzSnap ·</div>
+  </div>
+
+  <script>
+  (function () {
+    var connected = null;
+    function $(id) { return document.getElementById(id); }
+    function log(msg, cls) {
+      var el = $('log');
+      el.innerHTML = '<span class="' + (cls || '') + '">' + String(msg) + '</span>';
+    }
+    function short(a) { return a ? a.slice(0, 6) + '…' + a.slice(-4) : '—'; }
+    function setHint(u) {
+      var premium = window.MuzzIDMint && MuzzIDMint.isPremium(u);
+      $('priceHint').textContent = premium ? 'PREMIUM ≈ $4' : 'BASIC ≈ $2';
+    }
+
+    if (window.MuzzI18n) {
+      MuzzI18n.apply(document);
+      document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-set-lang') === MuzzI18n.getLang());
+        b.onclick = function () {
+          MuzzI18n.setLang(b.getAttribute('data-set-lang'));
+          document.querySelectorAll('[data-set-lang]').forEach(function (x) {
+            x.classList.toggle('active', x.getAttribute('data-set-lang') === MuzzI18n.getLang());
+          });
+        };
+      });
+    }
+
+    $('btnConnect').onclick = async function () {
+      try {
+        log('Connecting…');
+        connected = await MuzzIDMint.connectAndSign(function (s) { log(s); });
+        var net = MuzzIDMint.netDemo();
+        var bal = await MuzzIDMint.getBalance(connected.signer, net.token, connected.addr);
+        $('walletInfo').classList.remove('hidden');
+        $('addr').textContent = short(connected.addr);
+        $('bal').textContent = Number(bal.human).toLocaleString() + ' ' + bal.symbol;
+        $('chainNow').textContent = 'Hardhat 31337';
+        $('btnMint').disabled = false;
+        $('statusText').textContent = 'Signed · ready to mint';
+        log('Auth OK · balance ' + Number(bal.human).toLocaleString() + ' ' + bal.symbol, 'ok');
+      } catch (e) {
+        log(e.message || e, 'bad');
+      }
+    };
+
+    $('username').addEventListener('input', function () {
+      var u = $('username').value.trim();
+      setHint(u);
+      $('nameStatus').textContent = u ? (MuzzIDMint.isPremium(u) ? 'Premium ≈ $4' : 'Basic ≈ $2') : 'Enter username';
+    });
+
+    $('btnMint').onclick = async function () {
+      var u = $('username').value.trim();
+      try {
+        $('btnMint').disabled = true;
+        var res = await MuzzIDMint.mintUsername(u, {
+          onStatus: function (s) { log(s); },
+          requireWallet: connected && connected.addr
+        });
+        log('Minted @' + res.username + ' · 100% MUZZ → dead · tx ' + short(res.txHash), 'ok');
+        $('statusText').textContent = 'MuzzID @' + res.username;
+        $('nameStatus').textContent = 'Created';
+        $('nameStatus').className = 'hint ok';
+      } catch (e) {
+        var msg = e.reason || e.message || String(e);
+        if (/ECONNREFUSED|Hardhat|8545/i.test(msg)) msg = 'Hardhat off. Run ARREGLAR-Y-ABRIR-MUZZID.bat';
+        if (/user rejected|4001/i.test(msg)) msg = 'Cancelled in MetaMask';
+        log(msg, 'bad');
+      } finally {
+        $('btnMint').disabled = false;
+      }
+    };
+
+    // Hardhat ping
+    if (window.MuzzIDMint) {
+      MuzzIDMint.pingHardhat().then(function () {
+        log('Hardhat OK · Connect MetaMask · Sign · Mint', 'ok');
+      }).catch(function () {
+        log('Hardhat OFF — run D:\\\\muzzocial\\\\ARREGLAR-Y-ABRIR-MUZZID.bat', 'bad');
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

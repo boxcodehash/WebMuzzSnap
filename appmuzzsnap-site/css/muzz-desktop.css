@@ -1,0 +1,122 @@
+/* MuzzSnap / MuzzStudio — desktop full-bleed (estilo X / Facebook) */
+html, body {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Scrollbar invisible: sigue funcionando con rueda / trackpad / teclado */
+* {
+  scrollbar-width: none !important;      /* Firefox */
+  -ms-overflow-style: none !important;   /* legacy Edge */
+}
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;              /* Chrome / Safari / Edge */
+  background: transparent !important;
+}
+
+/* Contenedores principales: ocupar todo el viewport */
+.muzz-desktop-app,
+.app.muzz-desktop-app,
+.layout.muzz-desktop-app {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  gap: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* 3 columnas (Social): nav | feed | widgets — a pantalla completa */
+@media (min-width: 1101px) {
+  .app.muzz-desktop-app.social-layout {
+    display: grid !important;
+    grid-template-columns: 280px minmax(0, 1fr) 360px !important;
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1100px) {
+  .app.muzz-desktop-app.social-layout {
+    display: grid !important;
+    grid-template-columns: 260px minmax(0, 1fr) 300px !important;
+  }
+}
+
+/* 2 columnas (Chat, Private, Game, Studio, Buy) */
+@media (min-width: 901px) {
+  .layout.muzz-desktop-app {
+    display: grid !important;
+    grid-template-columns: 280px minmax(0, 1fr) !important;
+  }
+}
+
+/* Paneles a altura completa, sin “tarjeta flotante” en desktop */
+@media (min-width: 981px) {
+  .muzz-desktop-app > .sidebar,
+  .muzz-desktop-app > .side,
+  .muzz-desktop-app > .rightbar,
+  .muzz-desktop-app > .feed-shell,
+  .muzz-desktop-app > .main,
+  .muzz-desktop-app > .chat {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .muzz-desktop-app > .sidebar,
+  .muzz-desktop-app > .side {
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .muzz-desktop-app > .rightbar {
+    border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .muzz-desktop-app > .feed-shell {
+    border-left: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+}
+
+/* Feed / contenido: más aire interno, no márgenes externos */
+@media (min-width: 981px) {
+  .muzz-desktop-app .feed-scroll,
+  .muzz-desktop-app .msgs {
+    padding: 16px 24px 32px !important;
+  }
+
+  .muzz-desktop-app .composer,
+  .muzz-desktop-app .post,
+  .muzz-desktop-app .empty {
+    max-width: 920px !important;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .muzz-desktop-app .feed-top {
+    border-radius: 0 !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+}
+
+/* Ultrawide: el feed no se estira infinito (como X) */
+@media (min-width: 1600px) {
+  .muzz-desktop-app.social-layout {
+    grid-template-columns: 300px minmax(0, 1fr) 400px !important;
+  }
+  .muzz-desktop-app .composer,
+  .muzz-desktop-app .post,
+  .muzz-desktop-app .empty {
+    max-width: 980px !important;
+  }
+}
