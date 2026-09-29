@@ -137,7 +137,15 @@
       } catch (err) { /* private mode */ }
     }
     holdForSign(reason);
-    console.warn('session rejected: ' + sessionReason(reason));
+    var code = sessionReason(reason);
+    console.warn('session rejected: ' + code);
+    try {
+      var rows = JSON.parse(sessionStorage.getItem('muzz_debug_log') || '[]');
+      if (!Array.isArray(rows)) rows = [];
+      rows.push(new Date().toISOString() + '  session:' + code);
+      if (rows.length > 80) rows.shift();
+      sessionStorage.setItem('muzz_debug_log', JSON.stringify(rows));
+    } catch (err) { /* private mode */ }
   }
 
   function storedProof() {

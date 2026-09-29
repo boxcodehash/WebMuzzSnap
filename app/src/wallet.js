@@ -15,13 +15,18 @@ import {
 import {
   AUTH_CHAINS,
   AUTH_METHODS,
+  ONE_CLICK_TIMEOUT_MS,
   authConnectParams,
   buildOneClickAuth,
+  connectForLogin,
   createSingleFlight,
   hasLiveSession,
+  loginConnectParams,
   muzzMark,
   proofFromSession,
-  releaseStorageWait
+  readWalletChoice,
+  releaseStorageWait,
+  walletAdvertisesOneClick
 } from './wc-auth.js';
 
 export { isMobile, signLogin, watchProvider, discoverInjected, inspectInjected };
@@ -103,20 +108,22 @@ function optionalNamespaces(params) {
   };
 }
 
-function plainConnect(originalConnect, params) {
-  // A normal session proposal still emits display_uri, so the wallet opens.
-  // The login SIWE rides inside that proposal. Wallets that sign it do not
-  // need a second personal_sign. provider.authenticate is not used: that
-  // pairing advertises only the one-hour auth method and the list never opens.
-  muzzMark('wc:proposal:plain');
-  muzzMark('wc:siwe-in-proposal');
+function proposal(params, oneClick) {
+  // A normal session proposal emits display_uri and opens the wallet.
+  // SIWE stays out of that proposal unless the wallet advertises one-click auth.
+  // MetaMask Mobile never does: a SIWE connect request does not return a session.
   wcProvider.namespaces = {};
-  return originalConnect({
+  const next = loginConnectParams({
     ...params,
     namespaces: {},
-    optionalNamespaces: optionalNamespaces(params),
-    authentication: [authConnectParams(currentLoginAuth())]
-  });
+    optionalNamespaces: optionalNamespaces(params)
+  }, oneClick, oneClick ? authConnectParams(currentLoginAuth()) : null);
+  muzzMark(oneClick ? 'wc:proposal:one-click' : 'wc:proposal:plain');
+  return next;
+}
+
+function plainConnect(originalConnect, params) {
+  return originalConnect(proposal(params, false));
 }
 
 function nativeReturnUrl(url) {
@@ -212,7 +219,29 @@ async function buildModal() {
     // AppKit opens the wallet only after display_uri.
     if (connectPromise && latestUri) return connectPromise;
     connectPromise = null;
-    const run = plainConnect(originalConnect, params).finally(() => {
+    const choice = readWalletChoice();
+    let run;
+    run = connectForLogin({
+      choice,
+      timeoutMs: ONE_CLICK_TIMEOUT_MS,
+      hasCacao: () => Boolean(proofFromSession(universalProvider.session)),
+      connect: async (plan) => {
+        if (plan.fallback) muzzMark('wc:one-click:fallback');
+        if (plan.fallback && hasLiveSession(universalProvider)) return universalProvider.session;
+        if (plan.fallback && !hasLiveSession(universalProvider) && typeof universalProvider.disconnect === 'function') {
+          try {
+            await Promise.race([
+              universalProvider.disconnect(),
+              new Promise((resolve) => setTimeout(resolve, 1500))
+            ]);
+          } catch {
+            /* the plain proposal still has to go out */
+          }
+        }
+        const oneClick = walletAdvertisesOneClick(choice) && !plan.plain;
+        return oneClick ? originalConnect(proposal(params, true)) : plainConnect(originalConnect, params);
+      }
+    }).then((result) => result.session).finally(() => {
       if (connectPromise === run) connectPromise = null;
     });
     connectPromise = run;

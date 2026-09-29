@@ -448,6 +448,15 @@
             color: rgba(255, 255, 255, 0.28);
         }
 
+        #copyLog {
+            position: fixed;
+            right: 8px;
+            bottom: calc(38vh + 16px);
+            z-index: 10002;
+            width: auto;
+            padding: 8px 12px;
+        }
+
         .muzz-debug {
             position: fixed;
             left: 8px;
@@ -612,7 +621,8 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.17</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.18</small></footer>
+    <button type="button" id="copyLog" class="btn btn-ghost" hidden>Copy log</button>
     <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 
     <script>
@@ -645,20 +655,29 @@
         })();
 
         const debugBox = document.getElementById('muzzDebug');
+        const copyLogBtn = document.getElementById('copyLog');
+        const DEBUG_LOG_KEY = 'muzz_debug_log';
         function debugEnabled() {
             try { return localStorage.getItem('muzz_debug') === '1'; } catch (err) { return false; }
         }
         function paintDebug() {
-            if (!debugBox) return;
-            debugBox.hidden = !debugEnabled();
+            const on = debugEnabled();
+            if (debugBox) debugBox.hidden = !on;
+            if (copyLogBtn) copyLogBtn.hidden = !on;
         }
+        try {
+            const savedLog = JSON.parse(sessionStorage.getItem(DEBUG_LOG_KEY) || '[]');
+            if (Array.isArray(savedLog) && savedLog.length) window.__muzzDebugLines = savedLog;
+        } catch (err) { /* private mode */ }
         window.muzzDebugLog = function (wall, label) {
             const line = String(wall || new Date().toISOString()) + '  ' + String(label || '');
             const rows = window.__muzzDebugLines || (window.__muzzDebugLines = []);
             rows.push(line);
-            if (rows.length > 40) rows.shift();
+            if (rows.length > 80) rows.shift();
+            try { sessionStorage.setItem(DEBUG_LOG_KEY, JSON.stringify(rows)); } catch (err) { /* private mode */ }
             if (debugBox && debugEnabled()) {
                 debugBox.hidden = false;
+                if (copyLogBtn) copyLogBtn.hidden = false;
                 debugBox.textContent = rows.join('\n');
                 debugBox.scrollTop = debugBox.scrollHeight;
             }
@@ -694,6 +713,7 @@
                 paintDebug();
                 if (next === '1' && debugBox) {
                     debugBox.hidden = false;
+                    if (copyLogBtn) copyLogBtn.hidden = false;
                     debugBox.textContent = (window.__muzzDebugLines || []).join('\n') || 'Login debug on';
                 }
             });
@@ -829,7 +849,45 @@
 
         function showSignError(err, provider, hint) {
             const text = muzzGate.explainSignError(err, { inWallet: inApp || wantsApkReturn() });
+            const code = err && err.code != null ? String(err.code) : '';
+            window.muzzMark('error:' + (code || 'unknown'));
+            window.muzzDebugLog(new Date().toISOString(), 'error: ' + text.title + ' ' + text.desc);
             showError(text.title, text.desc, muzzGate.debugLine(err, debugInfo(provider, hint)));
+            const retry = document.getElementById('loginRetry');
+            if (retry) retry.classList.remove('hidden');
+        }
+
+        function armConnectWatch() {
+            let done = false;
+            let timer = 0;
+            let visTimer = 0;
+            const stop = () => {
+                done = true;
+                clearTimeout(timer);
+                clearTimeout(visTimer);
+                document.removeEventListener('visibilitychange', onVisible);
+            };
+            const fail = () => {
+                if (done || signFlight) return;
+                if (signOverlay.classList.contains('hidden')) return;
+                const modal = document.querySelector('w3m-modal');
+                if (modal && modal.open) return;
+                if (document.visibilityState === 'hidden') return;
+                stop();
+                window.muzzMark('connect:timeout');
+                releasePageLock();
+                const err = new Error('The wallet did not return a connection.');
+                err.code = 'connect_timeout';
+                showSignError(err);
+            };
+            const onVisible = () => {
+                if (document.visibilityState !== 'visible') return;
+                clearTimeout(visTimer);
+                visTimer = setTimeout(fail, 4000);
+            };
+            timer = setTimeout(fail, 20000);
+            document.addEventListener('visibilitychange', onVisible);
+            return stop;
         }
 
         function isIosBrowser() {
@@ -1494,6 +1552,7 @@
             let session = null;
             let sessionSign = null;
             const stopLockWatch = armLoginLock();
+            const stopConnectWatch = armConnectWatch();
             try {
                 window.MUZZ_RUNTIME = window.MUZZ_RUNTIME || {};
                 window.MUZZ_RUNTIME.walletConnectProjectId = projectId;
@@ -1536,6 +1595,7 @@
                 showSignError(err, session && session.provider, session);
             } finally {
                 stopLockWatch();
+                stopConnectWatch();
                 accessWithWalletConnectBody.running = false;
             }
         }
@@ -1751,6 +1811,28 @@
 
         document.getElementById('debugLine').addEventListener('click', () => {
             document.getElementById('debugLine').classList.add('hidden');
+        });
+        document.getElementById('copyLog').addEventListener('click', () => {
+            const text = (window.__muzzDebugLines || []).join('\n');
+            const done = () => window.muzzDebugLog(new Date().toISOString(), 'log copied');
+            const fallback = () => {
+                try {
+                    debugBox.hidden = false;
+                    debugBox.textContent = text;
+                    const range = document.createRange();
+                    range.selectNodeContents(debugBox);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                } catch (err) { /* the text is already on screen */ }
+            };
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, fallback);
+                    return;
+                }
+            } catch (err) { /* clipboard blocked */ }
+            fallback();
         });
         document.getElementById('loginRetry').addEventListener('click', () => {
             const retry = document.getElementById('loginRetry');

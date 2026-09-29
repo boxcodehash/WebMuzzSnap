@@ -179,9 +179,74 @@ export function isMetaMaskChoice(choice) {
   return href.startsWith('metamask:') || href.includes('metamask.app.link');
 }
 
-/** One-click auth is off for every wallet. AppKit opens the wallet from a normal pairing URI. */
-export function shouldUsePlainConnect() {
-  return true;
+export const ONE_CLICK_TIMEOUT_MS = 20_000;
+
+/**
+ * MetaMask Mobile does not advertise wc_sessionAuthenticate and mishandles SIWE
+ * inside the connect proposal. One-click is only for a wallet that says so.
+ */
+export function walletAdvertisesOneClick(choice) {
+  if (!choice || isMetaMaskChoice(choice)) return false;
+  if (choice.oneClick === true || choice.sessionAuthenticate === true) return true;
+  const methods = choice.methods;
+  return Array.isArray(methods) && methods.includes('wc_sessionAuthenticate');
+}
+
+/** Plain connect unless this wallet explicitly advertises one-click auth. */
+export function shouldUsePlainConnect(choice) {
+  return !walletAdvertisesOneClick(choice);
+}
+
+export function loginConnectParams(params, oneClick, auth) {
+  const next = { ...(params || {}) };
+  if (!oneClick) {
+    delete next.authentication;
+    return next;
+  }
+  if (auth) next.authentication = [auth];
+  return next;
+}
+
+/**
+ * Prefer a normal session proposal. One-click runs only when the wallet
+ * advertises it. An error or timeout starts a plain connect. A session that
+ * comes back without a valid CACAO is kept, and the page asks for one personal_sign.
+ */
+export async function connectForLogin({ choice, connect, timeoutMs = ONE_CLICK_TIMEOUT_MS, hasCacao } = {}) {
+  if (!walletAdvertisesOneClick(choice)) {
+    const session = await connect({ plain: true, fallback: false });
+    return { session, plain: true, fallback: false, needsPersonalSign: true };
+  }
+  let timer;
+  let attempt;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error('one-click timed out');
+      err.code = 'one_click_timeout';
+      reject(err);
+    }, timeoutMs);
+  });
+  try {
+    attempt = connect({ plain: false, fallback: false });
+    const session = await Promise.race([attempt, timeout]);
+    clearTimeout(timer);
+    const cacao = typeof hasCacao === 'function' ? Boolean(hasCacao(session)) : false;
+    if (!cacao) {
+      return { session, plain: true, fallback: true, reason: 'no_cacao', needsPersonalSign: true };
+    }
+    return { session, plain: false, fallback: false, needsPersonalSign: false };
+  } catch (err) {
+    clearTimeout(timer);
+    if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
+    const session = await connect({ plain: true, fallback: true });
+    return {
+      session,
+      plain: true,
+      fallback: true,
+      reason: (err && err.code) || 'one_click_error',
+      needsPersonalSign: true
+    };
+  }
 }
 
 export function noteWalletChoice(choice) {
@@ -242,14 +307,24 @@ export function authConnectParams(auth) {
  * that promise waits at least AUTHENTICATE_WAIT_FLOOR_MS even after the session is approved.
  * onSession runs in the same turn the session promise resolves.
  */
-export async function settleLoginConnection({ choice, connect, onSession, mark = muzzMark } = {}) {
-  const plain = shouldUsePlainConnect(choice);
-  mark(plain ? 'wc:proposal:plain' : 'wc:proposal:one-click');
-  mark('wc:authenticate:skipped');
-  const session = await connect({ plain, authentication: plain ? undefined : true });
+export async function settleLoginConnection({ choice, connect, onSession, mark = muzzMark, timeoutMs, hasCacao } = {}) {
+  const result = await connectForLogin({
+    choice,
+    timeoutMs,
+    hasCacao,
+    connect: async (plan) => {
+      mark(plan.plain ? 'wc:proposal:plain' : 'wc:proposal:one-click');
+      if (plan.plain) mark('wc:authenticate:skipped');
+      return connect({
+        plain: plan.plain,
+        authentication: plan.plain ? undefined : true,
+        fallback: Boolean(plan.fallback)
+      });
+    }
+  });
   mark('session');
-  if (onSession) await onSession(session, { plain });
-  return { session, plain };
+  if (onSession) await onSession(result.session, result);
+  return result;
 }
 
 export function buildSignDeepLink({ href, name, id, topic, requestId, userAgent } = {}) {

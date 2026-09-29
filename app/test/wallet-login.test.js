@@ -193,7 +193,10 @@ test('los deep links de móvil apuntan a la página y el APK vuelve por muzzsnap
   assert.match(source, /plainConnect/);
   assert.match(source, /releaseConnectLock/);
   assert.doesNotMatch(source, /authenticate\(/);
-  assert.match(source, /authentication: \[authConnectParams\(currentLoginAuth\(\)\)\]/);
+  assert.match(source, /loginConnectParams/);
+  assert.match(source, /walletAdvertisesOneClick/);
+  assert.doesNotMatch(source, /siwe-in-proposal/);
+  assert.doesNotMatch(source, /authentication: \[authConnectParams\(currentLoginAuth\(\)\)\]/);
   assert.match(source, /return originalConnect\(/);
   assert.doesNotMatch(source, /await connectPromise/);
   assert.match(source, /hasLiveSession/);

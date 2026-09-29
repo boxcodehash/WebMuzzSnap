@@ -21,7 +21,11 @@ import {
   releaseStorageWait,
   scheduleSignDeepLink,
   settleLoginConnection,
-  shouldUsePlainConnect
+  ONE_CLICK_TIMEOUT_MS,
+  connectForLogin,
+  loginConnectParams,
+  shouldUsePlainConnect,
+  walletAdvertisesOneClick
 } from '../src/wc-auth.js';
 
 test('one-click auth puts SIWE and ReCap in one proposal and never asks to switch chain', () => {
@@ -261,4 +265,105 @@ test('a stuck login lock can be reset and the next tap runs', async () => {
   assert.equal(await next, 'next');
   release();
   assert.equal(await first, 'stuck');
+});
+
+test('MetaMask uses a plain connect, and one-click falls back after a timeout or a bad CACAO', async () => {
+  assert.equal(walletAdvertisesOneClick(null), false);
+  assert.equal(walletAdvertisesOneClick({ name: 'MetaMask', oneClick: true }), false);
+  assert.equal(walletAdvertisesOneClick({ name: 'Trust Wallet' }), false);
+  assert.equal(walletAdvertisesOneClick({ name: 'Example', oneClick: true }), true);
+  assert.equal(walletAdvertisesOneClick({ name: 'Example', methods: ['wc_sessionAuthenticate'] }), true);
+  assert.equal(shouldUsePlainConnect({ name: 'MetaMask' }), true);
+  assert.equal(shouldUsePlainConnect({ name: 'Example', oneClick: true }), false);
+  assert.equal(ONE_CLICK_TIMEOUT_MS, 20_000);
+  const stripped = loginConnectParams({ authentication: [{ statement: 'SIWE' }], namespaces: {} }, false, null);
+  assert.equal(stripped.authentication, undefined);
+  const opted = loginConnectParams({ namespaces: {} }, true, { nonce: 'ab' });
+  assert.deepEqual(opted.authentication, [{ nonce: 'ab' }]);
+
+  const metamaskCalls = [];
+  const metamask = await connectForLogin({
+    choice: { name: 'MetaMask', id: METAMASK_WC_ID },
+    connect: async (plan) => {
+      metamaskCalls.push(plan);
+      return { topic: 'mm' };
+    }
+  });
+  assert.equal(metamaskCalls.length, 1);
+  assert.equal(metamaskCalls[0].plain, true);
+  assert.equal(metamask.needsPersonalSign, true);
+  assert.equal(metamask.fallback, false);
+
+  const cacaoCalls = [];
+  const withCacao = await connectForLogin({
+    choice: { name: 'Example', oneClick: true },
+    hasCacao: () => true,
+    connect: async (plan) => {
+      cacaoCalls.push(plan.plain ? 'plain' : 'one-click');
+      return { topic: 'cacao' };
+    }
+  });
+  assert.deepEqual(cacaoCalls, ['one-click']);
+  assert.equal(withCacao.needsPersonalSign, false);
+
+  const missingCalls = [];
+  const missing = await connectForLogin({
+    choice: { name: 'Example', sessionAuthenticate: true },
+    hasCacao: () => false,
+    connect: async (plan) => {
+      missingCalls.push(plan.plain ? 'plain' : 'one-click');
+      return { topic: 'session-only' };
+    }
+  });
+  assert.deepEqual(missingCalls, ['one-click']);
+  assert.equal(missing.reason, 'no_cacao');
+  assert.equal(missing.needsPersonalSign, true);
+
+  const timeoutCalls = [];
+  const timed = await connectForLogin({
+    choice: { name: 'Example', oneClick: true },
+    timeoutMs: 20,
+    connect: async (plan) => {
+      timeoutCalls.push(plan.plain ? 'plain' : 'one-click');
+      if (!plan.plain) return new Promise(() => {});
+      return { topic: 'plain-after-timeout' };
+    }
+  });
+  assert.deepEqual(timeoutCalls, ['one-click', 'plain']);
+  assert.equal(timed.reason, 'one_click_timeout');
+  assert.equal(timed.session.topic, 'plain-after-timeout');
+  assert.equal(timed.needsPersonalSign, true);
+
+  const errorCalls = [];
+  const failed = await connectForLogin({
+    choice: { name: 'Example', methods: ['wc_sessionAuthenticate'] },
+    connect: async (plan) => {
+      errorCalls.push(Boolean(plan.fallback));
+      if (!plan.plain) throw Object.assign(new Error('wallet rejected auth'), { code: 'rejected' });
+      return { topic: 'plain-after-error' };
+    }
+  });
+  assert.deepEqual(errorCalls, [false, true]);
+  assert.equal(failed.reason, 'rejected');
+  assert.equal(failed.session.topic, 'plain-after-error');
+
+  const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
+  assert.match(login, /v1\.0\.18/);
+  assert.match(login, />Copy log</);
+  assert.match(login, /muzz_debug_log/);
+  assert.match(login, /connect:timeout/);
+  assert.match(login, /rememberSignRequest\(address, message, true\)/);
+  assert.match(login, /personal_sign:suppressed/);
+  assert.match(login, /resume:wait/);
+  const pub = readFileSync(new URL('../www/config.public.js', import.meta.url), 'utf8');
+  assert.match(pub, /8ff03dad157892146048cfe2b4e381ca/);
+  const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+  assert.match(manifest, /android:scheme="muzzsnap"/);
+  assert.match(manifest, /android:host="wc"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /applicationId "app\.muzzsnap\.chat"/);
+  const catalog = readFileSync(new URL('../src/walletCatalog.js', import.meta.url), 'utf8');
+  assert.match(catalog, /muzzsnap:\/\/wc/);
+  const walletSrc = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
+  assert.match(walletSrc, /native: nativeReturnUrl\(url\)/);
+  assert.match(walletSrc, /host === 'localhost'/);
 });

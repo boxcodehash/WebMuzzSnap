@@ -399,8 +399,11 @@
     if (code === 'NO_PROJECT_ID' || msg === 'NO_PROJECT_ID') {
       return { title: 'WalletConnect is not configured.', desc: 'Set WALLETCONNECT_PROJECT_ID and rebuild the app. Until then, choose a wallet below.' };
     }
+    if (code === 'connect_timeout' || code === 'one_click_timeout') {
+      return { title: 'Could not connect the wallet.', desc: 'The wallet did not return a connection. Tap Retry and approve the connection in your wallet.' };
+    }
     if (code === 'wc_load' || msg === 'wc_load') {
-      return { title: 'Could not sign in.', desc: 'The wallet picker could not be opened. Check your connection and try again.' };
+      return { title: 'Could not connect the wallet.', desc: 'The wallet picker could not be opened. Check your connection and tap Retry.' };
     }
     if (msg === 'NO_WALLET' || code === 'NO_WALLET' || /no provider|sdk/i.test(msg)) {
       return {
