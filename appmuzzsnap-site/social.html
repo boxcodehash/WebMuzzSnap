@@ -191,6 +191,7 @@
     @media(max-width:1180px){.app{grid-template-columns:260px minmax(0,1fr) 300px}}
     @media(max-width:980px){body{overflow:auto}.app{height:auto;min-height:100dvh;grid-template-columns:1fr;padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) calc(104px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px));gap:12px}.sidebar,.rightbar{display:none}.feed-shell{min-height:0;height:auto;border-radius:var(--radius)}.mobile-bottom{display:grid}.fab{display:block}.post-text,.post-actions,.comments,.post-badges{margin-left:0}.feed-top{position:sticky}}
   </style>
+  <link rel="stylesheet" href="css/muzz-pro.css" />
 </head>
 <body>
   <div class="app muzz-desktop-app social-layout">
@@ -218,7 +219,7 @@
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <div class="notif-wrap" id="notifWrap">
-            <button type="button" class="ghost-btn notif-btn" id="notifBtn" title="Notifications">🔔 <span class="notif-badge" id="notifBadge" hidden>0</span></button>
+            <button type="button" class="ghost-btn notif-btn" id="notifBtn" title="Notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.2 1.5H4.8z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg><span class="notif-badge" id="notifBadge" hidden>0</span></button>
             <div class="notif-panel" id="notifPanel" hidden>
               <div class="notif-head">
                 <strong data-i18n="social.notifications">Notifications</strong>
@@ -306,7 +307,7 @@
 
 
     <aside class="rightbar card">
-      <div class="search"><span>🔎</span><input type="text" placeholder="Search Muzz Social" id="searchInput"></div>
+      <div class="search"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="6.5"/><path d="M16 16.5 20 20.5"/></svg><input type="text" placeholder="Search Muzz Social" id="searchInput"></div>
       <section class="widget">
         <p class="section-title">Live counters</p>
         <div class="trend"><div><strong id="postTotal">0 posts</strong><small>Synced feed</small></div><span style="color:var(--muted)">LIVE</span></div>
@@ -327,14 +328,28 @@
     </aside>
   </div>
 
-  <div class="mobile-bottom">
-    <button type="button" id="mobSocial" class="active">Social</button>
-    <button type="button" id="mobMuzzId">MuzzID</button>
-    <button type="button" onclick="location.href='chat.html'">Chat</button>
-    <button type="button" onclick="location.href='private.html'">Private</button>
-    <button type="button" onclick="location.href='game.html'">Game</button>
-    <button type="button" onclick="location.href='muzzstudio.html'">Studio</button>
-  </div>
+  <nav class="mobile-bottom" aria-label="MuzzSnap">
+    <button type="button" id="mobSocial" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 3.5l8 7V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span data-i18n="nav.social">Social</span>
+    </button>
+    <button type="button" onclick="location.href='chat.html'">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H9.2L5 19.2V7.5a1 1 0 0 1 1-1z"/></svg>
+      <span data-i18n="nav.chat">Chat</span>
+    </button>
+    <button type="button" onclick="location.href='private.html'">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="11" width="12" height="8.5" rx="1.5"/><path d="M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11"/></svg>
+      <span data-i18n="nav.private">Private</span>
+    </button>
+    <button type="button" id="mobMuzzId">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6.5" width="17" height="11" rx="2"/><circle cx="8.5" cy="12" r="1.6"/><path d="M12 10.5h5.5M12 13.5h3.5"/></svg>
+      <span data-i18n="nav.muzzid">MuzzID</span>
+    </button>
+    <button type="button" id="mobMore">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.25" fill="currentColor" stroke="none"/></svg>
+      <span data-i18n="nav.more">More</span>
+    </button>
+  </nav>
   <button class="fab" id="fabBtn">＋</button>
   <div class="toast" id="toast"></div>
 

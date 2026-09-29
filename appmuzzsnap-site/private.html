@@ -133,6 +133,7 @@
     }
     .topbar-left .icon-btn.chats-inline{display:none}
   </style>
+  <link rel="stylesheet" href="css/muzz-pro.css" />
 </head>
 <body>
   <div class="gate" id="gateScreen">
@@ -153,7 +154,7 @@
     <aside class="sidebar" id="chatsDrawer" aria-label="Conversations drawer">
       <div class="drawer-close-row">
         <strong style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#ff8080">Chats</strong>
-        <button type="button" class="icon-btn" id="drawerCloseBtn" title="Cerrar">S"</button>
+        <button type="button" class="icon-btn" id="drawerCloseBtn" title="Cerrar" aria-label="Cerrar">×</button>
       </div>
       <div id="muzzNavMount"></div>
       <div class="card" style="display:none">
@@ -181,13 +182,13 @@
 
     <section class="chat">
       <div class="mobile-top">
-        <button type="button" class="icon-btn" id="openDrawerBtn" title="Abrir chats">ܰ</button>
+        <button type="button" class="icon-btn" id="openDrawerBtn" title="Abrir chats" aria-label="Abrir chats"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
         <div style="font-weight:900;letter-spacing:.08em">MUZZ<span style="color:var(--red)">PRIVATE</span></div>
         <button type="button" class="btn ghost" style="padding:10px 12px;border-radius:14px;font-size:12px" onclick="location.href='social.html'">Social</button>
       </div>
       <div class="topbar" id="chatHeader">
         <div class="topbar-left">
-          <button type="button" class="icon-btn chats-inline" id="openDrawerBtn2" title="Chats">ܰ</button>
+          <button type="button" class="icon-btn chats-inline" id="openDrawerBtn2" title="Chats" aria-label="Chats"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
           <div class="avatar" id="peerAvatar">?</div>
           <div>
             <h2 id="peerTitle">Select a chat</h2>
@@ -205,9 +206,9 @@
       </div>
       <div class="composer">
         <div class="composer-box">
-          <button type="button" class="emoji-btn" data-emoji-for="messageInput" id="privateEmojiBtn" title="Emoji" disabled>xܬ</button>
+          <button type="button" class="emoji-btn" data-emoji-for="messageInput" id="privateEmojiBtn" title="Emoji" disabled>😀</button>
           <textarea id="messageInput" rows="1" placeholder="Encrypted private message…" disabled></textarea>
-          <button class="send" id="sendBtn" disabled title="Send encrypted">~</button>
+          <button class="send" id="sendBtn" disabled title="Send encrypted" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
       </div>
     </section>

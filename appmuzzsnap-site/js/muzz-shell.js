@@ -220,6 +220,9 @@
       'html.muzz-embed .sidebar,' +
       'html.muzz-embed .side,' +
       'html.muzz-embed .mobile-bottom,' +
+      'html.muzz-embed .muzz-tabbar,' +
+      'html.muzz-embed .muzz-sheet,' +
+      'html.muzz-embed .muzz-sheet-backdrop,' +
       'html.muzz-embed .fab{display:none!important}' +
       'html.muzz-embed .app,' +
       'html.muzz-embed .layout,' +
@@ -284,6 +287,202 @@
     }, true);
   }
 
+  function shellTr(key, fallback) {
+    return (global.MuzzI18n && MuzzI18n.t) ? MuzzI18n.t(key) : fallback;
+  }
+
+  function icon(name) {
+    var paths = {
+      social: '<path d="M4 10.5 12 3.5l8 7V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/>',
+      profile: '<circle cx="12" cy="8" r="3.25"/><path d="M5.5 19.25a6.5 6.5 0 0 1 13 0"/>',
+      chat: '<path d="M5 6.5h14a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H9.2L5 19.2V7.5a1 1 0 0 1 1-1z"/>',
+      private: '<rect x="6" y="11" width="12" height="8.5" rx="1.5"/><path d="M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11"/>',
+      game: '<path d="M7 9.5h10a3 3 0 0 1 3 3v1.2a3 3 0 0 1-3 3h-1.4L14 18.2h-4L8.4 16.7H7a3 3 0 0 1-3-3v-1.2a3 3 0 0 1 3-3z"/><path d="M8.2 13.2v2.2M7.1 14.3h2.2M15.6 13.4h.01M17.3 15.1h.01"/>',
+      studio: '<rect x="3.5" y="7" width="11" height="10" rx="1.5"/><path d="M14.5 10.5 20 8v8l-5.5-2.5z"/>',
+      buy: '<path d="M6.5 8h11l-.8 11.2a1.5 1.5 0 0 1-1.5 1.3H8.8a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 8V7a3 3 0 0 1 6 0v1"/>',
+      whitepaper: '<path d="M7 3.5h7.2L19 8.2V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M14 3.8V8.5h4.6M8.5 12.5h7M8.5 16h5"/>',
+      muzzid: '<rect x="3.5" y="6.5" width="17" height="11" rx="2"/><circle cx="8.5" cy="12" r="1.6"/><path d="M12 10.5h5.5M12 13.5h3.5"/>',
+      telegram: '<path d="M20.5 5.2 3.8 11.4l5.2 1.7 1.8 5.5 2.6-3.4 4.6 3.4z"/><path d="m9 13.1 7.2-5.2"/>',
+      x: '<path d="M5 5.5 19 18.5M19 5.5 5 18.5"/>',
+      more: '<circle cx="6" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.15" fill="currentColor" stroke="none"/>',
+      close: '<path d="M7 7l10 10M17 7 7 17"/>'
+    };
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + (paths[name] || paths.more) + '</svg>';
+  }
+
+  var NAV_ITEMS = [
+    { id: 'social', icon: 'social', key: 'nav.social', label: 'Social' },
+    { id: 'profile', icon: 'profile', key: 'nav.profile', label: 'Profile' },
+    { id: 'chat', icon: 'chat', key: 'nav.chat', label: 'Chat' },
+    { id: 'private', icon: 'private', key: 'nav.private', label: 'Private' },
+    { id: 'game', icon: 'game', key: 'nav.game', label: 'MUZZ Galaxy' },
+    { id: 'studio', icon: 'studio', key: 'nav.studio', label: 'MuzzStudio' },
+    { id: 'buy', icon: 'buy', key: 'nav.buy', label: 'Buy MUZZ' },
+    { id: 'whitepaper', icon: 'whitepaper', key: 'nav.whitepaper', label: 'Whitepaper' },
+    { id: 'muzzid', icon: 'muzzid', key: 'nav.muzzid', label: 'MuzzID' }
+  ];
+
+  var TAB_ITEMS = [
+    { id: 'social', icon: 'social', key: 'nav.social', label: 'Social' },
+    { id: 'chat', icon: 'chat', key: 'nav.chat', label: 'Chat' },
+    { id: 'private', icon: 'private', key: 'nav.private', label: 'Private' },
+    { id: 'profile', icon: 'profile', key: 'nav.profile', label: 'Profile' }
+  ];
+
+  function navButton(it, active) {
+    var cls = 'muzz-nav-btn' + (it.id === active ? ' active' : '');
+    var current = it.id === active ? ' aria-current="page"' : '';
+    return '<button type="button" class="' + cls + '" data-nav="' + it.id + '"' + current + '>' +
+      '<span class="muzz-nav-icon">' + icon(it.icon) + '</span>' +
+      '<span class="muzz-nav-label" data-i18n="' + it.key + '">' + shellTr(it.key, it.label) + '</span></button>';
+  }
+
+  function closeMore() {
+    var sheet = document.getElementById('muzzMoreSheet');
+    var bd = document.getElementById('muzzSheetBackdrop');
+    if (sheet) sheet.classList.remove('open');
+    if (bd) bd.classList.remove('open');
+    try { document.body.classList.remove('muzz-sheet-open'); } catch (_) {}
+  }
+
+  function openMore() {
+    ensureMoreSheet();
+    var sheet = document.getElementById('muzzMoreSheet');
+    var bd = document.getElementById('muzzSheetBackdrop');
+    if (sheet) sheet.classList.add('open');
+    if (bd) bd.classList.add('open');
+    try { document.body.classList.add('muzz-sheet-open'); } catch (_) {}
+  }
+
+  function ensureMoreSheet(active) {
+    var bd = document.getElementById('muzzSheetBackdrop');
+    if (!bd) {
+      bd = document.createElement('div');
+      bd.id = 'muzzSheetBackdrop';
+      bd.className = 'muzz-sheet-backdrop';
+      bd.addEventListener('click', closeMore);
+      document.body.appendChild(bd);
+    }
+    var sheet = document.getElementById('muzzMoreSheet');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.id = 'muzzMoreSheet';
+      sheet.className = 'muzz-sheet';
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+      document.body.appendChild(sheet);
+    }
+    var extras = [
+      { id: 'game', icon: 'game', key: 'nav.game', label: 'MUZZ Galaxy' },
+      { id: 'studio', icon: 'studio', key: 'nav.studio', label: 'MuzzStudio' },
+      { id: 'buy', icon: 'buy', key: 'nav.buy', label: 'Buy MUZZ' },
+      { id: 'muzzid', icon: 'muzzid', key: 'nav.muzzid', label: 'MuzzID' },
+      { id: 'whitepaper', icon: 'whitepaper', key: 'nav.whitepaper', label: 'Whitepaper' },
+      { id: 'profile', icon: 'profile', key: 'nav.profile', label: 'Profile' }
+    ];
+    var curLang = (global.MuzzI18n && MuzzI18n.getLang) ? MuzzI18n.getLang() : 'en';
+    var grid = extras.map(function (it) {
+      var on = it.id === active ? ' active' : '';
+      return '<button type="button" class="muzz-sheet-item' + on + '" data-nav="' + it.id + '">' +
+        '<span class="muzz-nav-icon">' + icon(it.icon) + '</span>' +
+        '<span data-i18n="' + it.key + '">' + shellTr(it.key, it.label) + '</span></button>';
+    }).join('');
+    grid +=
+      '<button type="button" class="muzz-sheet-item" data-href="https://t.me/MuzzSnap" data-ext="1">' +
+      '<span class="muzz-nav-icon">' + icon('telegram') + '</span><span data-i18n="nav.telegram">' + shellTr('nav.telegram', 'Telegram') + '</span></button>' +
+      '<button type="button" class="muzz-sheet-item" data-href="https://x.com/MuzzleToken" data-ext="1">' +
+      '<span class="muzz-nav-icon">' + icon('x') + '</span><span>X.com</span></button>';
+
+    sheet.innerHTML =
+      '<div class="muzz-sheet-handle" aria-hidden="true"></div>' +
+      '<div class="muzz-sheet-head"><strong data-i18n="nav.more">' + shellTr('nav.more', 'More') + '</strong>' +
+      '<button type="button" class="muzz-sheet-close" id="muzzSheetClose" data-i18n-aria="nav.close" aria-label="' + shellTr('nav.close', 'Close') + '">' + icon('close') + '</button></div>' +
+      '<div class="muzz-sheet-grid">' + grid + '</div>' +
+      '<div class="muzz-lang" title="' + shellTr('lang.label', 'Language') + '">' +
+      '<button type="button" class="muzz-lang-btn' + (curLang === 'es' ? ' active' : '') + '" data-set-lang="es">ES</button>' +
+      '<button type="button" class="muzz-lang-btn' + (curLang === 'en' ? ' active' : '') + '" data-set-lang="en">EN</button>' +
+      '</div>' +
+      '<button type="button" class="muzz-disconnect" id="muzzSheetDisconnect" data-i18n="nav.disconnect">' + shellTr('nav.disconnect', 'Disconnect') + '</button>';
+
+    sheet.querySelectorAll('[data-nav]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        closeMore();
+        navigateToSection(btn.getAttribute('data-nav'));
+      });
+    });
+    sheet.querySelectorAll('[data-href]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var href = btn.getAttribute('data-href');
+        if (btn.getAttribute('data-ext')) window.open(href, '_blank');
+        else location.href = href;
+      });
+    });
+    sheet.querySelectorAll('[data-set-lang]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var L = btn.getAttribute('data-set-lang');
+        if (global.MuzzI18n) MuzzI18n.setLang(L);
+        if (global.MuzzI18n) MuzzI18n.apply(document);
+        ensureMoreSheet(active);
+      });
+    });
+    var c = document.getElementById('muzzSheetClose');
+    if (c) c.addEventListener('click', closeMore);
+    var d = document.getElementById('muzzSheetDisconnect');
+    if (d) d.addEventListener('click', function () { closeMore(); disconnect(); });
+    if (global.MuzzI18n) MuzzI18n.apply(sheet);
+  }
+
+  function renderTabBar(active) {
+    var primaryIds = { social: 1, chat: 1, private: 1, profile: 1 };
+    var bar = document.getElementById('muzzTabBar');
+    if (!bar) {
+      bar = document.createElement('nav');
+      bar.id = 'muzzTabBar';
+      bar.className = 'muzz-tabbar';
+      bar.setAttribute('aria-label', 'MuzzSnap');
+      document.body.appendChild(bar);
+    }
+    var html = TAB_ITEMS.map(function (it) {
+      var on = it.id === active ? ' active' : '';
+      var current = it.id === active ? ' aria-current="page"' : '';
+      return '<button type="button" class="muzz-tab' + on + '" data-nav="' + it.id + '"' + current + '>' +
+        icon(it.icon) +
+        '<span data-i18n="' + it.key + '">' + shellTr(it.key, it.label) + '</span></button>';
+    }).join('');
+    var moreOn = !primaryIds[active] ? ' active' : '';
+    html += '<button type="button" class="muzz-tab' + moreOn + '" data-more="1">' +
+      icon('more') + '<span data-i18n="nav.more">' + shellTr('nav.more', 'More') + '</span></button>';
+    bar.innerHTML = html;
+    bar.querySelectorAll('[data-nav]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        navigateToSection(btn.getAttribute('data-nav'));
+      });
+    });
+    var more = bar.querySelector('[data-more]');
+    if (more) more.addEventListener('click', openMore);
+    if (global.MuzzI18n) MuzzI18n.apply(bar);
+  }
+
+  function ensureMobileChrome(active) {
+    if (!document.body || IS_EMBED) return;
+    try { document.body.dataset.muzzPage = active || ''; } catch (_) {}
+    ensureMoreSheet(active);
+    var own = document.querySelector('.mobile-bottom');
+    if (own) {
+      document.body.classList.remove('muzz-has-tabbar');
+      var existing = document.getElementById('muzzTabBar');
+      if (existing) existing.remove();
+      var moreBtn = document.getElementById('mobMore');
+      if (moreBtn && !moreBtn.dataset.bound) {
+        moreBtn.dataset.bound = '1';
+        moreBtn.addEventListener('click', openMore);
+      }
+      return;
+    }
+    document.body.classList.add('muzz-has-tabbar');
+    renderTabBar(active);
+  }
+
   /** active: 'social' | 'profile' | 'chat' | 'private' | 'game' | 'buy' | 'studio' | 'whitepaper' */
   function renderNav(active, mountSelector) {
     var session = requireAuth();
@@ -299,33 +498,17 @@
     }
 
     function tr(key, fallback) {
-      return (global.MuzzI18n && MuzzI18n.t) ? MuzzI18n.t(key) : fallback;
+      return shellTr(key, fallback);
     }
 
-    var items = [
-      { id: 'social', icon: '🌐', key: 'nav.social', label: 'Social' },
-      { id: 'profile', icon: '👤', key: 'nav.profile', label: 'Profile' },
-      { id: 'chat', icon: '💬', key: 'nav.chat', label: 'Chat' },
-      { id: 'private', icon: '🔒', key: 'nav.private', label: 'Private' },
-      { id: 'game', icon: '🎮', key: 'nav.game', label: 'MUZZ Galaxy' },
-      { id: 'studio', icon: '🎬', key: 'nav.studio', label: 'MuzzStudio' },
-      { id: 'buy', icon: '🛒', key: 'nav.buy', label: 'Buy MUZZ' },
-      { id: 'whitepaper', icon: '📄', key: 'nav.whitepaper', label: 'Whitepaper' },
-      { id: 'muzzid', icon: '🪪', key: 'nav.muzzid', label: 'MuzzID' }
-    ];
-
-    var navHtml = items.map(function (it) {
-      var cls = 'muzz-nav-btn' + (it.id === active ? ' active' : '');
-      var label = tr(it.key, it.label);
-      return '<button type="button" class="' + cls + '" data-nav="' + it.id + '">' +
-        '<span class="muzz-nav-icon">' + it.icon + '</span><span data-i18n="' + it.key + '">' + label + '</span></button>';
-    }).join('');
+    var navHtml = NAV_ITEMS.map(function (it) { return navButton(it, active); }).join('');
 
     navHtml +=
-      '<button type="button" class="muzz-nav-btn" data-href="https://t.me/MuzzSnap" data-ext="1">' +
-      '<span class="muzz-nav-icon">✈️</span><span data-i18n="nav.telegram">' + tr('nav.telegram', 'Telegram') + '</span></button>' +
-      '<button type="button" class="muzz-nav-btn" data-href="https://x.com/MuzzleToken" data-ext="1">' +
-      '<span class="muzz-nav-icon">𝕏</span><span>X.com</span></button>';
+      '<div class="muzz-nav-sep" aria-hidden="true"></div>' +
+      '<button type="button" class="muzz-nav-btn muzz-nav-quiet" data-href="https://t.me/MuzzSnap" data-ext="1">' +
+      '<span class="muzz-nav-icon">' + icon('telegram') + '</span><span data-i18n="nav.telegram">' + tr('nav.telegram', 'Telegram') + '</span></button>' +
+      '<button type="button" class="muzz-nav-btn muzz-nav-quiet" data-href="https://x.com/MuzzleToken" data-ext="1">' +
+      '<span class="muzz-nav-icon">' + icon('x') + '</span><span>X.com</span></button>';
 
     var curLang = (global.MuzzI18n && MuzzI18n.getLang) ? MuzzI18n.getLang() : 'en';
     navHtml +=
@@ -363,6 +546,7 @@
       root.className = 'muzz-sidebar';
       document.body.insertBefore(root, document.body.firstChild);
     }
+    try { root.classList.add('muzz-sidebar'); } catch (_) {}
 
     root.innerHTML =
       '<div class="muzz-brand"><div class="muzz-badge">👻</div><h1>MUZZ<span>SNAP</span></h1></div>' +
@@ -400,6 +584,15 @@
     if (global.MuzzI18n) MuzzI18n.apply(root);
 
     injectShellCss();
+    ensureMobileChrome(active);
+    return session;
+  }
+
+  function mountChrome(active) {
+    var session = requireAuth({ allowPublic: false });
+    if (!session || IS_EMBED) return session;
+    injectShellCss();
+    ensureMobileChrome(active || 'profile');
     return session;
   }
 
@@ -414,27 +607,55 @@
     var css = document.createElement('style');
     css.id = 'muzz-shell-css';
     css.textContent =
-      '.muzz-sidebar{display:flex;flex-direction:column;gap:10px;padding:14px 12px;min-height:0;height:100%;overflow:auto;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}' +
+      '.muzz-sidebar{display:flex;flex-direction:column;gap:2px;padding:14px 12px 12px;min-height:0;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none;font-family:Inter,system-ui,sans-serif}' +
+      'aside.side.muzz-sidebar,aside#muzzNavMount.muzz-sidebar{height:100%;overflow:auto}' +
+      '.sidebar.card>#muzzNavMount.muzz-sidebar{flex:1;min-height:0;overflow:auto}' +
       '.muzz-sidebar::-webkit-scrollbar{width:0;height:0;display:none}' +
-      '.muzz-brand{display:flex;align-items:center;gap:12px;padding:4px 4px 12px}' +
-      '.muzz-badge{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,#ff3b3b,#9d1111);font-size:18px;box-shadow:0 0 24px rgba(255,43,43,.25)}' +
-      '.muzz-brand h1{margin:0;font-size:20px;font-weight:900;font-style:italic;letter-spacing:-.04em;color:inherit}' +
-      '.muzz-brand h1 span{color:#ff2b2b}' +
-      '.muzz-nav{display:flex;flex-direction:column;gap:4px;flex:1}' +
-      '.muzz-nav-btn{border:none;background:transparent;color:inherit;display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:999px;cursor:pointer;text-align:left;width:100%;font:inherit;opacity:.92}' +
-      '.muzz-nav-btn:hover,.muzz-nav-btn.active{background:rgba(255,43,43,.14);color:#fff}' +
-      '.muzz-lang{display:flex;gap:6px;padding:10px 8px 4px;margin-top:6px}' +
-      '.muzz-lang-btn{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#93a0b3;border-radius:10px;padding:8px;font-weight:800;font-size:11px;letter-spacing:.08em;cursor:pointer}' +
-      '.muzz-lang-btn.active{background:rgba(255,43,43,.18);border-color:rgba(255,43,43,.4);color:#fff}' +
+      '.muzz-brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}' +
+      '.muzz-badge{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#ff3b3b,#9d1111);font-size:18px;box-shadow:0 8px 20px rgba(255,31,31,.22);flex-shrink:0}' +
+      '.muzz-brand h1{margin:0;font-family:Orbitron,sans-serif;font-size:15px;font-weight:700;font-style:normal;letter-spacing:.06em;color:#fff}' +
+      '.muzz-brand h1 span{color:#ff1f1f}' +
+      '.muzz-nav{display:flex;flex-direction:column;gap:2px}' +
+      '.muzz-nav-btn{border:none;background:transparent;color:#c5ceda;display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:12px;cursor:pointer;text-align:left;width:100%;font-family:Inter,system-ui,sans-serif;font-size:15px;font-weight:500;letter-spacing:0;text-transform:none;line-height:1.2;transition:background .16s ease,color .16s ease}' +
+      '.muzz-nav-btn:hover{background:rgba(255,255,255,.05);color:#fff}' +
+      '.muzz-nav-btn.active{background:rgba(255,31,31,.12);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 #ff1f1f}' +
+      '.muzz-nav-quiet{color:#8b95a7}' +
+      '.muzz-nav-sep{height:1px;margin:8px 12px;background:rgba(255,255,255,.08)}' +
+      '.muzz-nav-icon{width:22px;height:22px;display:grid;place-items:center;flex-shrink:0;color:inherit;background:none;border-radius:0}' +
+      '.muzz-nav-icon svg,.muzz-tab svg,.muzz-sheet-item svg,.muzz-sheet-close svg{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}' +
+      '.muzz-nav-btn.active .muzz-nav-icon{color:#ff1f1f}' +
+      '.muzz-nav-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.muzz-lang{display:flex;gap:6px;padding:8px 4px 2px}' +
+      '.muzz-lang-btn{flex:1;min-height:36px;border:1px solid rgba(255,255,255,.1);background:transparent;color:#8b95a7;border-radius:10px;padding:8px;font-family:Inter,system-ui,sans-serif;font-weight:600;font-size:13px;letter-spacing:0;cursor:pointer}' +
+      '.muzz-lang-btn.active{background:rgba(255,31,31,.16);border-color:rgba(255,31,31,.45);color:#fff}' +
       '.muzz-lang-btn:hover{color:#fff}' +
       '.muzz-nav-btn.disabled,.muzz-nav-btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}' +
-      '.muzz-soon{font-size:9px;letter-spacing:.1em;color:#fbbf24;margin-left:6px;border:1px solid rgba(251,191,36,.35);padding:1px 6px;border-radius:999px}' +
-      '.muzz-nav-icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.05);flex-shrink:0}' +
-      '.muzz-profile{margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px;border-radius:999px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}' +
-      '.muzz-avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#3a4552,#19202a);font-weight:800;flex-shrink:0}' +
-      '.muzz-profile-name{font-weight:800;font-size:13px}.muzz-profile-sub{font-size:11px;opacity:.65;overflow:hidden;text-overflow:ellipsis}' +
-      '.muzz-disconnect{margin-top:8px;width:100%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:inherit;padding:10px;border-radius:999px;cursor:pointer;font:inherit;font-size:12px;font-weight:700}' +
-      '@media(min-width:981px){.muzz-sidebar{min-height:100dvh}}';
+      '.muzz-soon{font-size:10px;letter-spacing:.04em;color:#fbbf24;margin-left:6px;border:1px solid rgba(251,191,36,.35);padding:1px 6px;border-radius:999px}' +
+      '.muzz-profile{margin-top:8px;display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 10px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);transition:background .16s ease}' +
+      '.muzz-profile:hover{background:rgba(255,255,255,.06)}' +
+      'aside.side .muzz-profile,aside#muzzNavMount .muzz-profile{margin-top:auto}' +
+      '.muzz-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#3a4552,#19202a);font-weight:600;font-size:12px;flex-shrink:0}' +
+      '.muzz-profile-meta{min-width:0}' +
+      '.muzz-profile-name{font-weight:600;font-size:14px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.muzz-profile-sub{font-size:12px;color:#8b95a7;opacity:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.muzz-disconnect{margin-top:6px;width:100%;min-height:40px;border:none;background:transparent;color:#8b95a7;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:Inter,system-ui,sans-serif;font-size:13px;font-weight:600;letter-spacing:0;text-transform:none}' +
+      '.muzz-disconnect:hover{color:#fff;background:rgba(255,255,255,.04)}' +
+      '.muzz-tabbar{display:none}' +
+      '.muzz-sheet-backdrop{display:none;position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55)}' +
+      '.muzz-sheet-backdrop.open{display:block}' +
+      '.muzz-sheet{position:fixed;left:0;right:0;bottom:0;z-index:71;background:#14181f;color:#eef2f7;border-radius:18px 18px 0 0;border-top:1px solid rgba(255,255,255,.08);padding:8px 14px calc(14px + env(safe-area-inset-bottom,0px));transform:translateY(110%);transition:transform .22s ease;box-shadow:0 -16px 50px rgba(0,0,0,.45);font-family:Inter,system-ui,sans-serif}' +
+      '.muzz-sheet.open{transform:translateY(0)}' +
+      '.muzz-sheet-handle{width:36px;height:4px;border-radius:999px;background:rgba(255,255,255,.18);margin:4px auto 8px}' +
+      '.muzz-sheet-head{display:flex;align-items:center;justify-content:space-between;min-height:44px;margin-bottom:6px}' +
+      '.muzz-sheet-head strong{font-size:16px;font-weight:650;font-weight:600}' +
+      '.muzz-sheet-close{width:44px;height:44px;border:none;border-radius:12px;background:transparent;color:#c5ceda;display:grid;place-items:center;cursor:pointer}' +
+      '.muzz-sheet-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}' +
+      '.muzz-sheet-item{min-height:76px;border:none;border-radius:14px;background:rgba(255,255,255,.04);color:#d5dbe6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 4px;cursor:pointer;font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:600;line-height:1.2;text-align:center}' +
+      '.muzz-sheet-item.active,.muzz-sheet-item:hover{background:rgba(255,31,31,.14);color:#fff}' +
+      '.muzz-sheet .muzz-lang{padding:10px 0 0}' +
+      'body.muzz-sheet-open{overflow:hidden}' +
+      '@media(max-width:980px){body.muzz-has-tabbar .muzz-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;height:calc(56px + env(safe-area-inset-bottom,0px));padding:4px 6px env(safe-area-inset-bottom,0px);box-sizing:border-box;background:rgba(12,14,18,.96);border-top:1px solid rgba(255,255,255,.08);backdrop-filter:blur(16px);justify-content:space-around;align-items:stretch}body.muzz-has-tabbar .muzz-tab{flex:1;min-width:0;min-height:44px;border:none;background:transparent;color:#8b95a7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:10px;cursor:pointer;font-family:Inter,system-ui,sans-serif;font-size:11px;font-weight:500;letter-spacing:0;padding:2px}body.muzz-has-tabbar .muzz-tab.active{color:#fff;font-weight:600}body.muzz-has-tabbar .muzz-tab.active svg{color:#ff1f1f}body.muzz-has-tabbar .layout.muzz-desktop-app,body.muzz-has-tabbar .app.muzz-desktop-app{height:calc(100dvh - 56px - env(safe-area-inset-bottom,0px))!important;min-height:0!important;max-height:calc(100dvh - 56px - env(safe-area-inset-bottom,0px))!important}body.muzz-has-tabbar .layout>.side{display:none!important}body.muzz-has-tabbar .layout{grid-template-columns:minmax(0,1fr)!important}}' +
+      '@media(max-width:1100px){body.muzz-has-tabbar[data-muzz-page="studio"] .muzz-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;height:calc(56px + env(safe-area-inset-bottom,0px));padding:4px 6px env(safe-area-inset-bottom,0px);box-sizing:border-box;background:rgba(12,14,18,.96);border-top:1px solid rgba(255,255,255,.08);justify-content:space-around}body.muzz-has-tabbar[data-muzz-page="studio"] .layout{grid-template-columns:minmax(0,1fr)!important;height:calc(100dvh - 56px - env(safe-area-inset-bottom,0px))!important}}';
     document.head.appendChild(css);
   }
 
@@ -457,6 +678,9 @@
     disconnect: disconnect,
     shortAddr: shortAddr,
     getWallet: getWallet,
-    navigateToSection: navigateToSection
+    navigateToSection: navigateToSection,
+    mountChrome: mountChrome,
+    openMore: openMore,
+    closeMore: closeMore
   };
 })(window);

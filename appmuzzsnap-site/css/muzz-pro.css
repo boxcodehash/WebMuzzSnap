@@ -1,0 +1,316 @@
+/* MuzzSnap professional polish — same dark/red identity, calmer type and chrome. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700&display=swap');
+
+:root {
+  --muzz-red: #ff1f1f;
+  --muzz-red-soft: rgba(255, 31, 31, 0.14);
+  --muzz-bg: #111418;
+  --muzz-panel: #161b22;
+  --muzz-text: #eef2f7;
+  --muzz-muted: #8b95a7;
+  --muzz-line: rgba(255, 255, 255, 0.1);
+  --muzz-radius: 16px;
+  --muzz-radius-sm: 12px;
+  --muzz-space-1: 4px;
+  --muzz-space-2: 8px;
+  --muzz-space-3: 12px;
+  --muzz-space-4: 16px;
+  --muzz-space-5: 24px;
+  --muzz-fs-body: 16px;
+  --muzz-fs-post: 16px;
+  --muzz-fs-user: 15px;
+  --muzz-fs-meta: 13px;
+  --muzz-fs-ui: 14px;
+  --muzz-lh: 1.45;
+  --muzz-touch: 44px;
+  --muzz-tab-h: calc(56px + env(safe-area-inset-bottom, 0px));
+  --red: #ff1f1f;
+  --font-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-brand: Orbitron, sans-serif;
+}
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-ui) !important;
+  font-size: var(--muzz-fs-body) !important;
+  line-height: var(--muzz-lh);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select {
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(255, 31, 31, 0.75);
+  outline-offset: 2px;
+}
+
+/* Brand wordmarks stay Orbitron. Body, buttons, and posts stay Inter. */
+.stage .brand,
+.muzz-brand h1,
+h1.brand,
+.bar h1,
+.wrap .brand {
+  font-family: var(--font-brand) !important;
+}
+
+/* ---------- Social feed type (mainstream scale) ---------- */
+.feed-top h2 {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  font-style: normal !important;
+  letter-spacing: -0.02em !important;
+}
+.feed-tab {
+  font-size: var(--muzz-fs-ui) !important;
+  font-weight: 600 !important;
+  min-height: 36px;
+}
+.ghost-btn, .post-btn, .compose-main, .follow-btn, .reply-btn {
+  font-family: var(--font-ui) !important;
+  font-size: var(--muzz-fs-ui) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  min-height: var(--muzz-touch);
+  border-radius: var(--muzz-radius-sm) !important;
+}
+.composer textarea,
+.post-text,
+.comment p,
+.empty p,
+.bubble {
+  font-size: var(--muzz-fs-post) !important;
+  font-weight: 400 !important;
+  line-height: var(--muzz-lh) !important;
+  letter-spacing: 0 !important;
+}
+.composer textarea { min-height: 96px; }
+.post-name, .comment strong, .bubble .meta span:first-child {
+  font-size: var(--muzz-fs-user) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+.post-handle, .post-time, .bubble .meta, .meta, .count, .media-hint, .notif-item .n-sub {
+  font-size: var(--muzz-fs-meta) !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+}
+.action-btn {
+  font-size: var(--muzz-fs-meta) !important;
+  font-weight: 500 !important;
+  min-height: var(--muzz-touch);
+}
+.repost-banner, .repost-banner .rt-label, .empty h3, .notif-item .n-main, .notif-head strong, .notif-empty, .toast {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.section-title {
+  font-size: 12px !important;
+  letter-spacing: 0.08em !important;
+  font-weight: 600 !important;
+}
+.profile-mini .name { font-size: 14px; font-weight: 600; }
+.profile-mini .sub { font-size: 12px !important; }
+.search input, .comment-box input, .composer input, .new-row input, .muzzid-mint-row input {
+  font-size: 16px !important;
+  min-height: var(--muzz-touch);
+}
+.avatar, .muzz-avatar {
+  border-radius: 50%;
+  font-weight: 600;
+}
+
+/* ---------- Mobile tab bar (social keeps its own markup) ---------- */
+.mobile-bottom {
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  padding: 4px 4px env(safe-area-inset-bottom, 0px) !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  height: var(--muzz-tab-h);
+  box-sizing: border-box;
+  background: rgba(12, 14, 18, 0.96) !important;
+  backdrop-filter: blur(16px);
+  align-items: center;
+}
+.mobile-bottom button {
+  min-height: var(--muzz-touch);
+  padding: 4px 2px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--muzz-muted) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.1;
+}
+.mobile-bottom button svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mobile-bottom button.active {
+  background: transparent !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+.mobile-bottom button.active svg { color: var(--muzz-red); }
+.fab {
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 16px !important;
+  font-size: 26px !important;
+}
+
+/* ---------- Login / MuzzID controls ---------- */
+.stage .btn,
+.btn-primary,
+.btn-ghost,
+a.back {
+  font-family: var(--font-ui) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.stage .btn, .btn-primary, .btn-ghost {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  min-height: 48px;
+  border-radius: 12px !important;
+}
+.stage .lang button, .lang button {
+  min-height: 36px;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  font-family: var(--font-ui) !important;
+}
+.panel h3, .card h2, .status, .foot, a.back {
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  font-family: var(--font-ui) !important;
+}
+.panel h3, .card h2 {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--muzz-text) !important;
+}
+.hint, .card p, .secure { font-size: 13px !important; line-height: 1.45 !important; }
+.foot { font-size: 12px !important; color: #6b7280 !important; }
+.mint-row input, .username-field input { font-size: 16px !important; min-height: 48px; }
+
+/* ---------- Profile card ---------- */
+.profile-card {
+  transform: none !important;
+  border-radius: 20px !important;
+}
+.profile-card:hover { transform: none !important; }
+.profile-card .name {
+  font-family: var(--font-ui) !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+}
+.profile-card .btn {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  min-height: var(--muzz-touch);
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.close-btn { width: 44px !important; height: 44px !important; font-size: 22px !important; }
+.pill { letter-spacing: 0.04em !important; font-size: 11px !important; }
+@media (max-width: 980px) {
+  body.muzz-has-tabbar .overlay {
+    padding-bottom: calc(20px + var(--muzz-tab-h));
+  }
+}
+
+/* ---------- Chat / private ---------- */
+.ch, .btn, .icon-btn, .send {
+  font-family: var(--font-ui) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.topbar h2 {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: #fff !important;
+}
+.icon-btn { width: 44px !important; height: 44px !important; }
+.send { width: 44px !important; height: 44px !important; border-radius: 12px !important; display: grid; place-items: center; padding: 0; }
+.composer textarea, .composer input { font-size: 16px !important; }
+.emoji-btn { font-size: 20px !important; width: 44px !important; height: 44px !important; }
+
+/* ---------- Whitepaper: readable, brand display only ---------- */
+.hero h1 {
+  font-family: var(--font-brand) !important;
+  font-size: clamp(34px, 5vw, 56px) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.03em !important;
+}
+h2, h3, .stat b, .node b, .feature strong, .donut .inner b {
+  font-family: var(--font-ui) !important;
+}
+h2 { font-size: clamp(26px, 3vw, 36px) !important; line-height: 1.15 !important; }
+.hero p, .lead, .card p, .card li, .feature small, .disclaimer {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+}
+.navlinks, .navlinks a, .kicker, .eyebrow {
+  font-family: var(--font-ui) !important;
+  letter-spacing: 0.02em !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+.nav .btn, a.btn {
+  font-family: var(--font-ui) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  min-height: 44px;
+}
+#muzzWpBar { font-family: var(--font-ui) !important; }
+#muzzWpBar strong { font-family: var(--font-brand) !important; font-size: 14px !important; }
+#muzzWpBar a { min-height: 36px; display: inline-flex; align-items: center; font-size: 14px !important; font-weight: 600 !important; }
+
+/* ---------- Buy / studio bars ---------- */
+.main h1, .card h3 {
+  font-family: var(--font-ui) !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+}
+.main h1 { font-size: 22px !important; }
+.main p, .card p, .hint, .sess { font-size: 15px !important; line-height: 1.5 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

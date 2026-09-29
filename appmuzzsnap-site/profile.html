@@ -189,11 +189,12 @@
       .name{font-size:22px}
     }
   </style>
+  <link rel="stylesheet" href="css/muzz-pro.css" />
 </head>
 <body>
   <div class="overlay">
     <article class="profile-card" id="profileCard" aria-label="MuzzSnap profile">
-      <button class="close-btn" id="closeBtn" title="Volver a Social" aria-label="Cerrar">S"</button>
+      <button class="close-btn" id="closeBtn" title="Volver a Social" aria-label="Cerrar">×</button>
 
       <div class="pill-row">
         <span class="pill red">Profile</span>
@@ -279,6 +280,7 @@
     if (window.MuzzShell) {
       session = MuzzShell.requireAuth();
       if (!session) return;
+      if (MuzzShell.mountChrome) MuzzShell.mountChrome('profile');
     } else {
       location.href = 'index.html';
       return;

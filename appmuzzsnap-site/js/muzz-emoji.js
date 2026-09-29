@@ -46,7 +46,7 @@
     var css = document.createElement('style');
     css.id = 'muzz-emoji-css';
     css.textContent =
-      '.emoji-btn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:inherit;width:44px;height:44px;border-radius:14px;cursor:pointer;font-size:18pt;display:grid;place-items:center;flex-shrink:0}' +
+      '.emoji-btn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:inherit;width:44px;height:44px;border-radius:12px;cursor:pointer;font-size:20px;display:grid;place-items:center;flex-shrink:0;font-family:Inter,system-ui,sans-serif}' +
       '.emoji-btn:hover{background:rgba(255,43,43,.12);border-color:rgba(255,43,43,.3)}' +
       '.emoji-btn:disabled{opacity:.4;cursor:not-allowed}' +
       '.emoji-pop{position:fixed;z-index:200;width:min(340px,92vw);max-height:280px;overflow:auto;background:rgba(18,23,29,.98);border:1px solid rgba(255,255,255,.1);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.5);padding:10px;display:none;scrollbar-width:none}' +

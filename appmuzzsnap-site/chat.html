@@ -43,6 +43,7 @@
     .empty{color:var(--muted);text-align:center;padding:40px 16px;line-height:1.5;font-size:14pt}
     @media(max-width:900px){.layout{grid-template-columns:1fr}.side{display:none}}
   </style>
+  <link rel="stylesheet" href="css/muzz-pro.css" />
 </head>
 <body>
   <div class="layout muzz-desktop-app">
@@ -54,7 +55,7 @@
       </div>
       <div class="msgs" id="msgs"></div>
       <div class="composer">
-        <button type="button" class="emoji-btn" data-emoji-for="input" title="Emoji">=</button>
+        <button type="button" class="emoji-btn" data-emoji-for="input" title="Emoji">😀</button>
         <input id="input" maxlength="500" data-i18n-placeholder="chat.placeholder" placeholder="Write in public chat…" autocomplete="off" />
         <button id="send" data-i18n="chat.send">Send</button>
       </div>
