@@ -1,7 +1,7 @@
 {
-  "versionCode": 19,
-  "versionName": "1.0.19",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=119",
-  "notes": "Wallet login connects, checks the MUZZ balance, then asks for one signature.",
+  "versionCode": 20,
+  "versionName": "1.0.20",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120",
+  "notes": "A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.",
   "force": false
 }

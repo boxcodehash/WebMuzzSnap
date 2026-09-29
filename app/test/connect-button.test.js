@@ -28,6 +28,11 @@ test('the login page loads one module and asks for one signature', () => {
   assert.match(page, /signInWithCustomToken/);
   assert.match(page, /muzz_wallet_address/);
   assert.doesNotMatch(page, /wc_sessionAuthenticate|siwe:reused|personal_sign:suppressed/);
+  assert.match(login, /Disconnect \/ Change wallet/);
+  assert.match(login, /id="btnContinue"/);
+  assert.match(page, /balance:skipped/);
+  assert.match(page, /showRestored/);
+  assert.doesNotMatch(client, /if \(provider\.session && provider\.accounts/);
   assert.match(client, /method: 'personal_sign'/);
   assert.doesNotMatch(client, /authenticate\(|wallet_switchEthereumChain|wc_sessionAuthenticate/);
   assert.equal(client.split("method: 'personal_sign'").length - 1, 1);

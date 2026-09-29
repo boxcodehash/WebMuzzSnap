@@ -56,7 +56,66 @@ page.on('console', (msg) => {
 });
 page.on('pageerror', (err) => pageErrors.push(String(err && err.stack || err)));
 
+const stale = '0x' + 'b'.repeat(40);
+const other = '0x' + 'a'.repeat(40);
+const rpcHits = [];
+page.on('request', (req) => {
+  const url = req.url();
+  if (/publicnode|drpc|ankr|eth_call/i.test(url)) rpcHits.push(url);
+});
+await page.addInitScript(({ staleAddress, otherAddress }) => {
+  localStorage.setItem('muzz_wallet_address', otherAddress);
+  localStorage.setItem('wc@2:client:0.3//session', JSON.stringify({
+    namespaces: { eip155: { accounts: ['eip155:1:' + staleAddress], chains: ['eip155:1'] } }
+  }));
+  return new Promise((resolve) => {
+    const request = indexedDB.open('WALLET_CONNECT_V2_INDEXED_DB', 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('keyvaluestorage')) db.createObjectStore('keyvaluestorage');
+    };
+    request.onerror = () => resolve();
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('keyvaluestorage', 'readwrite');
+      tx.objectStore('keyvaluestorage').put(JSON.stringify({
+        namespaces: { eip155: { accounts: ['eip155:1:' + staleAddress] } }
+      }), 'wc@2:client:0.3//session');
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); resolve(); };
+    };
+  });
+}, { staleAddress: stale, otherAddress: other });
+
 await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+const shown = 'Connected 0xbbbb…bbbb';
+await page.locator('#savedWalletText').filter({ hasText: shown }).waitFor({ state: 'visible', timeout: 15000 });
+await page.waitForTimeout(1500);
+const staleText = await page.locator('#savedWalletText').innerText();
+if (staleText !== shown) {
+  console.error('STALE_TEXT', staleText);
+  process.exit(4);
+}
+if (await page.getByText('Insufficient MUZZ').count()) process.exit(5);
+if (await page.getByText('Checking MUZZ').count()) process.exit(6);
+if (rpcHits.length) {
+  console.error('RPC_DURING_STALE', rpcHits);
+  process.exit(7);
+}
+await page.screenshot({ path: join(outDir, 'login-stale-session-android.png'), fullPage: true });
+await page.locator('#btnDisconnect').click();
+await page.locator('#savedWallet').waitFor({ state: 'hidden', timeout: 10000 });
+const after = await page.evaluate(async () => {
+  const keys = Object.keys(localStorage);
+  const dbs = indexedDB.databases ? (await indexedDB.databases()).map((row) => row.name) : [];
+  return { keys, dbs };
+});
+const kept = after.keys.filter((key) => key === 'muzz_wallet_address' || key.startsWith('wc@2') || /w3m|appkit|walletconnect/i.test(key));
+if (kept.length || after.dbs.includes('WALLET_CONNECT_V2_INDEXED_DB')) {
+  console.error('STILL_STORED', JSON.stringify(after));
+  process.exit(8);
+}
+await page.screenshot({ path: join(outDir, 'login-after-disconnect-android.png'), fullPage: true });
 await page.screenshot({ path: join(outDir, 'login-page-android.png'), fullPage: true });
 await page.getByRole('button', { name: 'Connect with WalletConnect' }).click();
 

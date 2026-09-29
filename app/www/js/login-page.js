@@ -1,4 +1,4 @@
-import { clearSignLock, explainLoginError, loginWithWallet } from './login.js';
+import { clearSignLock, disconnectWallet, explainLoginError, loginWithWallet, readRestoredAddress, shortAddress } from './login.js';
 
 const statusText = document.getElementById('statusText');
 const signOverlay = document.getElementById('signOverlay');
@@ -8,6 +8,8 @@ const debugBox = document.getElementById('muzzDebug');
 const copyLogBtn = document.getElementById('copyLog');
 const DEBUG_LOG_KEY = 'muzz_debug_log';
 let running = false;
+let connectTimer = 0;
+let connectWatch = 0;
 
 function debugOn() {
   try { return localStorage.getItem('muzz_debug') === '1'; } catch { return false; }
@@ -72,6 +74,29 @@ function setStep(text) {
   if (signOverlay) signOverlay.classList.remove('hidden');
 }
 
+function showSaved(address) {
+  const box = document.getElementById('savedWallet');
+  const text = document.getElementById('savedWalletText');
+  const line = document.getElementById('walletLine');
+  const short = shortAddress(address);
+  if (line) {
+    line.hidden = !short;
+    line.textContent = short ? 'Connected ' + short : '';
+  }
+  if (!box || !text || !short) {
+    if (box) box.classList.add('hidden');
+    return;
+  }
+  text.textContent = 'Connected ' + short;
+  box.dataset.address = String(address || '').toLowerCase();
+  box.classList.remove('hidden');
+}
+
+function hideSaved() {
+  const box = document.getElementById('savedWallet');
+  if (box) box.classList.add('hidden');
+}
+
 function showError(text) {
   if (signOverlay) signOverlay.classList.add('hidden');
   if (!errorBox) return;
@@ -82,6 +107,8 @@ function showError(text) {
   if (desc) desc.textContent = text.desc;
   const retry = document.getElementById('loginRetry');
   if (retry) retry.classList.remove('hidden');
+  const disconnect = document.getElementById('btnDisconnectError');
+  if (disconnect) disconnect.classList.remove('hidden');
   log('error: ' + text.title + ' ' + text.desc);
 }
 
@@ -143,14 +170,43 @@ async function resumeIfSignedIn() {
   return true;
 }
 
-async function startLogin() {
+function stopConnectWatch() {
+  clearTimeout(connectTimer);
+  clearTimeout(connectWatch);
+}
+
+async function forgetWallet() {
+  stopConnectWatch();
+  running = false;
+  hideError();
+  hideSaved();
+  const line = document.getElementById('walletLine');
+  if (line) {
+    line.hidden = true;
+    line.textContent = '';
+  }
+  clearSignLock();
+  const cleared = await disconnectWallet();
+  log('disconnect keys=' + cleared.removed.length + ' dbs=' + cleared.dbs.join(','));
+  try {
+    const session = auth();
+    if (session) await session.signOut();
+  } catch { /* already signed out */ }
+  try {
+    sessionStorage.removeItem('muzz_wallet_address');
+    localStorage.removeItem('muzz_wallet_address');
+    sessionStorage.removeItem('muzz_login_hold');
+  } catch { /* private mode */ }
+}
+
+async function startLogin(mode) {
   if (running) return;
   running = true;
   let gaveUp = false;
   hideError();
+  if (mode !== 'restored') hideSaved();
   clearSignLock();
   setStep('Connecting…');
-  let watch = 0;
   const failConnect = () => {
     if (!running || gaveUp) return;
     if (document.visibilityState === 'hidden') return;
@@ -162,21 +218,27 @@ async function startLogin() {
   };
   const onVisible = () => {
     if (document.visibilityState !== 'visible') return;
-    clearTimeout(watch);
-    watch = setTimeout(failConnect, 15000);
+    clearTimeout(connectWatch);
+    connectWatch = setTimeout(failConnect, 15000);
   };
-  const timer = setTimeout(failConnect, 45000);
+  connectTimer = setTimeout(failConnect, 45000);
   document.addEventListener('visibilitychange', onVisible);
   try {
     const result = await loginWithWallet({
+      restored: mode === 'restored',
+      ethereum: mode === 'restored' ? null : undefined,
       log: (label) => {
         log(label);
-        if (label === 'balance:start') setStep('Checking MUZZ balance');
+        if (String(label).startsWith('address:')) {
+          const shown = shortAddress(String(label).slice('address:'.length));
+          if (shown) setStep('Wallet ' + shown);
+        }
+        if (String(label).startsWith('balance:start')) setStep('Checking MUZZ balance');
         if (label === 'sign:start') setStep('Check your wallet to sign');
         if (label === 'server:start') setStep('Verifying…');
       }
     });
-    clearTimeout(timer);
+    stopConnectWatch();
     document.removeEventListener('visibilitychange', onVisible);
     const session = auth();
     if (!session) throw Object.assign(new Error('Firebase auth did not load.'), { code: 'server' });
@@ -186,7 +248,7 @@ async function startLogin() {
     log('session:saved ' + result.address);
     window.location.href = 'chat.html';
   } catch (err) {
-    clearTimeout(timer);
+    stopConnectWatch();
     document.removeEventListener('visibilitychange', onVisible);
     if (gaveUp) return;
     running = false;
@@ -194,13 +256,23 @@ async function startLogin() {
   }
 }
 
-document.getElementById('btnConnect').addEventListener('click', () => { startLogin(); });
-document.getElementById('btnWc').addEventListener('click', () => { startLogin(); });
-document.getElementById('openWalletLink').addEventListener('click', () => { startLogin(); });
+async function showRestored() {
+  const address = await readRestoredAddress();
+  if (!address) return;
+  showSaved(address);
+  log('session:stored ' + address + ' balance:skipped');
+}
+
+document.getElementById('btnConnect').addEventListener('click', () => { startLogin('fresh'); });
+document.getElementById('btnWc').addEventListener('click', () => { startLogin('fresh'); });
+document.getElementById('openWalletLink').addEventListener('click', () => { startLogin('fresh'); });
+document.getElementById('btnContinue').addEventListener('click', () => { startLogin('restored'); });
+document.getElementById('btnDisconnect').addEventListener('click', () => { forgetWallet(); });
+document.getElementById('btnDisconnectError').addEventListener('click', () => { forgetWallet(); });
 document.getElementById('loginRetry').addEventListener('click', () => {
   clearSignLock();
   running = false;
-  startLogin();
+  startLogin('fresh');
 });
 if (copyLogBtn) {
   copyLogBtn.addEventListener('click', () => {
@@ -218,4 +290,5 @@ if (copyLogBtn) {
 window.addEventListener('error', (event) => {
   log('window: ' + (event && event.message ? event.message : 'error'));
 });
+showRestored();
 resumeIfSignedIn();

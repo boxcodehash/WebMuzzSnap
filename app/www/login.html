@@ -325,6 +325,20 @@
                 0 14px 28px rgba(255, 0, 0, 0.28);
         }
 
+        .wallet-line, .saved-wallet p {
+            margin: 8px 0 0;
+            font-size: 0.95rem;
+            letter-spacing: 0.04em;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
+        .saved-wallet {
+            width: min(92vw, 360px);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
         .fine {
             margin: 0 0 10px;
             font-size: 0.95rem;
@@ -593,9 +607,16 @@
         </button>
 
         <p id="networkLabel">Ethereum mainnet</p>
+        <p id="walletLine" class="wallet-line hidden"></p>
         <p id="statusText" class="hidden"></p>
 
+        <div id="savedWallet" class="saved-wallet hidden">
+            <p id="savedWalletText"></p>
+            <button type="button" id="btnContinue" class="btn btn-primary">Continue</button>
+        </div>
+
         <button type="button" id="btnWc" class="btn btn-primary">Connect with WalletConnect</button>
+        <button type="button" id="btnDisconnect" class="btn btn-ghost">Disconnect / Change wallet</button>
         <p><button type="button" id="openWalletLink" class="fallback">Open in wallet</button></p>
         <div id="walletLinks" class="link-row plain hidden"></div>
 
@@ -610,6 +631,7 @@
             <p id="errorTitle"></p>
             <p id="errorDesc"></p>
             <button type="button" id="loginRetry" class="btn btn-primary hidden">Retry</button>
+            <button type="button" id="btnDisconnectError" class="btn btn-ghost">Disconnect / Change wallet</button>
             <button type="button" id="debugLine" class="debug-line hidden"></button>
         </div>
     </main>
@@ -622,7 +644,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.19</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.20</small></footer>
     <button type="button" id="copyLog" class="btn btn-ghost" hidden>Copy log</button>
     <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 

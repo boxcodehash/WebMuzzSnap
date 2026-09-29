@@ -10,10 +10,13 @@ import {
   MUZZ_TOKEN,
   PUBLIC_APP,
   buildLoginMessage,
+  clearStorageKeys,
   dappUrl,
   explainLoginError,
   loginWithWallet,
-  readMuzzBalance
+  readMuzzBalance,
+  restoredAddressFromStorage,
+  shortAddress
 } from '../src/login-client.js';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -140,13 +143,13 @@ test('wallet login checks balance before the single personal_sign', async () => 
       storage: { getItem: () => null, setItem() {}, removeItem() {} },
       readBalance: async () => {
         order.push('balance');
-        return { ok: false, formatted: '1' };
+        return { ok: false, formatted: '3,470,436', raw: '1' };
       },
       nonce: async () => { order.push('nonce'); return { nonce: 'ab'.repeat(16) }; }
     }),
-    (err) => err && err.code === 'balance'
+    (err) => err && err.code === 'balance' && err.message === 'Wallet ' + shortAddress(address) + ' has 3,470,436 MUZZ; minimum is 10,000,000.'
   );
-  assert.deepEqual(order, ['eth_requestAccounts', 'balance']);
+  assert.deepEqual(order, ['eth_requestAccounts', 'eth_chainId', 'balance']);
 
   order.length = 0;
   const result = await loginWithWallet({
@@ -270,4 +273,66 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
   } finally {
     console.warn = original;
   }
+});
+
+function mapStorage(initial) {
+  const data = new Map(Object.entries(initial));
+  return {
+    get length() { return data.size; },
+    key(index) { return Array.from(data.keys())[index] || null; },
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(key, String(value)); },
+    removeItem(key) { data.delete(key); }
+  };
+}
+
+test('a stored WalletConnect account is shown data, not the cached address, and disconnect clears it', async () => {
+  const stale = '0x' + 'b'.repeat(40);
+  const cached = '0x' + 'a'.repeat(40);
+  const storage = mapStorage({
+    muzz_wallet_address: cached,
+    'wc@2:client:0.3//session': JSON.stringify({
+      namespaces: { eip155: { accounts: ['eip155:1:' + stale] } }
+    }),
+    muzz_debug: '1'
+  });
+  assert.equal(restoredAddressFromStorage(storage), stale);
+  assert.equal(shortAddress(stale), '0xbbbb…bbbb');
+  const removed = clearStorageKeys(storage);
+  assert.equal(storage.getItem('wc@2:client:0.3//session'), null);
+  assert.equal(storage.getItem('muzz_wallet_address'), null);
+  assert.equal(storage.getItem('muzz_debug'), '1');
+  assert.ok(removed.includes('wc@2:client:0.3//session'));
+
+  const logs = [];
+  let checked = '';
+  const restored = '0x' + 'c'.repeat(40);
+  const result = await loginWithWallet({
+    restored: true,
+    ethereum: null,
+    provider: {
+      accounts: [restored, '0x' + 'd'.repeat(40)],
+      chainId: 1,
+      async request({ method }) {
+        if (method === 'personal_sign') return '0x' + '44'.repeat(65);
+        throw new Error(method);
+      }
+    },
+    storage: { getItem: () => null, setItem() {}, removeItem() {} },
+    readBalance: async (address) => {
+      checked = address;
+      return { ok: true, formatted: '100,000,000', raw: '2' };
+    },
+    nonce: async () => ({ nonce: 'ab'.repeat(16) }),
+    exchange: async () => ({ customToken: 'token' }),
+    connectWc: async () => { throw new Error('fresh connect should not run'); },
+    log: (label) => logs.push(label)
+  });
+  assert.equal(checked, restored);
+  assert.equal(result.address, restored);
+  assert.equal(logs.includes('session:restored'), true);
+  assert.equal(logs.includes('address:' + restored), true);
+  assert.equal(logs.includes('chainId:1'), true);
+  assert.equal(logs.includes('accounts:2'), true);
+  assert.match(logs.find((line) => line.startsWith('balance:result')), /100,000,000/);
 });

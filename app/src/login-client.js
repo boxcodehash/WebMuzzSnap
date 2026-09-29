@@ -17,6 +17,70 @@ export function buildLoginMessage(address, nonce) {
   return ['MuzzSnap', 'Wallet: ' + address, 'Nonce: ' + String(nonce || '').toLowerCase()].join('\n');
 }
 
+export function shortAddress(address) {
+  const value = String(address || '');
+  if (!/^0x[a-fA-F0-9]{40}$/.test(value)) return '';
+  return value.slice(0, 6) + '…' + value.slice(-4);
+}
+
+export function shouldClearStorageKey(key) {
+  const name = String(key || '');
+  if (!name || name === 'muzz_debug' || name === 'muzz_debug_log') return false;
+  return /^(wc@2|W3M|@appkit|walletconnect|WALLETCONNECT|wagmi)/i.test(name)
+    || /walletconnect|appkit|^w3m/i.test(name)
+    || name === 'muzz_wallet_address'
+    || name === 'muzz_session'
+    || name === 'muzz_login_hold'
+    || name === 'muzz_login_msg'
+    || name === 'muzz_login_sig'
+    || name === 'muzz_sign_once';
+}
+
+function eip155Address(value) {
+  const match = String(value || '').match(/eip155:\d+:(0x[a-fA-F0-9]{40})/i);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function storageKeys(storage) {
+  const keys = [];
+  if (!storage) return keys;
+  try {
+    for (let i = 0; i < storage.length; i += 1) keys.push(storage.key(i));
+  } catch {
+    /* private mode */
+  }
+  return keys;
+}
+
+export function restoredAddressFromStorage(storage) {
+  let own = '';
+  let walletConnect = '';
+  for (const key of storageKeys(storage)) {
+    let value = '';
+    try { value = storage.getItem(key) || ''; } catch { value = ''; }
+    if (key === 'muzz_wallet_address' && /^0x[a-fA-F0-9]{40}$/i.test(value)) own = value.toLowerCase();
+    if (key !== 'muzz_wallet_address' && shouldClearStorageKey(key)) {
+      const found = eip155Address(value);
+      if (found) walletConnect = found;
+    }
+  }
+  return walletConnect || own;
+}
+
+export function clearStorageKeys(storage) {
+  const removed = [];
+  for (const key of storageKeys(storage)) {
+    if (!shouldClearStorageKey(key)) continue;
+    try {
+      storage.removeItem(key);
+      removed.push(key);
+    } catch {
+      /* private mode */
+    }
+  }
+  return removed;
+}
+
 export function explainLoginError(err) {
   const msg = String((err && (err.message || err.reason)) || 'Unknown error');
   const code = err && err.code != null ? String(err.code) : '';
@@ -92,6 +156,7 @@ export async function readMuzzBalance(address, fetchImpl = globalThis.fetch) {
   return {
     ok: raw >= min,
     formatted: formatWhole(raw, decimals),
+    raw: raw.toString(),
     minimum: '10,000,000',
     exempt: false
   };
@@ -129,7 +194,10 @@ function projectId() {
   return String(runtime || pub || PROJECT_ID).trim();
 }
 
-export async function openWalletConnect(deps = {}) {
+export const WC_DATABASE = 'WALLET_CONNECT_V2_INDEXED_DB';
+let wcProvider = null;
+
+function providerOptions(deps) {
   const id = String(deps.projectId || projectId()).trim();
   if (!/^[a-f0-9]{32}$/i.test(id)) {
     const err = new Error('WalletConnect project id is missing.');
@@ -137,7 +205,7 @@ export async function openWalletConnect(deps = {}) {
     throw err;
   }
   const url = dappUrl(deps.location || globalThis.location || { hostname: 'localhost', origin: '' });
-  const provider = await EthereumProvider.init({
+  return {
     projectId: id,
     chains: [1],
     optionalChains: [56],
@@ -158,8 +226,223 @@ export async function openWalletConnect(deps = {}) {
       themeMode: 'dark',
       explorerRecommendedWalletIds: SUPPORTED_WALLETS.map((wallet) => wallet.wcId)
     }
+  };
+}
+
+async function loadWalletConnect(deps) {
+  if (wcProvider) return wcProvider;
+  wcProvider = await EthereumProvider.init(providerOptions(deps));
+  return wcProvider;
+}
+
+function accountsOf(provider) {
+  if (provider && Array.isArray(provider.accounts) && provider.accounts.length) {
+    return provider.accounts.map((item) => String(item));
+  }
+  const namespaces = provider && provider.session && provider.session.namespaces;
+  const listed = namespaces && namespaces.eip155 && namespaces.eip155.accounts;
+  if (!Array.isArray(listed)) return [];
+  return listed.map((item) => {
+    const parts = String(item).split(':');
+    return parts.length >= 3 ? parts[2] : '';
+  }).filter((item) => /^0x[a-fA-F0-9]{40}$/.test(item));
+}
+
+function accountFromProvider(provider) {
+  const accounts = accountsOf(provider);
+  const chainId = provider && provider.chainId != null && provider.chainId !== ''
+    ? String(provider.chainId)
+    : '';
+  return { address: accounts[0] ? String(accounts[0]).toLowerCase() : '', chainId, count: accounts.length };
+}
+
+function ignorePrematureModalClose(provider) {
+  const modal = provider && provider.modal;
+  if (!modal || typeof modal.subscribeState !== 'function' || modal.__muzzCloseGuard) return;
+  const original = modal.subscribeState.bind(modal);
+  modal.subscribeState = (callback) => {
+    let opened = false;
+    return original((state) => {
+      const open = Boolean(state && state.open);
+      if (open) opened = true;
+      if (!open && !opened) return undefined;
+      return callback(state);
+    });
+  };
+  modal.__muzzCloseGuard = true;
+}
+
+async function dropPairings(provider) {
+  const client = provider && provider.signer && provider.signer.client;
+  const pairing = (client && client.pairing) || (client && client.core && client.core.pairing);
+  if (!pairing || typeof pairing.getAll !== 'function') return 0;
+  let rows = [];
+  try { rows = pairing.getAll() || []; } catch { rows = []; }
+  let count = 0;
+  for (const row of rows) {
+    const topic = row && row.topic;
+    if (!topic) continue;
+    count += 1;
+    try {
+      if (typeof pairing.disconnect === 'function') await pairing.disconnect({ topic });
+      else if (typeof pairing.delete === 'function') await pairing.delete(topic, { code: 6000, message: 'User disconnected' });
+    } catch {
+      /* the pairing was already dead */
+    }
+  }
+  return count;
+}
+
+async function databaseNames() {
+  const idb = globalThis.indexedDB;
+  if (!idb || typeof idb.databases !== 'function') return [];
+  try {
+    const rows = await idb.databases();
+    return rows.map((row) => row && row.name).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function walletDatabase(name) {
+  return name === WC_DATABASE || /walletconnect|wallet_connect|appkit|^w3m|reown/i.test(String(name || ''));
+}
+
+function emptyDatabase(name) {
+  const idb = globalThis.indexedDB;
+  if (!idb || !name) return Promise.resolve();
+  return new Promise((resolve) => {
+    let request;
+    try { request = idb.open(name); } catch { resolve(); return; }
+    request.onerror = () => resolve();
+    request.onupgradeneeded = () => {
+      try { request.transaction.abort(); } catch { /* no database yet */ }
+      resolve();
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const stores = Array.from(db.objectStoreNames || []);
+      if (!stores.length) { db.close(); resolve(); return; }
+      const tx = db.transaction(stores, 'readwrite');
+      stores.forEach((store) => tx.objectStore(store).clear());
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); resolve(); };
+    };
   });
-  if (provider.session && provider.accounts && provider.accounts[0]) return provider;
+}
+
+async function deleteDatabase(name) {
+  const idb = globalThis.indexedDB;
+  if (!idb || !name) return;
+  await new Promise((resolve) => {
+    try {
+      const request = idb.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      request.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function addressFromWalletConnectDb() {
+  const names = await databaseNames();
+  for (const name of names) {
+    if (!walletDatabase(name)) continue;
+    const found = await readDatabaseAddress(name);
+    if (found) return found;
+  }
+  return '';
+}
+
+function readDatabaseAddress(name) {
+  const idb = globalThis.indexedDB;
+  return new Promise((resolve) => {
+    let request;
+    try { request = idb.open(name); } catch { resolve(''); return; }
+    request.onerror = () => resolve('');
+    request.onupgradeneeded = () => {
+      try { request.transaction.abort(); } catch { /* missing database */ }
+      resolve('');
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const stores = Array.from(db.objectStoreNames || []);
+      if (!stores.length) {
+        db.close();
+        resolve('');
+        return;
+      }
+      const found = [];
+      const tx = db.transaction(stores, 'readonly');
+      stores.forEach((store) => {
+        const cursor = tx.objectStore(store).openCursor();
+        cursor.onsuccess = () => {
+          const row = cursor.result;
+          if (!row) return;
+          const address = eip155Address(typeof row.value === 'string' ? row.value : JSON.stringify(row.value));
+          if (address) found.push(address);
+          row.continue();
+        };
+      });
+      tx.oncomplete = () => { db.close(); resolve(found[0] || ''); };
+      tx.onerror = () => { db.close(); resolve(found[0] || ''); };
+    };
+  });
+}
+
+export async function readRestoredAddress() {
+  let local = '';
+  let session = '';
+  try { local = restoredAddressFromStorage(globalThis.localStorage); } catch { local = ''; }
+  try { session = restoredAddressFromStorage(globalThis.sessionStorage); } catch { session = ''; }
+  const stored = await Promise.race([
+    addressFromWalletConnectDb(),
+    new Promise((resolve) => setTimeout(() => resolve(''), 2000))
+  ]);
+  return stored || local || session || '';
+}
+
+export async function disconnectWallet() {
+  if (wcProvider) {
+    try { await wcProvider.disconnect(); } catch { /* already disconnected */ }
+    try { await dropPairings(wcProvider); } catch { /* already disconnected */ }
+  }
+  wcProvider = null;
+  const removed = [
+    ...clearStorageKeys(globalThis.localStorage),
+    ...clearStorageKeys(globalThis.sessionStorage)
+  ];
+  clearSignLock();
+  const names = await databaseNames();
+  const dbs = [];
+  for (const name of names) {
+    if (!walletDatabase(name)) continue;
+    await emptyDatabase(name);
+    await deleteDatabase(name);
+    dbs.push(name);
+  }
+  if (!dbs.includes(WC_DATABASE)) {
+    await deleteDatabase(WC_DATABASE);
+    dbs.push(WC_DATABASE);
+  }
+  return { removed, dbs };
+}
+
+async function connectFreshWallet(deps) {
+  if (wcProvider) {
+    try { await wcProvider.disconnect(); } catch { /* start clean */ }
+    try { await dropPairings(wcProvider); } catch { /* start clean */ }
+  }
+  wcProvider = null;
+  await disconnectWallet();
+  const provider = await loadWalletConnect(deps);
+  ignorePrematureModalClose(provider);
+  try { await dropPairings(provider); } catch { /* no leftover pairing */ }
+  if (provider.session) {
+    try { await provider.disconnect(); } catch { /* no leftover session */ }
+  }
   try {
     await provider.connect();
   } catch (err) {
@@ -168,6 +451,10 @@ export async function openWalletConnect(deps = {}) {
     throw wrapped;
   }
   return provider;
+}
+
+export async function openWalletConnect(deps = {}) {
+  return connectFreshWallet(deps);
 }
 
 function storageOf(deps) {
@@ -189,27 +476,51 @@ export async function loginWithWallet(deps = {}) {
     : (globalThis.window && globalThis.window.ethereum);
   let provider;
   let address = '';
-  if (injected && typeof injected.request === 'function') {
+  let chainId = '';
+  let accountCount = 0;
+  if (deps.restored) {
+    log('session:restored');
+    provider = deps.provider || await loadWalletConnect(deps);
+    const info = accountFromProvider(provider);
+    address = info.address;
+    chainId = info.chainId;
+    accountCount = info.count;
+  } else if (injected && typeof injected.request === 'function') {
     log('connect:injected');
+    log('session:new');
     const accounts = await injected.request({ method: 'eth_requestAccounts' });
-    address = accounts && accounts[0] ? String(accounts[0]) : '';
+    accountCount = accounts && accounts.length ? accounts.length : 0;
+    address = accounts && accounts[0] ? String(accounts[0]).toLowerCase() : '';
+    try { chainId = String(await injected.request({ method: 'eth_chainId' })); } catch { chainId = ''; }
     provider = injected;
   } else {
     log('connect:walletconnect');
-    provider = deps.connectWc ? await deps.connectWc() : await openWalletConnect(deps);
-    address = (provider.accounts && provider.accounts[0]) || '';
+    log('pairings:clear');
+    provider = deps.connectWc ? await deps.connectWc() : await connectFreshWallet(deps);
+    const info = accountFromProvider(provider);
+    address = info.address;
+    chainId = info.chainId;
+    accountCount = info.count;
+    log('session:new');
   }
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    const err = new Error('The wallet did not return an address.');
+    const err = new Error(deps.restored
+      ? 'The saved connection is no longer available. Tap Disconnect / Change wallet, then connect again.'
+      : 'The wallet did not return an address.');
     err.code = 'no_account';
     throw err;
   }
-  log('balance:start');
+  address = address.toLowerCase();
+  log('address:' + address);
+  log('chainId:' + (chainId || 'unknown'));
+  log('accounts:' + accountCount);
+  log('balance:start ' + address);
   const holding = deps.readBalance
     ? await deps.readBalance(address)
     : await readMuzzBalance(address, fetchImpl);
+  log('balance:result ' + holding.formatted + ' raw=' + (holding.raw || '') + ' ok=' + holding.ok);
   if (!holding.ok) {
-    const err = new Error('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is 10,000,000 MUZZ.');
+    const err = new Error('Wallet ' + shortAddress(address) + ' has ' + holding.formatted + ' MUZZ; minimum is 10,000,000.');
     err.code = 'balance';
     throw err;
   }
