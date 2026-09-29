@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Wallet } from 'ethers';
-import { resetGoogleCaches, signJwt, tokenId } from '../server/google.js';
+import { getGoogleAccessToken, resetGoogleCaches, signJwt, tokenId } from '../server/google.js';
 import { proveLogin } from '../server/login-proof.js';
 import {
   NOTIFICATION_BODY,
@@ -441,4 +441,48 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.equal(existsSync(join(staged, 'www', 'config.local.json')), false);
   assert.equal(existsSync(join(staged, 'www', 'js', 'app.js')), false);
   assert.equal(readFileSync(join(staged, 'vercel.json'), 'utf8').includes('"outputDirectory": "www"'), true);
+});
+
+test('the Google token includes the email scope Firebase RTDB requires', async () => {
+  resetGoogleCaches();
+  let scope = '';
+  await getGoogleAccessToken(account, async (url, opts = {}) => {
+    assert.equal(String(url), 'https://oauth2.googleapis.com/token');
+    const assertion = new URLSearchParams(opts.body).get('assertion');
+    scope = JSON.parse(Buffer.from(String(assertion).split('.')[1], 'base64url').toString('utf8')).scope;
+    return jsonResponse(200, { access_token: 'ya29.test', expires_in: 3600 });
+  }, Date.now());
+  assert.match(scope, /https:\/\/www\.googleapis\.com\/auth\/firebase\.messaging/);
+  assert.match(scope, /https:\/\/www\.googleapis\.com\/auth\/firebase\.database/);
+  assert.match(scope, /https:\/\/www\.googleapis\.com\/auth\/userinfo\.email/);
+});
+
+test('a failed nonce logs the RTDB status and not the token', async () => {
+  resetGoogleCaches();
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const result = await handleSession(
+      { method: 'GET', url: '/api/session?op=nonce', query: { op: 'nonce' }, now: Date.now() },
+      {
+        env,
+        fetchImpl: async (url) => {
+          const u = String(url);
+          if (u.startsWith('https://oauth2.googleapis.com/token')) {
+            return jsonResponse(200, { access_token: 'ya29.secret-token', expires_in: 3600 });
+          }
+          return jsonResponse(401, { error: 'Unauthorized request.' });
+        }
+      }
+    );
+    assert.equal(result.status, 502);
+    assert.equal(result.body.error, 'session_failed');
+    const text = warnings.join('\n');
+    assert.match(text, /session failed: rtdb 401/);
+    assert.equal(text.includes('ya29.secret-token'), false);
+    assert.equal(text.includes('FIREBASE_SERVICE_ACCOUNT'), false);
+  } finally {
+    console.warn = original;
+  }
 });

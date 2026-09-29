@@ -31,6 +31,12 @@ function sessionError(reason) {
   return 'bad_format';
 }
 
+function warnSessionFailure(err) {
+  const code = err && err.code != null && String(err.code) ? String(err.code) : 'error';
+  const status = err && err.status != null ? ' ' + String(err.status) : '';
+  console.warn('session failed: ' + code + status);
+}
+
 export function bearerToken(headers) {
   const raw = (headers && (headers.authorization || headers.Authorization)) || '';
   const match = /^Bearer\s+(\S+)$/i.exec(String(raw).trim());
@@ -232,7 +238,8 @@ async function issueNonce(req, env, fetchImpl, account) {
     const access = await getGoogleAccessToken(account, fetchImpl, req.now);
     await rtdb(fetchImpl, 'PUT', env, 'loginIssued/' + nonce, access, { exp });
     return { status: 200, body: { nonce, exp } };
-  } catch {
+  } catch (err) {
+    warnSessionFailure(err);
     return fail(502, 'session_failed');
   }
 }
@@ -294,6 +301,7 @@ export async function handleSession(req, deps = {}) {
       console.warn('session rejected: balance_unavailable');
       return fail(503, 'balance_unavailable');
     }
+    warnSessionFailure(err);
     return fail(502, 'session_failed');
   }
 }

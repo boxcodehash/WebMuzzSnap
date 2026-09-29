@@ -4,7 +4,8 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CERT_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 const OAUTH_SCOPE = [
   'https://www.googleapis.com/auth/firebase.messaging',
-  'https://www.googleapis.com/auth/firebase.database'
+  'https://www.googleapis.com/auth/firebase.database',
+  'https://www.googleapis.com/auth/userinfo.email'
 ].join(' ');
 const CUSTOM_AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 
@@ -111,6 +112,7 @@ export async function getGoogleAccessToken(account, fetchImpl, nowMs) {
   if (!res.ok || !data.access_token) {
     const error = new Error('oauth');
     error.code = 'oauth';
+    error.status = res.status;
     throw error;
   }
   accessCache.key = account.client_email;
