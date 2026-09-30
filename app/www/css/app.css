@@ -588,9 +588,10 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
   }
 }
 
-/* Flat navigation. Phone bar, landscape and desktop rail. */
-:root { --muzz-nav-h: 54px; --muzz-nav-w: 64px; }
+/* Phone portrait uses the flat bar. Desktop and short landscape keep the orbit rail. */
+:root { --muzz-nav-h: 54px; }
 .muzz-nav {
+  display: none;
   position: fixed;
   z-index: 80;
   left: 0;
@@ -599,7 +600,6 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
   width: 100%;
   height: calc(var(--muzz-nav-h) + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  display: flex;
   align-items: stretch;
   padding: 0 0 env(safe-area-inset-bottom, 0px);
   border: 0;
@@ -706,40 +706,190 @@ html.muzz-standalone body:has(.muzz-nav) .composer { padding-bottom: 8px; }
   0% { opacity: 0.9; transform: scale(0.35); }
   100% { opacity: 0; transform: scale(1.35); }
 }
+/* Orbit dock: desktop and short landscape. Same rail as 1.0.27. */
+.orbit-dock {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  right: auto;
+  width: min(300px, calc(100vw - 48px));
+  transform: translateX(-50%);
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: 1fr 58px 1fr;
+  align-items: center;
+  min-height: 0;
+  padding: 3px 4px 4px;
+  border-radius: 24px;
+  color: #f4f5f7;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.75) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 62% 68%, rgba(255, 255, 255, 0.45) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 84% 22%, rgba(255, 80, 80, 0.9) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 40% 18%, rgba(255, 255, 255, 0.35) 0 1px, transparent 1.4px),
+    linear-gradient(180deg, rgba(22, 18, 24, 0.78), rgba(8, 8, 12, 0.9));
+  border: 1px solid rgba(255, 42, 42, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(255, 24, 24, 0.22);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+.orbit-indicator {
+  position: absolute;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: #ff2a2a;
+  box-shadow: 0 0 12px #ff2a2a;
+  bottom: 3px;
+  left: 20%;
+  transform: translateX(-50%);
+  transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1), top 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.orbit-dock[data-place="private"] .orbit-indicator { left: 80%; }
+.orbit-item,
+.orbit-core {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 2px 2px 1px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: rgba(244, 245, 247, 0.62);
+  text-decoration: none;
+  font-family: Outfit, "Segoe UI", sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.orbit-item.is-on,
+.orbit-item[aria-current="page"] { color: #fff; }
+.orbit-item:hover,
+.orbit-item:focus-visible { color: #fff; }
+.orbit-svg { width: 18px; height: 18px; display: block; }
+.orbit-core {
+  width: 58px;
+  min-height: 50px;
+  color: #fff;
+  justify-self: center;
+  gap: 1px;
+}
+.orbit-planet {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.orbit-planet img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 1px rgba(255, 42, 42, 0.7), 0 0 16px rgba(255, 30, 30, 0.45);
+}
+.orbit-planet::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 20deg, transparent 0 58%, #ff2a2a 78%, transparent 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 100%);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 100%);
+  animation: orbit-spin 7s linear infinite;
+  pointer-events: none;
+}
+.orbit-core.is-open .orbit-planet::before { animation-duration: 2.2s; }
+.orbit-core-label { line-height: 1; }
+.orbit-dock .orbit-core.people-btn {
+  position: relative;
+  display: flex;
+  width: 58px;
+  height: auto;
+  padding: 2px 2px 1px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: #fff;
+  font-size: 9px;
+}
+.orbit-dock .orbit-core .badge {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 2;
+}
+body:has(.orbit-dock) .muzz-tabbar { display: none; }
+html.muzz-standalone body:has(.orbit-dock) { --muzz-tab: 0px; }
+body.light-theme .orbit-dock {
+  color: #1a1a1a;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(20, 20, 20, 0.45) 0 1px, transparent 1.6px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 244, 246, 0.94));
+  border-color: rgba(180, 20, 20, 0.35);
+}
+body.light-theme .orbit-item { color: #5c5c5c; }
+body.light-theme .orbit-item.is-on,
+body.light-theme .orbit-core { color: #9d0000; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
 /* Wide screens, and phones turned sideways (short landscape), use the left rail. */
 @media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) {
-  .muzz-nav {
-    top: 0;
-    bottom: 0;
-    left: 0;
+  .muzz-nav { display: none; }
+  .orbit-dock {
+    top: 12px;
+    bottom: 12px;
+    left: 12px;
     right: auto;
-    width: calc(var(--muzz-nav-w) + env(safe-area-inset-left, 0px));
+    width: 72px;
+    transform: none;
+    min-height: 0;
     height: auto;
+    display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 2px;
-    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
-    border-top: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.16);
+    gap: 4px;
+    padding: 10px 4px;
+    border-radius: 28px;
   }
-  .muzz-nav-item {
-    flex: 0 0 64px;
-    width: var(--muzz-nav-w);
-    height: 64px;
-  }
-  .muzz-nav-item.is-on::before,
-  .muzz-nav-item[aria-current="page"]::before {
-    left: 0;
-    top: 50%;
+  .orbit-indicator {
+    width: 3px;
+    height: 28px;
+    left: 10px;
     bottom: auto;
-    width: 2px;
-    height: 16px;
-    margin: -8px 0 0 0;
+    top: 24%;
+    transform: translateY(-50%);
   }
+  .orbit-dock[data-place="private"] .orbit-indicator { left: 10px; top: 76%; }
+  .orbit-item:hover { transform: translateY(-1px); }
+}
+/* Phone portrait, and landscape windows taller than a phone, use the flat bar. */
+@media (max-width: 1023px) and (orientation: portrait),
+       (max-width: 1023px) and (min-height: 501px) {
+  .muzz-nav { display: flex; }
+  .orbit-dock { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .muzz-nav-item,
-  .sidebar { transition: none; }
+  .orbit-planet::before,
+  .orbit-indicator,
+  .orbit-item,
+  .sidebar { transition: none; animation: none; }
   .muzz-nav-item:active { transform: none; }
   .muzz-nav-item:active::after { animation: none; }
+  .orbit-item:hover { transform: none; }
 }
