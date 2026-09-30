@@ -210,7 +210,7 @@ async function forgetWallet() {
   } catch { /* private mode */ }
 }
 
-async function startLogin(mode) {
+async function startLogin(mode, options = {}) {
   if (running) return;
   running = true;
   let gaveUp = false;
@@ -243,9 +243,12 @@ async function startLogin(mode) {
   };
   window.addEventListener('muzz-wc-return', onReturn);
   try {
+    const namedOther = options.walletId && options.walletId !== 'metamask';
     const result = await loginWithWallet({
       restored: mode === 'restored',
-      ethereum: mode === 'restored' ? null : undefined,
+      walletId: options.walletId || '',
+      showModal: options.showModal === true,
+      ethereum: mode === 'restored' || namedOther || options.showModal ? null : undefined,
       log: (label) => {
         log(label);
         if (String(label).startsWith('address:') || String(label).startsWith('balance:')) phase = 'wallet';
@@ -285,16 +288,21 @@ async function showRestored() {
   log('session:stored ' + address + ' balance:skipped');
 }
 
-document.getElementById('btnConnect').addEventListener('click', () => { startLogin('fresh'); });
-document.getElementById('btnWc').addEventListener('click', () => { startLogin('fresh'); });
-document.getElementById('openWalletLink').addEventListener('click', () => { startLogin('fresh'); });
+document.getElementById('btnConnect').addEventListener('click', () => { startLogin('fresh', { walletId: 'metamask' }); });
+document.querySelectorAll('[data-wallet]').forEach((button) => {
+  button.addEventListener('click', () => {
+    startLogin('fresh', { walletId: button.getAttribute('data-wallet') || '' });
+  });
+});
+document.getElementById('btnWc').addEventListener('click', () => { startLogin('fresh', { showModal: true }); });
+document.getElementById('openWalletLink').addEventListener('click', () => { startLogin('fresh', { showModal: true }); });
 document.getElementById('btnContinue').addEventListener('click', () => { startLogin('restored'); });
 document.getElementById('btnDisconnect').addEventListener('click', () => { forgetWallet(); });
 document.getElementById('btnDisconnectError').addEventListener('click', () => { forgetWallet(); });
 document.getElementById('loginRetry').addEventListener('click', () => {
   clearSignLock();
   running = false;
-  startLogin('fresh');
+  startLogin('fresh', { showModal: true });
 });
 if (copyLogBtn) {
   copyLogBtn.addEventListener('click', () => {

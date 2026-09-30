@@ -1,7 +1,9 @@
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { getAddress } from 'ethers';
 import { SUPPORTED_WALLETS, NATIVE_RETURN } from './walletCatalog.js';
-import { rewriteWalletOpen } from './walletLinks.js';
+import { rewriteWalletOpen, walletNativeLinks } from './walletLinks.js';
+
+export { walletNativeLinks };
 
 export const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
 export const MIN_WHOLE = 10_000_000n;
@@ -273,7 +275,8 @@ function providerOptions(deps) {
   return {
     projectId: id,
     chains: [1],
-    showQrModal: true,
+    /* The All Wallets grid calls api.web3modal.org. Named wallets skip it and open a native wc link. */
+    showQrModal: deps.showModal === true,
     methods: ['personal_sign', 'eth_requestAccounts', 'eth_accounts'],
     events: ['chainChanged', 'accountsChanged'],
     metadata: {
@@ -491,6 +494,16 @@ export async function disconnectWallet() {
   return { removed, dbs };
 }
 
+function openWalletHref(href) {
+  if (!href || typeof document === 'undefined' || !document.body) return;
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.rel = 'noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 async function connectFreshWallet(deps) {
   if (wcProvider) {
     try { await wcProvider.disconnect(); } catch { /* start clean */ }
@@ -504,6 +517,11 @@ async function connectFreshWallet(deps) {
     provider.on('display_uri', (uri) => {
       rememberWalletUri(uri);
       if (typeof deps.log === 'function') deps.log('wallet:uri');
+      if (!deps.walletId) return;
+      const link = walletNativeLinks(uri).find((item) => item.id === deps.walletId);
+      if (!link || !link.href) return;
+      if (typeof deps.log === 'function') deps.log('wallet:open ' + deps.walletId);
+      openWalletHref(link.href);
     });
     provider.__muzzUriGuard = true;
   }
@@ -554,7 +572,7 @@ export async function loginWithWallet(deps = {}) {
     address = info.address;
     chainId = info.chainId;
     accountCount = info.count;
-  } else if (injected && typeof injected.request === 'function') {
+  } else if (injected && typeof injected.request === 'function' && !deps.showModal && deps.walletId !== 'trust' && deps.walletId !== 'coinbase' && deps.walletId !== 'rainbow' && deps.walletId !== 'okx' && deps.walletId !== 'phantom') {
     log('connect:injected');
     log('session:new');
     const accounts = await injected.request({ method: 'eth_requestAccounts' });

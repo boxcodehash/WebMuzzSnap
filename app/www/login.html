@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://muzzsnap-app.vercel.app https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://ethereum.publicnode.com https://eth.drpc.org https://rpc.ankr.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com; object-src 'none'; base-uri 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://muzzsnap-app.vercel.app https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://ethereum.publicnode.com https://eth.drpc.org https://rpc.ankr.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://api.web3modal.org https://api.web3modal.com https://*.web3modal.org https://*.web3modal.com https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://rpc.walletconnect.org https://rpc.walletconnect.com wss://relay.walletconnect.org wss://relay.walletconnect.com https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://secure-mobile.walletconnect.com https://secure-mobile.walletconnect.org https://echo.walletconnect.com; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://*.walletconnect.com https://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://*.reown.com; object-src 'none'; base-uri 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#070708">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -516,6 +516,17 @@
             text-decoration: underline;
             background: none;
         }
+        .wallet-pick {
+            color: #fff;
+            font: inherit;
+            font-size: 0.95rem;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 0;
+            background: #161616;
+            cursor: pointer;
+            box-shadow: inset 0 0 0 1px rgba(255, 40, 40, 0.55);
+        }
 
         .sign-overlay {
             position: fixed;
@@ -616,10 +627,17 @@
             <button type="button" id="btnContinue" class="btn btn-primary">Continue</button>
         </div>
 
-        <button type="button" id="btnWc" class="btn btn-primary">Connect with WalletConnect</button>
+        <div id="walletLinks" class="link-row plain">
+            <button type="button" class="wallet-pick" data-wallet="metamask">MetaMask</button>
+            <button type="button" class="wallet-pick" data-wallet="trust">Trust Wallet</button>
+            <button type="button" class="wallet-pick" data-wallet="coinbase">Coinbase Wallet</button>
+            <button type="button" class="wallet-pick" data-wallet="rainbow">Rainbow</button>
+            <button type="button" class="wallet-pick" data-wallet="okx">OKX Wallet</button>
+            <button type="button" class="wallet-pick" data-wallet="phantom">Phantom</button>
+        </div>
+        <button type="button" id="btnWc" class="btn btn-primary">Other wallets</button>
         <button type="button" id="btnDisconnect" class="btn btn-ghost">Disconnect / Change wallet</button>
         <p><button type="button" id="openWalletLink" class="fallback">Open in wallet</button></p>
-        <div id="walletLinks" class="link-row plain hidden"></div>
 
         <div id="returnBox" class="return-box hidden">
             <p class="fine" id="returnText">Signed in. Return to the MuzzSnap app.</p>
@@ -645,7 +663,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.26</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.27</small></footer>
     <button type="button" id="copyLog" class="btn btn-ghost" hidden>Copy log</button>
     <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 

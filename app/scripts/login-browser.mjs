@@ -125,7 +125,7 @@ if (kept.length || after.dbs.includes('WALLET_CONNECT_V2_INDEXED_DB')) {
 }
 await page.screenshot({ path: join(outDir, 'login-after-disconnect-android.png'), fullPage: true });
 await page.screenshot({ path: join(outDir, 'login-page-android.png'), fullPage: true });
-await page.getByRole('button', { name: 'Connect with WalletConnect' }).click();
+await page.getByRole('button', { name: 'Other wallets' }).click();
 
 const metamask = page.getByText('MetaMask', { exact: true }).first();
 try {

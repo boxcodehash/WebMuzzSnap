@@ -345,7 +345,7 @@ test('MetaMask uses a plain connect, and one-click falls back after a timeout or
 
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
   const page = readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8');
-  assert.match(login, /v1\.0\.26/);
+  assert.match(login, /v1\.0\.27/);
   assert.match(login, />Copy log</);
   assert.match(page, /muzz_debug_log/);
   assert.match(page, /Copy log|copyLog/);
