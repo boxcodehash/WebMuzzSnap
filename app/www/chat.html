@@ -106,7 +106,7 @@
       margin-top: var(--app-top, 0px);
       display: flex;
       gap: 14px;
-      padding: 12px;
+      padding: 12px 12px 12px 128px;
       max-width: 1600px;
       margin-left: auto;
       margin-right: auto;
@@ -129,9 +129,31 @@
     }
 
     .sidebar {
-      width: 280px;
-      flex-shrink: 0;
+      position: fixed;
+      z-index: 60;
+      top: 16px;
+      bottom: 16px;
+      left: 128px;
+      width: min(340px, calc(100vw - 160px));
       padding: 16px 14px;
+      border-radius: 24px;
+      overflow: hidden;
+      transform: translateX(calc(-100% - 160px));
+      transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar.orbit-panel {
+      background:
+        radial-gradient(circle at 16% 10%, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 78% 36%, rgba(255, 255, 255, 0.35) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 42% 82%, rgba(255, 70, 70, 0.75) 0 1px, transparent 1.6px),
+        linear-gradient(180deg, rgba(18, 16, 20, 0.94), rgba(7, 7, 9, 0.97));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 0 1px rgba(255, 42, 42, 0.32),
+        0 18px 48px rgba(0, 0, 0, 0.5),
+        0 0 32px rgba(255, 20, 20, 0.12);
+      backdrop-filter: blur(18px);
     }
 
     .brand-logo {
@@ -311,7 +333,7 @@
       height: 34px;
       border-radius: 10px;
       object-fit: cover;
-      display: none;
+      display: block;
     }
 
     .online-count {
@@ -330,30 +352,37 @@
     }
 
     .drawer-backdrop {
-      display: none;
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+    }
+    .light-theme .sidebar.orbit-panel {
+      background: #fff;
+      color: #161616;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(180, 20, 20, 0.2);
     }
 
     @media (max-width: 1023px) {
-      .app-shell { padding: 0; gap: 0; }
+      .app-shell { padding: 0 0 calc(96px + var(--safe-b)) 0; gap: 0; }
       .panel-3d { border-radius: 0; box-shadow: none; }
       .sidebar {
-        position: fixed;
-        z-index: 50;
-        inset: 0 auto 0 0;
+        top: 0;
+        bottom: 0;
+        left: 0;
         width: min(88vw, 340px);
-        padding: calc(16px + var(--safe-t)) 16px calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+        padding: calc(16px + var(--safe-t)) 16px calc(112px + var(--safe-b)) calc(16px + var(--safe-l));
         border-radius: 0 24px 24px 0;
         transform: translateX(-110%);
-        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-        box-shadow: 12px 0 40px rgba(0,0,0,0.45);
       }
       .sidebar.open { transform: translateX(0); }
       .chat-header {
         min-height: 64px;
         padding: calc(8px + var(--safe-t)) 12px 8px !important;
       }
-      .header-logo { display: block; }
-      .channel-strip { display: flex; }
+      .channel-strip { display: none; }
       .bubble-3d { font-size: 16px; padding: 12px 15px; max-width: 88%; }
       .emoji-window { grid-template-columns: repeat(6, 1fr); max-height: 220px; }
       .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 280px; }
@@ -527,7 +556,6 @@
       const [notice, setNotice] = useState({show:false,title:"",desc:"",tone:"red"});
       const [nowTick, setNowTick] = useState(Date.now());
       const [pushStatus, setPushStatus] = useState('Notifications not granted · no token');
-      const [pushNote, setPushNote] = useState('');
       const bottomRef = useRef(null);
       const presenceRawRef = useRef({});
 
@@ -576,17 +604,6 @@
         window.addEventListener('muzz-push-status', apply);
         return () => window.removeEventListener('muzz-push-status', apply);
       }, []);
-
-      const sendTestNotification = () => {
-        if (!window.MuzzPush || !MuzzPush.notifySelf) {
-          setPushNote("Couldn't send the test notification.");
-          return;
-        }
-        MuzzPush.notifySelf().then((ok) => {
-          if (window.MuzzPush && MuzzPush.statusLine) setPushStatus(MuzzPush.statusLine());
-          setPushNote(ok ? 'Test notification sent.' : "Couldn't send the test notification.");
-        });
-      };
 
       useEffect(() => {
         if (localShot) return undefined;
@@ -980,14 +997,14 @@
 
       return (
         <div className="app-shell">
-          <aside className={`sidebar panel-3d ${mobileMenu ? 'open' : ''}`}>
+          <aside id="muzzMenu" className={`sidebar panel-3d orbit-panel ${mobileMenu ? 'open' : ''}`}>
             <div className="flex items-center gap-3 mb-5">
               <img src="muzzsnap.jpg" alt="MuzzSnap" className="brand-logo" />
               <div className="min-w-0 flex-1">
                 <h1 className="brand-title">MUZZ<span>SNAP</span></h1>
                 <p className="text-[11px] uppercase tracking-widest text-red-500 truncate">{me.username}</p>
               </div>
-              <button type="button" className="icon-btn lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
+              <button type="button" className="icon-btn" onClick={() => setMobileMenu(false)} aria-label="Close menu">
                 <i className="fas fa-times"></i>
               </button>
             </div>
@@ -1024,7 +1041,7 @@
               </div>
 
               <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Menu</p>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Rooms</p>
                 <button onClick={goToPrivate} className="nav-btn">
                   <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'} mr-2`}></i>
                   Private
@@ -1051,13 +1068,6 @@
             </div>
 
             <p id="muzzPushStatus" data-react="1" role="status" className="text-[11px] text-gray-500 px-1 mt-4 leading-snug">{pushStatus}</p>
-            <button type="button" data-react="1" onClick={sendTestNotification} className="nav-btn">
-              Send test notification
-            </button>
-            <button type="button" className="nav-btn" onClick={() => { if (window.muzzCheckUpdates) window.muzzCheckUpdates(); }}>
-              Check for updates
-            </button>
-            {pushNote ? <p className="text-[11px] text-gray-500 px-1">{pushNote}</p> : null}
             <p className="build-tag">Version 1.0.22</p>
             <button
               onClick={() => {
@@ -1087,9 +1097,6 @@
 
             <header className="chat-header min-h-16 flex items-center justify-between px-3 md:px-5 flex-shrink-0" style={{boxShadow:'inset 0 -1px 0 rgba(255,255,255,0.06)'}}>
               <div className="flex items-center gap-3 min-w-0">
-                <button type="button" onClick={() => setMobileMenu(true)} className="icon-btn lg:hidden" aria-label="Open menu">
-                  <i className="fas fa-bars"></i>
-                </button>
                 <img src="muzzsnap.jpg" alt="" className="header-logo" />
                 <div className="min-w-0">
                   <p className="chat-kicker">Public</p>
@@ -1104,11 +1111,6 @@
                 </button>
               </div>
             </header>
-
-            <div className="channel-strip" role="navigation" aria-label="Sections">
-              <button type="button" className="chip active">General</button>
-              <button type="button" className="chip" onClick={goToPrivate}>Private</button>
-            </div>
 
             <div className="msg-list flex-1 min-h-0 overflow-y-auto px-3 py-4 md:px-6 md:py-6 flex flex-col gap-4 custom-scroll">
               {muzzGate.visible(messages, nowTick).length === 0 && (
@@ -1297,7 +1299,38 @@
             </div>
           </main>
 
-          {mobileMenu && <div onClick={() => setMobileMenu(false)} className="drawer-backdrop lg:hidden"></div>}
+          <nav className="orbit-dock" data-place="chat" aria-label="MuzzSnap">
+            <span className="orbit-indicator" aria-hidden="true"></span>
+            <button type="button" className="orbit-item is-on" aria-current="page">
+              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              <span>Chat</span>
+            </button>
+            <button
+              type="button"
+              className={`orbit-core ${mobileMenu ? 'is-open' : ''}`}
+              aria-label="Menu"
+              aria-expanded={mobileMenu}
+              aria-controls="muzzMenu"
+              onClick={() => setMobileMenu((open) => !open)}
+            >
+              <span className="orbit-planet"><img src="muzzsnap.jpg" alt="" /></span>
+              <span className="orbit-core-label">Menu</span>
+            </button>
+            <button type="button" className="orbit-item" onClick={goToPrivate}>
+              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="16" cy="20" r="1.3" fill="currentColor" />
+                <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor" />
+              </svg>
+              <span>Private</span>
+            </button>
+          </nav>
+          {mobileMenu && <div onClick={() => setMobileMenu(false)} className="drawer-backdrop"></div>}
         </div>
       );
     }
