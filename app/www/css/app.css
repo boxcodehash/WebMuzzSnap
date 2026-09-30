@@ -731,7 +731,8 @@ body.light-theme .orbit-item { color: #5c5c5c; }
 body.light-theme .orbit-item.is-on,
 body.light-theme .orbit-core { color: #9d0000; }
 @keyframes orbit-spin { to { transform: rotate(360deg); } }
-@media (min-width: 1024px) {
+/* Wide screens, and phones turned sideways (short landscape), use the left rail. */
+@media (min-width: 1024px), (orientation: landscape) and (max-height: 500px) {
   .orbit-dock {
     top: 12px;
     bottom: 12px;

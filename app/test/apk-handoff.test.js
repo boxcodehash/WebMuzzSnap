@@ -266,6 +266,22 @@ test('APP_PUBLIC_URL se escribe solo si es https', () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+test('phone landscape uses the desktop rail and rotation does not reload the activity', () => {
+  const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+  const activity = manifest.slice(manifest.indexOf('<activity'), manifest.indexOf('</activity>'));
+  assert.match(activity, /android:screenOrientation="fullUser"/);
+  assert.doesNotMatch(activity, /screenOrientation="portrait"/);
+  assert.match(activity, /android:configChanges="[^"]*orientation[^"]*screenSize/);
+  const rail = '(orientation: landscape) and (max-height: 500px)';
+  assert.match(readFileSync(new URL('../www/css/app.css', import.meta.url), 'utf8'), new RegExp(rail.replace(/[()]/g, '\\$&')));
+  const chat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
+  const priv = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
+  assert.match(chat, /orientation: portrait/);
+  assert.match(chat, /min-height: 501px/);
+  assert.match(priv, /orientation: landscape\) and \(max-height: 500px\)/);
+  assert.equal(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8').match(/versionName "([^"]+)"/)[1], '1.0.25');
+});
+
 test('www has no test-notification or check-for-updates buttons', () => {
   const banned = [/Send test notification/i, /Check for updates/i, /Check updates?/i];
   const www = fileURLToPath(new URL('../www/', import.meta.url));
