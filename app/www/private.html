@@ -61,9 +61,10 @@
     *{box-sizing:border-box}
     html,body{margin:0;height:100%;font-family:Outfit,Segoe UI,sans-serif;background:radial-gradient(ellipse 80% 42% at 50% -10%, rgba(255,42,42,.2), transparent 55%), #070708;color:var(--text);overscroll-behavior:none}
     body{overflow:hidden;font-size:14px}
-    .app{height:var(--app-h, 100dvh);margin-top:var(--app-top, 0px);display:grid;grid-template-columns:320px minmax(0,1fr)}
+    .app{position:relative;height:var(--app-h, 100dvh);margin-top:var(--app-top, 0px);display:grid;grid-template-columns:320px minmax(0,1fr)}
+    @media (min-width: 1024px){ .app{padding-left:120px} }
     .sidebar,.chat{min-height:0}
-    .sidebar{background:rgba(10,10,12,.92);backdrop-filter:blur(16px);border-right:1px solid rgba(255,42,42,.16);padding:18px;display:flex;flex-direction:column;gap:14px}
+    .sidebar{background:radial-gradient(circle at 16% 12%, rgba(255,255,255,.5) 0 1px, transparent 1.5px), radial-gradient(circle at 74% 42%, rgba(255,255,255,.3) 0 1px, transparent 1.5px), linear-gradient(180deg, rgba(16,12,18,.94), rgba(8,8,10,.96));backdrop-filter:blur(16px);border-right:1px solid rgba(255,42,42,.28);box-shadow:inset 0 0 0 1px rgba(255,42,42,.08);padding:18px;display:flex;flex-direction:column;gap:14px}
     .brand{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,42,42,.22);border-radius:20px;background:linear-gradient(180deg,rgba(255,42,42,.08),rgba(255,42,42,.02))}
     .logo{width:46px;height:46px;border-radius:14px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,42,42,.4), 0 8px 18px rgba(255,0,0,.18)}
     .brand h1{margin:0;font-family:Orbitron,sans-serif;font-size:15px;letter-spacing:.08em;font-weight:800;font-style:normal}
@@ -106,8 +107,8 @@
     .bubble img{display:block;max-width:220px;border-radius:12px}
     .empty{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
     .mobile-top{display:none;flex:0 0 auto}
-    @media (max-width: 920px){
-      .app{grid-template-columns:1fr;height:var(--app-h, 100dvh);padding:0}
+    @media (max-width: 1023px){
+      .app{grid-template-columns:1fr;height:var(--app-h, 100dvh);padding:0 0 calc(96px + var(--safe-bottom)) 0}
       .sidebar{display:none}
       .chat{height:100%;min-height:0;border:none}
       .mobile-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));border-bottom:1px solid var(--line);background:rgba(0,0,0,.25)}
@@ -122,12 +123,37 @@
     .app.picker-closed{grid-template-columns:minmax(0,1fr)}
     .app.picker-closed .sidebar{display:none !important}
     .app.picker-open .sidebar{display:flex !important}
-    @media (max-width: 920px){
-      .app.picker-open .sidebar{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:40;overflow:auto}
+    @media (max-width: 1023px){
+      .app.picker-open .sidebar{position:fixed;left:0;right:0;bottom:calc(96px + var(--safe-bottom));top:58px;z-index:40;overflow:auto}
     }
   </style>
 </head>
 <body>
+  <nav class="orbit-dock" data-place="private" aria-label="MuzzSnap">
+    <span class="orbit-indicator" aria-hidden="true"></span>
+    <a class="orbit-item" href="chat.html">
+      <svg class="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.4"></circle>
+        <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+      </svg>
+      <span>Chat</span>
+    </a>
+    <button type="button" class="orbit-core people-btn" aria-label="People" aria-expanded="true">
+      <span class="orbit-planet"><img src="muzzsnap.jpg" alt=""></span>
+      <span class="orbit-core-label">People</span>
+      <span class="badge"></span>
+    </button>
+    <button type="button" class="orbit-item is-on" aria-current="page">
+      <svg class="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+        <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+        <circle cx="16" cy="20" r="1.3" fill="currentColor"></circle>
+        <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor"></path>
+      </svg>
+      <span>Private</span>
+    </button>
+  </nav>
   <div class="app picker-open" id="appShell">
     <aside class="sidebar">
       <div class="brand">
@@ -312,6 +338,10 @@
         const n = unreadTotal();
         el.textContent = n ? (n > 9 ? '9+' : String(n)) : '';
         el.classList.toggle('show', n > 0);
+      });
+      document.querySelectorAll('.orbit-core.people-btn').forEach(el => {
+        el.setAttribute('aria-expanded', pickerOpen ? 'true' : 'false');
+        el.classList.toggle('is-open', pickerOpen);
       });
     }
 

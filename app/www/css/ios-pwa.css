@@ -59,14 +59,18 @@ html.muzz-fs-on .muzz-fs { display: inline-flex; align-items: center; }
 .muzz-tabbar {
   position: fixed;
   z-index: 60;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + var(--muzz-sab, env(safe-area-inset-bottom, 0px)));
   display: flex;
-  height: calc(var(--muzz-tab, 54px) + var(--muzz-sab, env(safe-area-inset-bottom, 0px)));
-  padding-bottom: var(--muzz-sab, env(safe-area-inset-bottom, 0px));
-  background: rgba(10, 10, 12, 0.94);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  height: 64px;
+  padding: 0 8px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 20% 40%, rgba(255, 255, 255, 0.45) 0 1px, transparent 1.5px),
+    rgba(10, 10, 12, 0.88);
+  border: 1px solid rgba(255, 42, 42, 0.4);
+  box-shadow: 0 0 24px rgba(255, 24, 24, 0.18);
   backdrop-filter: saturate(180%) blur(18px);
 }
 .muzz-tabbar a {
@@ -74,13 +78,14 @@ html.muzz-fs-on .muzz-fs { display: inline-flex; align-items: center; }
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 48px;
   color: #9aa3af;
   text-decoration: none;
-  font: 700 13px/1 system-ui, -apple-system, Segoe UI, sans-serif;
-  letter-spacing: 0.08em;
+  font: 800 12px/1 Outfit, system-ui, -apple-system, Segoe UI, sans-serif;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.muzz-tabbar a[aria-current="page"] { color: #ff3a3a; }
+.muzz-tabbar a[aria-current="page"] { color: #ff3a3a; text-shadow: 0 0 12px rgba(255, 42, 42, 0.45); }
 .muzz-install {
   position: fixed;
   z-index: 80;
