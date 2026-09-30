@@ -238,6 +238,8 @@ Pega `rtdb.fcm.rules.snippet.json` **dentro de las reglas que ya hay** (consola 
 vercel deploy --prod
 ```
 
+La traducción del chat y de los mensajes privados (`POST /api/translate`) cubre inglés, español, chino (`zh-CN`) y japonés. El servidor comprueba el idioma del resultado y no devuelve otro idioma. Las claves van solo en variables de Vercel: `GOOGLE_TRANSLATE_API_KEY` o `TRANSLATE_API_KEY`, y `DEEPL_API_KEY`. No van en git.
+
 Lleva cinco funciones en `api/` (`private.js`, `push.js`, `session.js`, `translate.js`, `private-expire.js`), código compartido en `server/` (no son funciones extra), `www/`, `vercel.json` y un `package.json` cuya única dependencia es `ethers`. Las rewrites conservan las URLs públicas (`/api/notify`, `/api/session`, `/api/register-token`, `/api/push-config`, las de fotos privadas y `/api/private-expire` del cron diario). El plan Hobby admite 12 funciones; este zip se queda en 5. Vercel ejecuta `npm install`. El sitio sale de `www`. No metas la cuenta de servicio en la carpeta: Vercel ya tiene `FIREBASE_SERVICE_ACCOUNT`.
 
 Activa **Authentication** en `pulsari` si aún no está. La sesión firma un custom token; no crea una Cloud Function.

@@ -15,6 +15,9 @@
     too_long: 'That message is too long to translate.',
     bad_target: "Couldn't translate. Try again.",
     rate_limited: 'Too many translations. Try again in a minute.',
+    timeout: 'Translation timed out. Try again.',
+    offline: "You're offline. Check your connection and try again.",
+    wrong_language: 'That translation came back in the wrong language. Nothing was changed.',
     translate_failed: "Couldn't translate. Try again.",
     method: "Couldn't translate. Try again."
   };
@@ -61,29 +64,50 @@
     toastTimer = setTimeout(dismiss, 3500);
   }
 
+  function knownError(err) {
+    if (!err || !err.message) return false;
+    for (var key in ERRORS) if (ERRORS[key] === err.message) return true;
+    return false;
+  }
+
   function translate(text, target) {
     var value = String(text || '').trim();
     if (!value) return Promise.reject(new Error(ERRORS.empty));
     if (value.length > 1000) return Promise.reject(new Error(ERRORS.too_long));
-    remember(target);
-    return fetch(endpoint(), {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return Promise.reject(new Error(ERRORS.offline));
+      }
+    } catch (err) { /* navigator unavailable */ }
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 12000) : 0;
+    var opts = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: value, target: target })
-    }).then(function (res) {
+    };
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(endpoint(), opts).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
         if (!res.ok || !data || !data.text) {
           throw new Error(ERRORS[data && data.error] || ERRORS.translate_failed);
         }
+        remember(target);
         return String(data.text);
       });
     }).catch(function (err) {
-      if (err && ERRORS && err.message && Object.values) {
-        var known = false;
-        for (var key in ERRORS) if (ERRORS[key] === err.message) known = true;
-        if (known) throw err;
+      if (err && err.name === 'AbortError') throw new Error(ERRORS.timeout);
+      if (knownError(err)) throw err;
+      if (err && (err.name === 'TypeError' || /failed to fetch|network|offline/i.test(String(err.message || '')))) {
+        throw new Error(ERRORS.offline);
       }
       throw new Error(ERRORS.translate_failed);
+    }).then(function (out) {
+      if (timer) clearTimeout(timer);
+      return out;
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      throw err;
     });
   }
 
