@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -264,4 +264,19 @@ test('APP_PUBLIC_URL se escribe solo si es https', () => {
   });
   assert.equal(bad.status, 1);
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('www has no test-notification or check-for-updates buttons', () => {
+  const banned = [/Send test notification/i, /Check for updates/i, /Check updates?/i];
+  const www = fileURLToPath(new URL('../www/', import.meta.url));
+  const files = readdirSync(www, { recursive: true })
+    .map((name) => join(www, name))
+    .filter((path) => statSync(path).isFile());
+  assert.ok(files.length > 10);
+  for (const path of files) {
+    const text = readFileSync(path, 'utf8');
+    for (const pattern of banned) {
+      assert.doesNotMatch(text, pattern, path);
+    }
+  }
 });
