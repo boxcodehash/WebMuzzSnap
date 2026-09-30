@@ -4,12 +4,16 @@ import test from 'node:test';
 import {
   detectLanguage,
   guessSource,
-  handleTranslate,
+  handleTranslate as translateHandler,
   matchesTarget,
   resetTranslateRate,
   segmentMessage,
   slangTable
 } from '../server/translate.js';
+
+function handleTranslate(req, deps = {}) {
+  return translateHandler(req, { authWallet: WALLET, ...deps });
+}
 
 const WALLET = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
 
@@ -25,6 +29,17 @@ function req(text, target, extra = {}) {
     now: extra.now || 10_000
   };
 }
+
+test('translate requires a signed-in wallet', async () => {
+  const denied = await translateHandler({
+    method: 'POST',
+    headers: {},
+    body: { text: 'Hello', target: 'en' },
+    now: 1
+  }, { fetch: async () => google('hola'), env: {} });
+  assert.equal(denied.status, 401);
+  assert.equal(denied.body.error, 'unauthorized');
+});
 
 test('translate rejects empty, unknown language, and long text without calling out', async () => {
   resetTranslateRate();

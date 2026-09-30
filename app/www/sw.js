@@ -1,4 +1,4 @@
-const CACHE = 'muzzsnap-app-v18';
+const CACHE = 'muzzsnap-app-v19';
 const SHELL = [
   './',
   './index.html',
@@ -66,6 +66,8 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // /api is the live Vercel host. Capacitor also serves this hostname locally, so the worker must not cache or substitute these responses.
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
   if (url.pathname.endsWith('config.local.json')) {
     event.respondWith(fetch(event.request));
     return;

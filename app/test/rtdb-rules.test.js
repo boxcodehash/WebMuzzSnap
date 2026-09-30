@@ -12,6 +12,18 @@ test('private database rules keep other users out of a conversation', () => {
   assert.equal(rules.photoMailbox.$wallet['.write'], false);
   assert.match(rules.privateSignal.$to.$from['.read'], /auth\.uid == \$to \|\| auth\.uid == \$from/);
   assert.match(rules.privateInbox.$thread['.read'], /\$thread\.length === 85/);
+  assert.match(rules.messages.$channel['.write'], /!newData\.exists\(\)/);
+  assert.match(rules.messages.$channel['.write'], /0x208157b5ec396759e8754058108ecf53e32392ff/);
+  assert.match(rules.messages.$channel.$msgId['.validate'], /newData\.child\('wallet'\)\.val\(\) == auth\.uid/);
+  assert.match(rules.messages.$channel.$msgId['.validate'], /RYASHU/);
+  assert.match(rules.messages.$channel.$msgId['.validate'], /ITZUKI/);
+  assert.match(rules.messages.$channel.$msgId['.validate'], /Node_6bcb8a/);
+  assert.equal(rules.messages.$channel.$msgId['.write'].includes('data.child(\'wallet\').val() == auth.uid'), true);
+  assert.match(rules.muted.$id['.write'], /0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501/);
+  assert.match(rules.banned.$id['.write'], /0x875c5a7794b601f273da58e3c1d10671d16130ec/);
+  assert.equal(rules.muted['.write'], undefined);
+  assert.match(rules.privateInbox.$thread['.write'], /newData\.exists\(\)/);
+  assert.match(rules.privateInbox.$thread.messages.$msgId['.validate'], /data\.child\('from'\)\.val\(\) == auth\.uid/);
   assert.match(rules.privateInbox.$thread.messages.$msgId['.validate'], /Encrypted message/);
   assert.match(rules.privateInbox.$thread.messages.$msgId['.validate'], /plaintext/);
   assert.match(rules.privateIndex.$owner.$peer['.validate'], /Encrypted message/);
@@ -21,6 +33,9 @@ test('private database rules keep other users out of a conversation', () => {
   assert.equal(rules.fcmTokens.$wallet['.read'].includes('auth.uid == $wallet'), true);
   assert.equal(rules.notifyRate['.read'], false);
   assert.equal(rules.loginNonces['.write'], false);
+  assert.equal(rules.loginIssued['.write'], false);
+  assert.equal(rules.sessionRate['.write'], false);
+  assert.equal(rules.translateRate['.write'], false);
   const firebase = JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url), 'utf8'));
   assert.equal(firebase.database, undefined);
 });

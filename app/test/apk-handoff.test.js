@@ -126,22 +126,27 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.25/);
+  assert.match(login, /v1\.0\.26/);
   assert.match(login, /Disconnect \/ Change wallet/);
   assert.match(login, /id="btnContinue"/);
   assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Connecting…/);
   assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Check your wallet to sign/);
   assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Verifying…/);
   assert.doesNotMatch(login, /wc_sessionAuthenticate|one-click|siwe/i);
-  assert.match(wallet, /eip155:56/);
+  assert.doesNotMatch(wallet, /eip155:56/);
+  assert.doesNotMatch(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /optionalChains/);
+  assert.doesNotMatch(readFileSync(new URL('../src/wc-auth.js', import.meta.url), 'utf8'), /eth_sign/);
   assert.match(wallet, /ignoreChainSwitch/);
   assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.25"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.26"/);
   const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(capacitor.server.url, undefined);
   assert.equal(capacitor.server.androidScheme, 'https');
+  assert.equal(capacitor.server.hostname, 'muzzsnap-app.vercel.app');
   const bundledCap = JSON.parse(readFileSync(new URL('../android/app/src/main/assets/capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(bundledCap.server.url, undefined);
+  assert.equal(bundledCap.server.hostname, 'muzzsnap-app.vercel.app');
+  assert.match(readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletWebViewClient.java', import.meta.url), 'utf8'), /isRemoteApi/);
   assert.match(wallet, /enableCoinbase:\s*false/);
   const gateSrc = readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8');
   assert.match(gateSrc, /https:\/\/ethereum\.publicnode\.com/);
@@ -190,9 +195,9 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates|Check update|Send test notification/);
   assert.doesNotMatch(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates|Check update|Send test notification/);
   const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
-  assert.equal(manifestJson.versionCode, 25);
-  assert.equal(manifestJson.versionName, '1.0.25');
-  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=125');
+  assert.equal(manifestJson.versionCode, 26);
+  assert.equal(manifestJson.versionName, '1.0.26');
+  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=126');
   assert.equal(manifestJson.notes, 'Connect opens the wallet to approve and sign once, then returns to the app. Chat, private, and stickers share one build. Private messages delete 24 hours after they are read.');
   assert.equal(manifestJson.force, false);
   const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
@@ -279,7 +284,7 @@ test('phone landscape uses the desktop rail and rotation does not reload the act
   assert.match(chat, /orientation: portrait/);
   assert.match(chat, /min-height: 501px/);
   assert.match(priv, /orientation: landscape\) and \(max-height: 500px\)/);
-  assert.equal(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8').match(/versionName "([^"]+)"/)[1], '1.0.25');
+  assert.equal(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8').match(/versionName "([^"]+)"/)[1], '1.0.26');
 });
 
 test('www has no test-notification or check-for-updates buttons', () => {

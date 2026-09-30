@@ -22,6 +22,7 @@ public class MainActivity extends BridgeActivity {
     private int authAttempts = 0;
     private long lastWalletReturnAt = 0;
     private boolean probedOpen = false;
+    private int apiProbeTries = 0;
     private boolean backHandlerLogged = false;
     private final OnBackPressedCallback systemBackCallback = new OnBackPressedCallback(true) {
         @Override
@@ -53,6 +54,8 @@ public class MainActivity extends BridgeActivity {
         });
         probeWebViewLoads(webView);
         maybeOpenDebugPage(getIntent());
+        maybeOpenDebugUrl(getIntent());
+        maybeProbeApi(getIntent());
         PushAlerts.openFromTap(this, getIntent());
         getBridge().addWebViewListener(new WebViewListener() {
             @Override
@@ -100,6 +103,8 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         if (intent != null) setIntent(intent);
         maybeOpenDebugPage(intent);
+        maybeOpenDebugUrl(intent);
+        maybeProbeApi(intent);
         deliverAuth(intent);
         deliverWalletReturn(intent);
         maybeManualUpdate(intent);
@@ -194,12 +199,88 @@ public class MainActivity extends BridgeActivity {
         if (!isDebuggable() || intent == null) return;
         String page = intent.getStringExtra("muzz_page");
         if (page == null || !page.matches("[A-Za-z0-9._-]+\\.html")) return;
+        String query = intent.getStringExtra("muzz_query");
+        if (query == null) query = "";
+        if (!query.matches("[A-Za-z0-9=&._%-]*")) return;
         WebView webView = getBridge() == null ? null : getBridge().getWebView();
         if (webView == null) return;
         intent.removeExtra("muzz_page");
-        String url = "https://localhost/" + page;
+        intent.removeExtra("muzz_query");
+        String url = getBridge().getScheme() + "://" + getBridge().getHost() + "/" + page
+            + (query.isEmpty() ? "" : "?" + query);
         android.util.Log.i(WalletLinks.TAG, "debug page " + url);
         webView.post(() -> webView.loadUrl(url));
+    }
+
+    /** Debug builds only: open one https://muzzsnap-app.vercel.app/api URL in the WebView. */
+    private void maybeOpenDebugUrl(Intent intent) {
+        if (!isDebuggable() || intent == null) return;
+        String raw = intent.getStringExtra("muzz_url");
+        if (raw == null || !raw.startsWith("https://muzzsnap-app.vercel.app/api")) return;
+        if (!raw.matches("https://muzzsnap-app\\.vercel\\.app/api[A-Za-z0-9./?=&_%-]*")) return;
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) return;
+        intent.removeExtra("muzz_url");
+        android.util.Log.i(WalletLinks.TAG, "debug url " + raw);
+        webView.post(() -> webView.loadUrl(raw));
+    }
+
+    /** Debug builds only: fetch the live /api paths and log whether they left the asset pack. */
+    private void maybeProbeApi(Intent intent) {
+        String flag = intent == null ? null : intent.getStringExtra("muzz_api_probe");
+        android.util.Log.i(WalletLinks.TAG, "api probe flag=" + flag + " debug=" + isDebuggable());
+        if (!isDebuggable() || intent == null) return;
+        if (!"1".equals(flag)) return;
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) {
+            android.util.Log.i(WalletLinks.TAG, "api probe webview null bridge=" + (getBridge() != null));
+            if (apiProbeTries < 6) {
+                apiProbeTries += 1;
+                new Handler(Looper.getMainLooper()).postDelayed(() -> maybeProbeApi(intent), 700);
+            }
+            return;
+        }
+        apiProbeTries = 0;
+        intent.removeExtra("muzz_api_probe");
+        String js = "(function(){"
+            + "if(window.__muzzApiProbe)return 'already';"
+            + "window.__muzzApiProbe='running';"
+            + "function grab(name,url,opts){"
+            + "return fetch(url,opts).then(function(res){return res.text().then(function(text){"
+            + "return {name:name,status:res.status,ctype:res.headers.get('content-type'),body:String(text).slice(0,180)};"
+            + "});}).catch(function(err){return {name:name,error:String(err)};});}"
+            + "Promise.all(["
+            + "grab('login','/login.html'),"
+            + "grab('nonce','/api/session?op=nonce'),"
+            + "grab('push','/api/push-config'),"
+            + "grab('relay','/api/private?op=relay',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),"
+            + "grab('translate','/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'hello',target:'es'})})"
+            + "]).then(function(rows){"
+            + "window.__muzzApiProbe=JSON.stringify({origin:location.origin,href:location.href,rows:rows});"
+            + "console.log('MUZZ_API_PROBE '+window.__muzzApiProbe);"
+            + "});"
+            + "return 'started';})()";
+        Handler handler = new Handler(Looper.getMainLooper());
+        webView.post(() -> {
+            try {
+                android.util.Log.i(WalletLinks.TAG, "api probe eval");
+                webView.evaluateJavascript(js, value ->
+                    android.util.Log.i(WalletLinks.TAG, "api probe start " + value));
+            } catch (Throwable err) {
+                android.util.Log.i(WalletLinks.TAG, "api probe eval failed " + err);
+            }
+        });
+        final int[] tries = {0};
+        Runnable[] poll = new Runnable[1];
+        poll[0] = () -> {
+            tries[0] += 1;
+            webView.evaluateJavascript("window.__muzzApiProbe||''", value -> {
+                android.util.Log.i(WalletLinks.TAG, "api probe " + value);
+                if (value != null && value.contains("rows")) return;
+                if (tries[0] < 8) handler.postDelayed(poll[0], 1500);
+            });
+        };
+        handler.postDelayed(poll[0], 1200);
     }
 
     private void installWalletWebViewClient(WebView webView) {

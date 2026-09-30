@@ -76,11 +76,18 @@ function mockBackend(db, opts = {}) {
   return { fetchImpl, calls };
 }
 
-test('the short login message and error text stay specific', () => {
+test('the SIWE login message and error text stay specific', () => {
   const address = '0x' + 'ab'.repeat(20);
-  const message = buildLoginMessage(address, 'CD'.repeat(16));
-  assert.equal(message, 'MuzzSnap\nWallet: ' + address + '\nNonce: ' + 'cd'.repeat(16));
-  assert.equal(message.split('\n')[0], 'MuzzSnap');
+  const exp = Date.parse('2026-09-30T02:00:00.000Z');
+  const message = buildLoginMessage(address, 'CD'.repeat(16), exp, '2026-09-30T01:50:00.000Z');
+  assert.match(message, /^muzzsnap-app\.vercel\.app wants you to sign in with your Ethereum account:\n/);
+  assert.match(message, /Sign in to MuzzSnap\. This request does not spend gas or approve a token\./);
+  assert.match(message, /URI: https:\/\/muzzsnap-app\.vercel\.app\/login\.html/);
+  assert.match(message, /Chain ID: 1/);
+  assert.match(message, new RegExp('Nonce: ' + 'cd'.repeat(16)));
+  assert.match(message, /Expiration Time: 2026-09-30T02:00:00.000Z/);
+  assert.doesNotMatch(message, /MuzzSnap Login|Token:|optionalChains|eth_sign/);
+  assert.equal(message.split('\n')[0], 'muzzsnap-app.vercel.app wants you to sign in with your Ethereum account:');
   assert.equal(MUZZ_TOKEN, '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0');
   assert.equal(MIN_WHOLE, 10_000_000n);
   assert.equal(EXEMPT_WALLET, '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a');
@@ -169,10 +176,12 @@ test('wallet login checks balance before the single personal_sign', async () => 
       };
     },
     readBalance: async () => { order.push('balance'); return { ok: true, formatted: '10,000,000' }; },
-    nonce: async () => { order.push('nonce'); return { nonce: 'ef'.repeat(16) }; },
+      nonce: async () => { order.push('nonce'); return { nonce: 'ef'.repeat(16), exp: Date.now() + 60_000 }; },
     exchange: async (message, signature) => {
       order.push('exchange');
-      assert.match(message, /^MuzzSnap\nWallet: /);
+      assert.match(message, /^muzzsnap-app\.vercel\.app wants you to sign in/);
+      assert.match(message, /Chain ID: 1/);
+      assert.doesNotMatch(message, /Chain ID: 56|eth_sign/);
       assert.match(signature, /^0x/);
       return { customToken: 'custom' };
     }
@@ -198,7 +207,7 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
     assert.match(issued.body.nonce, /^[a-f0-9]{32}$/);
     assert.equal(db['loginIssued/' + issued.body.nonce].exp, now + 10 * 60 * 1000);
 
-    const message = buildLoginMessage(wallet.address, issued.body.nonce);
+    const message = buildLoginMessage(wallet.address, issued.body.nonce, issued.body.exp, new Date(now).toISOString());
     const signature = await wallet.signMessage(message);
     const ok = await handleSession(
       { method: 'POST', body: { message, signature }, now },
@@ -214,7 +223,7 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
     assert.equal(reused.status, 401);
     assert.equal(reused.body.error, 'nonce_used');
 
-    const missing = buildLoginMessage(wallet.address, 'ab'.repeat(16));
+    const missing = buildLoginMessage(wallet.address, 'ab'.repeat(16), now + 60_000, new Date(now).toISOString());
     const missingSig = await wallet.signMessage(missing);
     const unknown = await handleSession(
       { method: 'POST', body: { message: missing, signature: missingSig }, now },
@@ -232,7 +241,7 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
 
     const staleNonce = '12'.repeat(16);
     db['loginIssued/' + staleNonce] = { exp: now - 1 };
-    const staleMessage = buildLoginMessage(wallet.address, staleNonce);
+    const staleMessage = buildLoginMessage(wallet.address, staleNonce, now - 1, new Date(now - 60_000).toISOString());
     const stale = await handleSession(
       { method: 'POST', body: { message: staleMessage, signature: await wallet.signMessage(staleMessage) }, now },
       { env, fetchImpl: backend.fetchImpl }
@@ -243,7 +252,7 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
 
     const lowNonce = '34'.repeat(16);
     db['loginIssued/' + lowNonce] = { exp: now + 60_000 };
-    const lowMessage = buildLoginMessage(wallet.address, lowNonce);
+    const lowMessage = buildLoginMessage(wallet.address, lowNonce, now + 60_000, new Date(now).toISOString());
     const lowBackend = mockBackend(db, { balance: '0x1' });
     const low = await handleSession(
       { method: 'POST', body: { message: lowMessage, signature: await wallet.signMessage(lowMessage) }, now },
@@ -255,7 +264,7 @@ test('the server nonce, short signature, balance, and exempt wallet', async () =
 
     const downNonce = '56'.repeat(16);
     db['loginIssued/' + downNonce] = { exp: now + 60_000 };
-    const downMessage = buildLoginMessage(wallet.address, downNonce);
+    const downMessage = buildLoginMessage(wallet.address, downNonce, now + 60_000, new Date(now).toISOString());
     const down = await handleSession(
       { method: 'POST', body: { message: downMessage, signature: await wallet.signMessage(downMessage) }, now },
       { env, fetchImpl: mockBackend(db, { rpcFails: true }).fetchImpl }

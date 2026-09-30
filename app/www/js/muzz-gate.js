@@ -50,6 +50,24 @@
     return wallet === BALANCE_EXEMPT;
   }
 
+  async function confirmServerBalance() {
+    const auth = firebase.auth && firebase.auth();
+    const user = auth && auth.currentUser;
+    if (!user || typeof user.getIdToken !== 'function') return { ok: false, code: 'unauthorized' };
+    const token = await user.getIdToken();
+    const res = await fetch('/api/session?op=balance', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 403) {
+      return { ok: false, code: 'balance', formatted: data.formatted || '0', minimum: data.minimum || '10,000,000' };
+    }
+    if (!res.ok || !data || data.ok !== true) {
+      return { ok: false, code: (data && data.error) || 'balance_unavailable' };
+    }
+    return { ok: true, exempt: data.exempt === true };
+  }
+
   async function readMuzzBalance(address) {
     if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
     if (isBalanceExempt(address)) {
@@ -548,8 +566,12 @@
   }
 
   function proofExpiry(message) {
-    const exp = Number(proofLine(message, 'Expires: '));
-    return Number.isFinite(exp) ? exp : 0;
+    const iso = proofLine(message, 'Expiration Time: ');
+    if (iso) {
+      const parsed = Date.parse(iso);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
   }
 
   function proofNonce(message) {
@@ -642,6 +664,7 @@
     SESSION_MS,
     isBalanceExempt,
     readMuzzBalance,
+    confirmServerBalance,
     visible,
     isMainnet,
     chainLabel,

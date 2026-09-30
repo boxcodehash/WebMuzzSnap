@@ -60,8 +60,23 @@ public class WalletWebViewClient extends WebViewClient {
         return false;
     }
 
+    /**
+     * Capacitor serves every path on server.hostname from the local asset pack.
+     * /api/ must skip that intercept so https://muzzsnap-app.vercel.app/api/... hits Vercel.
+     * Returning null tells the WebView to use the network.
+     */
+    private boolean isRemoteApi(Uri url) {
+        if (url == null) return false;
+        if (!"https".equalsIgnoreCase(url.getScheme())) return false;
+        if (!"muzzsnap-app.vercel.app".equalsIgnoreCase(url.getHost())) return false;
+        String path = url.getPath();
+        return path != null && (path.equals("/api") || path.startsWith("/api/"));
+    }
+
     @Override
     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+        Uri url = request == null ? null : request.getUrl();
+        if (isRemoteApi(url)) return null;
         if (delegate != null) return delegate.shouldInterceptRequest(view, request);
         return super.shouldInterceptRequest(view, request);
     }

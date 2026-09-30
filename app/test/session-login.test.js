@@ -3,7 +3,8 @@ import { generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
-import { Wallet } from 'ethers';
+import { getAddress, Wallet } from 'ethers';
+import { SIWE_DOMAIN, SIWE_STATEMENT, SIWE_URI } from '../server/login-proof.js';
 import { formatMessage } from '@walletconnect/utils';
 import { CLOCK_SKEW_MS, MAX_AGE_MS, proveLogin } from '../server/login-proof.js';
 import { handleSession } from '../server/push.js';
@@ -58,20 +59,32 @@ function mockBackend(db) {
   };
 }
 
-function personalMessage(wallet, { nonce, exp }) {
+function personalMessage(wallet, { nonce, exp, issuedAt }) {
+  const checksum = getAddress(String(wallet.address).toLowerCase());
+  const when = Number(exp);
+  const issued = issuedAt || new Date(Math.min(Date.now(), when - 1000)).toISOString();
   return [
-    'MuzzSnap Login',
+    SIWE_DOMAIN + ' wants you to sign in with your Ethereum account:',
+    checksum,
     '',
-    wallet.address + ' wants to sign in to MuzzSnap.',
-    'Sign this message to prove you control this wallet. It does not spend gas.',
+    SIWE_STATEMENT,
     '',
-    'Wallet: ' + wallet.address,
+    'URI: ' + SIWE_URI,
+    'Version: 1',
     'Chain ID: 1',
-    'Nonce: ' + nonce,
-    'Expires: ' + exp,
-    'Token: 0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
-    'Minimum: 10000000 MUZZ'
+    'Nonce: ' + String(nonce).toLowerCase(),
+    'Issued At: ' + issued,
+    'Expiration Time: ' + new Date(when).toISOString()
   ].join('\n');
+}
+
+function seedIssued(db, message) {
+  const nonceLine = String(message || '').split('\n').find((line) => line.startsWith('Nonce: '));
+  const expLine = String(message || '').split('\n').find((line) => line.startsWith('Expiration Time: '));
+  if (!nonceLine || !expLine) return;
+  const nonce = nonceLine.slice('Nonce: '.length).trim();
+  const exp = Date.parse(expLine.slice('Expiration Time: '.length).trim());
+  if (!db['loginIssued/' + nonce]) db['loginIssued/' + nonce] = { exp };
 }
 
 async function postSession(body, now, db = {}) {
@@ -79,6 +92,7 @@ async function postSession(body, now, db = {}) {
   const original = console.warn;
   console.warn = (...args) => warnings.push(args.join(' '));
   try {
+    if (body && body.message) seedIssued(db, body.message);
     const result = await handleSession(
       { method: 'POST', headers: {}, body, now },
       { env, fetchImpl: mockBackend(db) }
@@ -108,7 +122,7 @@ test('fresh personal_sign and one-click SIWE proofs exchange once', async () => 
   assert.equal(proveLogin(message, signature, now).wallet, wallet.address.toLowerCase());
 
   const skewed = now + MAX_AGE_MS + CLOCK_SKEW_MS;
-  const skewMessage = personalMessage(wallet, { nonce: 'cd'.repeat(16), exp: skewed });
+  const skewMessage = personalMessage(wallet, { nonce: 'cd'.repeat(16), exp: skewed, issuedAt: new Date(now).toISOString() });
   const skewSig = await wallet.signMessage(skewMessage);
   const skew = await postSession({ message: skewMessage, signature: skewSig }, now, {});
   assert.equal(skew.result.status, 200);
@@ -135,8 +149,8 @@ test('fresh personal_sign and one-click SIWE proofs exchange once', async () => 
     const cacao = cacaoProof({ p: { ...payload, iss: `did:pkh:${chain}:${wallet.address}` }, s: { t: 'eip191', s: siweSig } });
     assert.equal(cacao.address, wallet.address.toLowerCase());
     const opened = await postSession({ message: cacao.message, signature: cacao.signature }, now, {});
-    assert.equal(opened.result.status, 200, chain);
-    assert.equal(tokenUid(opened.result.body.customToken), wallet.address.toLowerCase());
+    assert.equal(opened.result.status, 401, chain);
+    assert.equal(opened.result.body.error, 'bad_format');
     if (chain === 'eip155:56') assert.match(cacao.message, /Chain ID: 56/);
   }
 });
@@ -172,7 +186,11 @@ test('expired, reused, bad signature, and a clock that is too far ahead are dist
   assert.equal(bad.result.body.error, 'bad_signature');
   assert.equal(bad.warnings.join('\n').includes(message), false);
 
-  const ahead = personalMessage(wallet, { nonce: '22'.repeat(16), exp: now + MAX_AGE_MS + CLOCK_SKEW_MS + 1 });
+  const ahead = personalMessage(wallet, {
+    nonce: '22'.repeat(16),
+    exp: now + MAX_AGE_MS + CLOCK_SKEW_MS + 1,
+    issuedAt: new Date(now).toISOString()
+  });
   const aheadSig = await wallet.signMessage(ahead);
   const format = await postSession({ message: ahead, signature: aheadSig }, now, {});
   assert.equal(format.result.status, 401);

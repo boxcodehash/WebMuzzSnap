@@ -158,26 +158,19 @@ function bootE2EE() {
   return sandbox.MuzzE2EE;
 }
 
-test('a private message decrypts only for the two phones', async () => {
-  const alicePhone = bootE2EE();
-  const bobPhone = bootE2EE();
-  const aliceKeys = await alicePhone.loadOrCreate();
-  const bobKeys = await bobPhone.loadOrCreate();
-  const box = await alicePhone.encryptBytes(
-    aliceKeys.privateKey,
-    bobKeys.pub,
-    new TextEncoder().encode('hello private')
-  );
-  const opened = await bobPhone.decryptBytes(bobKeys.privateKey, aliceKeys.pub, box.iv, box.ct);
-  assert.equal(new TextDecoder().decode(opened), 'hello private');
-  const stranger = bootE2EE();
-  const strangerKeys = await stranger.loadOrCreate();
-  await assert.rejects(stranger.decryptBytes(strangerKeys.privateKey, aliceKeys.pub, box.iv, box.ct));
+test('private photos use the same v2 seal as text and not a long-term key', async () => {
   const client = readFileSync(new URL('../www/js/private-e2ee.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(client, /BLOB_READ_WRITE_TOKEN|BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(client, /BLOB_READ_WRITE_TOKEN|BEGIN PRIVATE KEY|muzz_e2ee_priv|sealPhoto|preparePhoto/);
+  assert.doesNotMatch(client, /salt: new Uint8Array\(16\)/);
+  assert.match(client, /kind === 'photo'/);
   const page = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
   assert.match(page, /aria-label="Photo"/);
   assert.match(page, /private-e2ee\.js/);
+  assert.match(page, /kind: 'photo'/);
+  assert.doesNotMatch(page, /sealPhoto|signInAnonymously/);
+  const transfer = readFileSync(new URL('../www/js/photo-transfer.js', import.meta.url), 'utf8');
+  assert.match(transfer, /kind: 'photo'/);
+  assert.doesNotMatch(transfer, /preparePhoto|uploadMailbox/);
 });
 
 test('ciphertext goes to Blob and is deleted when the recipient opens it or after 24h', async () => {

@@ -83,13 +83,14 @@ test('live pages and the app drop the old Itsuki wallet and add the private pick
     assert.match(text, /people-btn/);
     assert.match(text, /picker-closed/);
     assert.match(text, /Tap People to choose a conversation/);
-    assert.match(text, /isWhitelisted\(meWallet\)/);
-    assert.doesNotMatch(text, /data-wallet/);
     assert.match(text, /localShot/);
+    assert.doesNotMatch(text, /data-wallet/);
   }
+  assert.match(rootPrivate, /isWhitelisted\(meWallet\)/);
+  assert.match(appPrivate, /confirmPrivateBalance/);
   assert.match(readFileSync(new URL('../../login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
   assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
-  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.25/);
+  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.26/);
   const liveChat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
   const livePrivate = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
   assert.match(liveChat, /className="chat-me">\{me\.username\}/);
@@ -100,10 +101,10 @@ test('live pages and the app drop the old Itsuki wallet and add the private pick
   const nameSrc = readFileSync(new URL('../src/names.js', import.meta.url), 'utf8');
   assert.ok(nameSrc.indexOf('if (KNOWN[id])') < nameSrc.indexOf("return 'You'"));
   assert.match(readFileSync(new URL('../../chat.html', import.meta.url), 'utf8'), /MuzzNames\.isWhitelisted\(me\.wallet\)/);
-  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /MuzzNames\.isWhitelisted\(walletAddress\)/);
+  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /confirmServerBalance/);
   const gradle = readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8');
-  assert.match(gradle, /versionCode 25/);
-  assert.match(gradle, /versionName "1\.0\.25"/);
+  assert.match(gradle, /versionCode 26/);
+  assert.match(gradle, /versionName "1\.0\.26"/);
   const notifySrc = readFileSync(new URL('../www/js/private-notify.js', import.meta.url), 'utf8');
   assert.doesNotMatch(notifySrc, /muzz-pm-toast|muzzPmToast|showToast/);
   assert.match(readFileSync(new URL('../www/css/ios-pwa.css', import.meta.url), 'utf8'), /#muzzPmToast/);

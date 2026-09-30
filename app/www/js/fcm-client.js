@@ -3,8 +3,8 @@
  * The page asks https://muzzsnap-app.vercel.app/api/notify after a private
  * message is saved. The notification text is always "New private message".
  * Message text is never sent to that API.
- * The APK origin is https://localhost, so a service worker cannot register
- * FCM. The native Capacitor plugin (and the activity token) is required.
+ * The APK origin is https://muzzsnap-app.vercel.app. Web push still uses the
+ * native Capacitor plugin, because a page service worker cannot receive FCM.
  */
 (function (global) {
   var PUBLIC_API = 'https://muzzsnap-app.vercel.app';
@@ -69,15 +69,6 @@
     var user = auth.currentUser;
     if (!user || !want) return null;
     return String(user.uid).toLowerCase() === want ? user : null;
-  }
-
-  function anonymousFallback(auth, want) {
-    var kept = walletUser(auth, want);
-    if (kept) {
-      start(want);
-      return Promise.resolve(kept);
-    }
-    return auth.signInAnonymously().then(function (cred) { return cred.user; });
   }
 
   function exchangeSession(message, signature) {
@@ -186,8 +177,7 @@
       var proof = storedProof();
       var message = proof ? proof.message : '';
       var signature = proof ? proof.signature : '';
-      if (!want) return anonymousFallback(auth, want);
-      if (!message || !signature) return needsFreshSign('expired');
+      if (!want || !message || !signature) return needsFreshSign('expired');
       return exchangeSession(message, signature).then(function (data) {
         if (data && data.customToken) {
           if (global.muzzGate && typeof global.muzzGate.consumeLoginProof === 'function') {
@@ -207,9 +197,9 @@
           start(want);
           return cred.user;
         }
-        return anonymousFallback(auth, want);
+        return needsFreshSign('expired');
       }).catch(function () {
-        return anonymousFallback(auth, want);
+        return needsFreshSign('expired');
       });
     });
   }

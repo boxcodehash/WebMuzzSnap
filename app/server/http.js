@@ -1,7 +1,14 @@
+const ALLOWED_ORIGINS = new Set([
+  'https://muzzsnap-app.vercel.app',
+  'https://localhost'
+]);
+
 export function applyCors(req, res) {
-  const origin = (req.headers && (req.headers.origin || req.headers.Origin)) || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
+  const origin = (req.headers && (req.headers.origin || req.headers.Origin)) || '';
+  if (ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   res.setHeader('Access-Control-Max-Age', '86400');

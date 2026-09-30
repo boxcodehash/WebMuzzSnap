@@ -19,7 +19,8 @@
     offline: "You're offline. Check your connection and try again.",
     wrong_language: 'That translation came back in the wrong language. Nothing was changed.',
     translate_failed: "Couldn't translate. Try again.",
-    method: "Couldn't translate. Try again."
+    method: "Couldn't translate. Try again.",
+    unauthorized: 'Sign in again to translate.'
   };
   var toastTimer = 0;
 
@@ -81,9 +82,19 @@
     } catch (err) { /* navigator unavailable */ }
     var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 12000) : 0;
+    var headers = { 'Content-Type': 'application/json' };
+    var user = global.firebase && firebase.auth && firebase.auth().currentUser;
+    var tokenWait = user && typeof user.getIdToken === 'function' ? user.getIdToken() : Promise.resolve('');
+    return tokenWait.then(function (bearer) {
+      if (bearer) headers.Authorization = 'Bearer ' + bearer;
+      return sendTranslate(value, target, headers, ctrl, timer);
+    });
+  }
+
+  function sendTranslate(value, target, headers, ctrl, timer) {
     var opts = {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({ text: value, target: target })
     };
     if (ctrl) opts.signal = ctrl.signal;

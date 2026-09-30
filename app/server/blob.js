@@ -25,6 +25,14 @@ function rtdbUrl(env, path, accessToken) {
   return url.toString();
 }
 
+function responseHeader(res, name) {
+  const headers = res && res.headers;
+  if (!headers) return '';
+  const wanted = String(name || '').toLowerCase();
+  if (typeof headers.get === 'function') return headers.get(name) || headers.get(wanted) || '';
+  return headers[name] || headers[wanted] || '';
+}
+
 async function rtdb(fetchImpl, method, env, path, accessToken, value) {
   const res = await fetchImpl(rtdbUrl(env, path, accessToken), {
     method,
@@ -38,6 +46,22 @@ async function rtdb(fetchImpl, method, env, path, accessToken, value) {
     throw error;
   }
   return data;
+}
+
+async function rtdbTagged(fetchImpl, method, env, path, accessToken, value, headers) {
+  const res = await fetchImpl(rtdbUrl(env, path, accessToken), {
+    method,
+    headers: headers || {},
+    body: value === undefined ? undefined : JSON.stringify(value)
+  });
+  const data = method === 'DELETE' ? null : await res.json().catch(() => null);
+  if (res.status === 412) return { conflict: true, data: null, etag: '' };
+  if (!res.ok) {
+    const error = new Error('rtdb');
+    error.code = 'rtdb';
+    throw error;
+  }
+  return { conflict: false, data, etag: responseHeader(res, 'etag') };
 }
 
 export function decodeCiphertext(value) {
@@ -185,7 +209,7 @@ export function parseInnerEnvelope(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const keys = Object.keys(value);
   if (keys.some((key) => !INNER_FIELDS.includes(key))) return null;
-  if (value.v !== 2 || value.kind !== 'text') return null;
+  if (value.v !== 2 || (value.kind !== 'text' && value.kind !== 'photo')) return null;
   const from = String(value.from || '').toLowerCase();
   const to = String(value.to || '').toLowerCase();
   if (!isWallet(from) || !isWallet(to) || from === to) return null;
@@ -206,11 +230,12 @@ export function parseInnerEnvelope(value) {
   }
   for (const field of ['wrappedKey', 'ct']) {
     const ct = String(value[field] || '');
-    if (ct.length < 16 || ct.length > 64 * 1024 || /[^A-Za-z0-9+/=]/.test(ct)) return null;
+    const max = field === 'ct' && value.kind === 'photo' ? 700000 : 64 * 1024;
+    if (ct.length < 16 || ct.length > max || /[^A-Za-z0-9+/=]/.test(ct)) return null;
   }
   return {
     v: 2,
-    kind: 'text',
+    kind: value.kind === 'photo' ? 'photo' : 'text',
     id,
     from,
     to,
@@ -254,17 +279,27 @@ export async function handlePrekeyClaim(req, deps = {}) {
   const peer = String(req.body && req.body.wallet || '').trim().toLowerCase();
   if (!isWallet(peer) || peer === wallet) return fail(400, 'bad_wallet');
   try {
-    const row = await rtdb(setup.fetchImpl, 'GET', setup.env, 'walletKeys/' + peer, setup.access);
-    const prekeys = row && row.prekeys && typeof row.prekeys === 'object' ? { ...row.prekeys } : {};
-    const id = Object.keys(prekeys).find((key) => prekeys[key] && typeof prekeys[key].pub === 'string');
-    if (!id) return fail(404, 'no_prekey');
-    const pub = String(prekeys[id].pub);
-    delete prekeys[id];
-    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'walletKeys/' + peer, setup.access, {
-      ...row,
-      prekeys
-    });
-    return { status: 200, body: { id, pub, identity: String(row.pub || '') } };
+    const path = 'walletKeys/' + peer;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const current = await rtdbTagged(setup.fetchImpl, 'GET', setup.env, path, setup.access, undefined, {
+        'X-Firebase-ETag': 'true'
+      });
+      const row = current.data;
+      const prekeys = row && row.prekeys && typeof row.prekeys === 'object' ? { ...row.prekeys } : {};
+      const id = Object.keys(prekeys).find((key) => prekeys[key] && typeof prekeys[key].pub === 'string');
+      if (!id) return fail(404, 'no_prekey');
+      const pub = String(prekeys[id].pub);
+      delete prekeys[id];
+      const headers = { 'Content-Type': 'application/json' };
+      if (current.etag) headers['if-match'] = current.etag;
+      const saved = await rtdbTagged(setup.fetchImpl, 'PUT', setup.env, path, setup.access, {
+        ...row,
+        prekeys
+      }, headers);
+      if (saved.conflict) continue;
+      return { status: 200, body: { id, pub, identity: String((row && row.pub) || '') } };
+    }
+    return fail(409, 'prekey_conflict');
   } catch {
     return fail(502, 'storage_failed');
   }
@@ -292,7 +327,7 @@ export async function handlePrivateRelay(req, deps = {}) {
     const wrapped = wrapForStorage(serverKey, inner);
     const record = {
       v: 2,
-      kind: 'text',
+      kind: inner.kind === 'photo' ? 'photo' : 'text',
       from: inner.from,
       to: inner.to,
       timestamp: inner.sentAt,
@@ -303,7 +338,7 @@ export async function handlePrivateRelay(req, deps = {}) {
       outerIv: wrapped.outerIv
     };
     await rtdb(setup.fetchImpl, 'PUT', setup.env, path, setup.access, record);
-    const preview = { lastText: 'Encrypted message', lastAt: inner.sentAt };
+    const preview = { lastText: inner.kind === 'photo' ? 'Photo' : 'Encrypted message', lastAt: inner.sentAt };
     await rtdb(setup.fetchImpl, 'PUT', setup.env, 'privateIndex/' + inner.from + '/' + inner.to, setup.access, preview);
     await rtdb(setup.fetchImpl, 'PUT', setup.env, 'privateIndex/' + inner.to + '/' + inner.from, setup.access, preview);
     return { status: 200, body: { id: inner.id, thread } };

@@ -124,7 +124,7 @@ public final class PushAlerts {
         if (view == null) return;
         intent.putExtra("muzz_push_consumed", messageId);
         String peer = extras.getString("peer");
-        String url = "https://localhost/private.html";
+        String url = activity.getBridge().getScheme() + "://" + activity.getBridge().getHost() + "/private.html";
         if (peer != null && peer.matches("(?i)0x[a-f0-9]{40}")) {
             url += "?peer=" + peer.toLowerCase(java.util.Locale.US);
         }

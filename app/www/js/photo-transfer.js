@@ -423,30 +423,38 @@
   function send(opts) {
     var options = opts || {};
     var e2ee = global.MuzzE2EE;
-    if (!e2ee) return Promise.reject(new Error('missing'));
-    return e2ee.preparePhoto(options.me, options.peer, options.bytes).then(function (box) {
-      var idBytes = crypto.getRandomValues(new Uint8Array(16));
-      box.id = Array.from(idBytes, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      function mailbox() {
-        return e2ee.uploadMailbox(box).then(function (seal) {
-          seal.via = 'mailbox';
-          return seal;
+    if (!e2ee || typeof e2ee.sealMessage !== 'function' || typeof e2ee.claimPrekey !== 'function') {
+      return Promise.reject(new Error('missing'));
+    }
+    var sentAt = Date.now();
+    return e2ee.claimPrekey(options.peer).then(function (prekey) {
+      var seq = typeof e2ee.nextSeq === 'function' ? e2ee.nextSeq(options.me, options.peer) : 1;
+      return e2ee.sealMessage(options.me, options.peer, options.bytes, {
+        prekey: prekey,
+        seq: seq,
+        sentAt: sentAt,
+        kind: 'photo'
+      });
+    }).then(function (inner) {
+      function relay() {
+        return e2ee.relay(inner).then(function () {
+          return { v: 2, kind: 'photo', id: inner.id, via: 'relay', inner: inner };
         });
       }
-      if (!options.online) return mailbox();
-      return remember(box).then(function () {
-        return global.MuzzTransfer.directSend(options.db, options.me, options.peer, box, options.timeoutMs);
+      if (!options.online || typeof global.MuzzTransfer.directSendJson !== 'function') return relay();
+      return remember({
+        id: inner.id,
+        from: inner.from,
+        to: inner.to,
+        ct: inner.ct,
+        iv: inner.iv,
+        fromPub: inner.fromPub,
+        toPub: inner.ephPub
       }).then(function () {
-        return {
-          v: 1,
-          kind: 'photo',
-          iv: box.iv,
-          id: box.id,
-          fromPub: box.fromPub,
-          toPub: box.toPub,
-          via: 'direct'
-        };
-      }).catch(function () { return mailbox(); });
+        return global.MuzzTransfer.directSendJson(options.db, options.me, options.peer, inner, options.timeoutMs || 2500);
+      }).then(function () {
+        return { v: 2, kind: 'photo', id: inner.id, via: 'direct', inner: inner };
+      }).catch(function () { return relay(); });
     });
   }
 

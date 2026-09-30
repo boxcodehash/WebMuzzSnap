@@ -77,7 +77,7 @@ test('a one-click SIWE signature is a valid login proof on chain 1 or 56', async
     const cacao = { p: { ...payload, iss }, s: { t: 'eip191', s: signature } };
     const proof = cacaoProof(cacao);
     assert.equal(proof.address, wallet.address.toLowerCase());
-    assert.equal(proveLogin(proof.message, proof.signature, Date.now()).wallet, wallet.address.toLowerCase());
+    assert.equal(proveLogin(proof.message, proof.signature, Date.now()), null);
     if (chain === 'eip155:56') assert.match(proof.message, /Chain ID: 56/);
   }
   const statement = buildAuthStatement({ nonce, exp });
@@ -345,7 +345,7 @@ test('MetaMask uses a plain connect, and one-click falls back after a timeout or
 
   const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
   const page = readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8');
-  assert.match(login, /v1\.0\.25/);
+  assert.match(login, /v1\.0\.26/);
   assert.match(login, />Copy log</);
   assert.match(page, /muzz_debug_log/);
   assert.match(page, /Copy log|copyLog/);

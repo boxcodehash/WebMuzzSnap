@@ -87,7 +87,7 @@ test('el sitio de Vercel publica las páginas reales, no el chat de muestra', ()
   assert.match(chat, /messages\/\$\{activeChannel\.id\}/);
   assert.match(chat, /firebase\.database\(\)/);
   assert.match(priv, /privateInbox/);
-  assert.match(chat, /muzzGate\.readMuzzBalance/);
-  assert.match(priv, /muzzGate\.readMuzzBalance/);
+  assert.match(chat, /muzzGate\.confirmServerBalance/);
+  assert.match(priv, /confirmPrivateBalance/);
   assert.doesNotMatch(chat, /MUZZ_PREVIEW/);
 });

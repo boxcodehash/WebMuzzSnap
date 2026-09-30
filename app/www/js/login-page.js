@@ -164,6 +164,17 @@ async function currentWalletUser() {
 async function resumeIfSignedIn() {
   const user = await currentWalletUser();
   if (!user) return false;
+  if (window.muzzGate && typeof muzzGate.confirmServerBalance === 'function') {
+    const holding = await muzzGate.confirmServerBalance();
+    if (!holding.ok) {
+      log('balance:resume ' + (holding.code || 'denied'));
+      try {
+        const session = auth();
+        if (session) await session.signOut();
+      } catch { /* already signed out */ }
+      return false;
+    }
+  }
   rememberWallet(user.uid);
   log('session:restored ' + user.uid);
   window.location.href = 'chat.html';

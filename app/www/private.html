@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://muzzsnap-app.vercel.app https://www.gstatic.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://ethereum.publicnode.com https://eth.drpc.org https://rpc.ankr.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com; object-src 'none'; base-uri 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#070708">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -160,7 +161,7 @@
         <img src="muzzsnap.jpg" alt="MuzzSnap" class="logo">
         <div>
           <h1>MUZZ<span>SNAP</span></h1>
-          <p class="build-tag">Version 1.0.25</p>
+          <p class="build-tag">Version 1.0.26</p>
         </div>
       </div>
       <div class="card">
@@ -240,8 +241,9 @@
       appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
     };
 
+    const nativeShot = window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform();
     const localShot = new URLSearchParams(location.search).get('shot') === '1'
-      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || nativeShot);
     if (localShot) document.body.classList.add('shot-mode');
     if (!localShot && !firebase.apps.length) firebase.initializeApp(fbConfig);
     const db = localShot ? null : firebase.database();
@@ -294,19 +296,24 @@
         return false;
       }
       sessionStorage.setItem('muzz_wallet_address', meWallet);
-      if (window.MuzzNames && MuzzNames.isWhitelisted(meWallet)) return true;
+      return true;
+    }
+
+    async function confirmPrivateBalance(){
       try{
-        const holding = await muzzGate.readMuzzBalance(meWallet);
-        if(!holding.ok){
-          alert('Insufficient MUZZ balance. You have ' + holding.formatted + ' MUZZ and the minimum is ' + holding.minimum + ' MUZZ.');
-          window.location.href = 'chat.html';
-          return false;
+        const holding = await muzzGate.confirmServerBalance();
+        if(holding.ok) return true;
+        if(holding.code === 'balance'){
+          alert('Insufficient MUZZ balance. You have ' + (holding.formatted || '0') + ' MUZZ and the minimum is 10,000,000 MUZZ.');
+        }else{
+          alert('Your MUZZ balance could not be verified. Nothing was changed.');
         }
-        return true;
+        window.location.href = 'login.html';
+        return false;
       }catch(err){
         console.error('Private validation failed:', err);
         alert('Your MUZZ balance could not be verified. Nothing was changed.');
-        window.location.href = 'chat.html';
+        window.location.href = 'login.html';
         return false;
       }
     }
@@ -517,17 +524,19 @@
         if (!msg) continue;
         if (msg.outer && window.MuzzE2EE) {
           const cached = await MuzzE2EE.cached(msg.id);
-          if (cached && cached.text != null && !MuzzE2EE.isDue(cached, Date.now())) {
+          if (cached && (cached.text != null || cached.photoB64) && !MuzzE2EE.isDue(cached, Date.now())) {
             rows.push(Object.assign({}, cached, { local: true }));
             continue;
           }
           if (String(msg.from || '').toLowerCase() === meWallet) {
-            rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, text: 'Encrypted message', local: true });
+            rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, kind: msg.kind || 'text', text: msg.kind === 'photo' ? 'Photo' : 'Encrypted message', local: true });
             continue;
           }
           try {
             const inner = await MuzzE2EE.unwrap(msg.id, activeWallet);
-            const text = await MuzzE2EE.openMessage(meWallet, inner);
+            const opened = await MuzzE2EE.openMessage(meWallet, inner);
+            const photo = inner && inner.kind === 'photo';
+            const text = photo ? 'Photo' : opened;
             let readAt = Number(msg.readAt) || 0;
             let expireAt = Number(msg.expireAt) || 0;
             const incoming = String(msg.to || '').toLowerCase() === meWallet;
@@ -537,6 +546,10 @@
               expireAt = marked && marked.expireAt ? Number(marked.expireAt) : readAt + READ_TTL_MS;
             }
             const row = plainRow(Object.assign({}, msg, inner, { timestamp: msg.timestamp || inner.sentAt, seq: msg.seq != null ? msg.seq : inner.seq }), text, { readAt: readAt, expireAt: expireAt });
+            if (photo && opened instanceof Uint8Array) {
+              row.kind = 'photo';
+              row.photoB64 = MuzzE2EE.encodeBytes(opened);
+            }
             await MuzzE2EE.rememberPlain(row);
             rows.push(row);
           } catch (err) {
@@ -674,7 +687,7 @@
 
     function paintPlainBodies(root){
       const nodes = root.querySelectorAll('.plain-body');
-      const plains = messages.filter((msg) => !msg.seal);
+      const plains = messages.filter((msg) => !msg.seal && msg.kind !== 'photo' && !msg.photoB64);
       nodes.forEach((node, index) => {
         const text = plains[index] ? (plains[index].text || '') : '';
         if (window.MuzzStickers) MuzzStickers.paint(node, text);
@@ -699,7 +712,9 @@
       box.innerHTML = messages.map(msg => {
         const mine = localShot ? msg.from === 'me' : String(msg.from || '').toLowerCase() === meWallet;
         const name = mine ? (localShot ? 'Node_6bcb8a' : meName) : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
-        const body = msg.seal
+        const body = (msg.kind === 'photo' || msg.photoB64)
+          ? `<span data-photo="${escapeHtml(msg.id)}">Photo</span>`
+          : msg.seal
           ? `<span data-seal="${escapeHtml(msg.id)}">${escapeHtml(msg.seal.kind === 'photo' ? 'Photo' : 'Encrypted message')}</span>`
           : '<span class="plain-body"></span>';
         return `
@@ -715,6 +730,27 @@
       paintPlainBodies(box);
       box.scrollTop = box.scrollHeight;
       decorateSeals();
+      decoratePhotos();
+    }
+
+    function decoratePhotos() {
+      const box = document.getElementById('messages');
+      box.querySelectorAll('[data-photo]').forEach((node) => {
+        if (node.dataset.opened === '1') return;
+        const msg = messages.find((item) => item.id === node.getAttribute('data-photo'));
+        if (!msg || !msg.photoB64 || !window.MuzzE2EE) return;
+        node.dataset.opened = '1';
+        try {
+          const blob = MuzzE2EE.photoBlob(msg.photoB64);
+          const img = document.createElement('img');
+          img.alt = 'Photo';
+          img.src = URL.createObjectURL(blob);
+          node.textContent = '';
+          node.appendChild(img);
+        } catch (err) {
+          node.textContent = 'Could not open this photo.';
+        }
+      });
     }
 
     function decorateSeals() {
@@ -955,46 +991,53 @@
     }
     async function sendPhoto(file) {
       if (!file || !activeWallet || !window.MuzzE2EE) return;
+      let inner = null;
       try {
         const image = await MuzzE2EE.compressImage(file);
         if (!image) throw Object.assign(new Error('unsupported'), { code: 'unsupported' });
         const bytes = new Uint8Array(await image.arrayBuffer());
         const peer = contacts.find((item) => item.wallet === activeWallet);
-        const tid = threadId(meWallet, activeWallet);
-        const seal = window.MuzzTransfer
+        const sentAt = Date.now();
+        const sent = window.MuzzTransfer
           ? await MuzzTransfer.send({ me: meWallet, peer: activeWallet, bytes: bytes, online: !!(peer && peer.online), db: db })
-          : await MuzzE2EE.sealPhoto(meWallet, activeWallet, bytes);
-        const msgRef = await db.ref('privateInbox/' + tid + '/messages').push({
+          : null;
+        inner = sent && sent.inner;
+        if (!inner) {
+          const prekey = await MuzzE2EE.claimPrekey(activeWallet);
+          inner = await MuzzE2EE.sealMessage(meWallet, activeWallet, bytes, {
+            prekey: prekey,
+            seq: MuzzE2EE.nextSeq(meWallet, activeWallet),
+            sentAt: sentAt,
+            kind: 'photo'
+          });
+          await MuzzE2EE.relay(inner);
+        }
+        const local = {
+          id: inner.id,
           from: meWallet,
           to: activeWallet,
-          username: meName,
           text: 'Photo',
-          seal: {
-            v: seal.v,
-            kind: 'photo',
-            iv: seal.iv,
-            id: seal.id,
-            fromPub: seal.fromPub,
-            toPub: seal.toPub
-          },
-          timestamp: Date.now()
-        });
-        if (seal && seal.via === 'mailbox' && seal.id && msgRef && msgRef.key) {
-          MuzzE2EE.linkPhoto(seal.id, tid, msgRef.key);
+          kind: 'photo',
+          photoB64: MuzzE2EE.encodeBytes(bytes),
+          timestamp: sentAt,
+          seq: inner.seq || 0,
+          readAt: sentAt,
+          expireAt: sentAt + READ_TTL_MS,
+          local: true
+        };
+        await MuzzE2EE.rememberPlain(local);
+        messages = MuzzE2EE.sortMessages(messages.concat([local]));
+        renderMessages();
+        if (db) {
+          const preview = { lastText: 'Photo', lastAt: sentAt };
+          await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
+          await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
         }
-        if (seal && seal.via === 'direct' && msgRef && typeof msgRef.remove === 'function') {
-          msgRef.remove().catch((err) => console.error(err));
-        }
-        const preview = { lastText: 'Photo', lastAt: Date.now() };
-        await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
-        await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
         if (window.MuzzPush) MuzzPush.notify(activeWallet);
       } catch (err) {
         console.error(err);
         if (err && err.code === 'no_peer_key') {
           alert('This person has not opened MuzzSnap on their phone yet, so the photo cannot be encrypted.');
-        } else if (err && (err.code === 'unauthorized' || err.code === 'blob_not_configured')) {
-          alert('Photo upload is not ready. Sign in again, or the photo store is not configured.');
         } else if (err && err.code === 'unsupported') {
           alert('This photo format is not supported. Try another image.');
         } else {
@@ -1162,13 +1205,17 @@
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
       try {
-        if (window.MuzzPush) {
-          const signed = await MuzzPush.signInForChat(meWallet);
-          if (signed && signed.needsSign) {
-            window.location.replace('login.html');
-            return;
-          }
-        } else await firebase.auth().signInAnonymously();
+        if (!window.MuzzPush) {
+          window.location.replace('login.html');
+          return;
+        }
+        const signed = await MuzzPush.signInForChat(meWallet);
+        if (!signed || signed.needsSign) {
+          window.location.replace('login.html');
+          return;
+        }
+        const funded = await confirmPrivateBalance();
+        if (!funded) return;
         if (window.MuzzE2EE) MuzzE2EE.publish(meWallet).catch((err) => console.error(err));
         if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: meWallet });
         sweepExpired();

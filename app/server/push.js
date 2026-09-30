@@ -1,10 +1,9 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   createCustomToken,
   databaseUrl,
   getGoogleAccessToken,
   loadServiceAccount,
-  signatureKey,
   tokenId,
   verifyFirebaseIdToken
 } from './google.js';
@@ -110,6 +109,16 @@ function rtdbPath(env, path, accessToken, extra) {
   return url.toString();
 }
 
+function responseHeader(res, name) {
+  const headers = res && res.headers;
+  if (!headers) return '';
+  const wanted = String(name || '').toLowerCase();
+  if (typeof headers.get === 'function') {
+    return headers.get(name) || headers.get(wanted) || '';
+  }
+  return headers[name] || headers[wanted] || '';
+}
+
 async function rtdb(fetchImpl, method, env, path, accessToken, value, extra) {
   const res = await fetchImpl(rtdbPath(env, path, accessToken, extra), {
     method,
@@ -124,6 +133,24 @@ async function rtdb(fetchImpl, method, env, path, accessToken, value, extra) {
     throw error;
   }
   return data;
+}
+
+/** GET/PUT/DELETE that can use a Firebase ETag. 412 is a lost race, not an exception. */
+async function rtdbTagged(fetchImpl, method, env, path, accessToken, value, headers) {
+  const res = await fetchImpl(rtdbPath(env, path, accessToken), {
+    method,
+    headers: headers || {},
+    body: value === undefined ? undefined : JSON.stringify(value)
+  });
+  const data = method === 'DELETE' ? null : await res.json().catch(() => null);
+  if (res.status === 412) return { conflict: true, status: 412, data: null, etag: '' };
+  if (!res.ok) {
+    const error = new Error('rtdb');
+    error.code = 'rtdb';
+    error.status = res.status;
+    throw error;
+  }
+  return { conflict: false, status: res.status, data, etag: responseHeader(res, 'etag') };
 }
 
 function indexExists(value) {
@@ -229,19 +256,74 @@ function requestOp(req) {
   }
 }
 
-async function issueNonce(req, env, fetchImpl, account) {
+const SESSION_WINDOW_MS = 60 * 1000;
+const NONCE_LIMIT = 30;
+const POST_LIMIT = 20;
+
+function clientIp(req) {
+  const headers = req.headers || {};
+  const raw = headers['x-forwarded-for'] || headers['X-Forwarded-For'] || headers['x-real-ip'] || headers['X-Real-Ip'] || '';
+  return String(raw).split(',')[0].trim().slice(0, 80) || 'unknown';
+}
+
+function rateBucket(ip, kind) {
+  return createHash('sha256').update(String(ip) + ':' + kind).digest('hex').slice(0, 32);
+}
+
+async function allowSession(fetchImpl, env, access, ip, kind, now) {
+  const clock = Number(now) || Date.now();
+  const path = 'sessionRate/' + rateBucket(ip, kind);
+  const prev = await rtdb(fetchImpl, 'GET', env, path, access);
+  const windowStart = prev && Number(prev.windowStart) ? Number(prev.windowStart) : 0;
+  const count = prev && Number(prev.count) ? Number(prev.count) : 0;
+  const fresh = !windowStart || clock - windowStart >= SESSION_WINDOW_MS;
+  const next = { windowStart: fresh ? clock : windowStart, count: fresh ? 1 : count + 1 };
+  const limit = kind === 'post' ? POST_LIMIT : NONCE_LIMIT;
+  if (next.count > limit) return false;
+  await rtdb(fetchImpl, 'PUT', env, path, access, next);
+  return true;
+}
+
+async function issueNonce(req, env, fetchImpl, access) {
   if (requestOp(req) !== 'nonce') return fail(405, 'method');
   const now = Number(req.now) || Date.now();
+  if (!await allowSession(fetchImpl, env, access, clientIp(req), 'nonce', now)) return fail(429, 'rate_limited');
   const nonce = randomBytes(16).toString('hex');
   const exp = now + 10 * 60 * 1000;
+  await rtdb(fetchImpl, 'PUT', env, 'loginIssued/' + nonce, access, { exp });
+  return { status: 200, body: { nonce, exp } };
+}
+
+async function consumeNonce(fetchImpl, env, access, nonce, wallet, exp) {
+  const usedPath = 'loginNonces/' + nonce;
+  const current = await rtdbTagged(fetchImpl, 'GET', env, usedPath, access, undefined, { 'X-Firebase-ETag': 'true' });
+  if (current.data) return 'nonce_used';
+  const issued = await rtdb(fetchImpl, 'GET', env, 'loginIssued/' + nonce, access);
+  if (!issued || typeof issued !== 'object' || Number(issued.exp) !== Number(exp)) return 'bad_format';
+  const headers = { 'Content-Type': 'application/json' };
+  if (current.etag) headers['if-match'] = current.etag;
+  const put = await rtdbTagged(fetchImpl, 'PUT', env, usedPath, access, { wallet, exp: Number(exp) }, headers);
+  if (put.conflict) return 'nonce_used';
   try {
-    const access = await getGoogleAccessToken(account, fetchImpl, req.now);
-    await rtdb(fetchImpl, 'PUT', env, 'loginIssued/' + nonce, access, { exp });
-    return { status: 200, body: { nonce, exp } };
-  } catch (err) {
-    warnSessionFailure(err);
-    return fail(502, 'session_failed');
+    await rtdbTagged(fetchImpl, 'DELETE', env, 'loginIssued/' + nonce, access);
+  } catch {
+    /* The nonce row already blocks a second use. The issued row is only a leftover. */
   }
+  return '';
+}
+
+async function holdingFor(wallet, deps, fetchImpl) {
+  const holding = deps.readBalance
+    ? await deps.readBalance(wallet)
+    : await readMuzzHolding(wallet, fetchImpl);
+  if (!holding || holding.unreachable) return fail(503, 'balance_unavailable');
+  if (!holding.ok) {
+    return {
+      status: 403,
+      body: { error: 'balance', formatted: holding.formatted || '0', minimum: '10,000,000' }
+    };
+  }
+  return { status: 200, body: { ok: true, exempt: holding.exempt === true } };
 }
 
 export async function handleSession(req, deps = {}) {
@@ -250,51 +332,41 @@ export async function handleSession(req, deps = {}) {
   const fetchImpl = deps.fetchImpl || fetch;
   const account = loadServiceAccount(env);
   if (!account) return fail(503, 'push_not_configured');
-  if (req.method === 'GET') return issueNonce(req, env, fetchImpl, account);
-  if (req.method !== 'POST') return fail(405, 'method');
-  const message = req.body && req.body.message;
-  const signature = req.body && req.body.signature;
-  const judged = classifyLogin(message, signature, req.now || Date.now());
-  if (!judged.proof) {
-    const reason = sessionError(judged.reason);
-    console.warn('session rejected: ' + reason);
-    return fail(401, reason);
-  }
-  const proof = judged.proof;
-  const key = proof.nonce || signatureKey(signature);
+  const now = Number(req.now) || Date.now();
   try {
     const access = await getGoogleAccessToken(account, fetchImpl, req.now);
-    if (proof.short) {
-      const issued = await rtdb(fetchImpl, 'GET', env, 'loginIssued/' + proof.nonce, access);
-      if (!issued || typeof issued !== 'object') {
-        console.warn('session rejected: bad_format');
-        return fail(401, 'bad_format');
-      }
-      if (Number(issued.exp) <= (Number(req.now) || Date.now())) {
-        console.warn('session rejected: expired');
-        return fail(401, 'expired');
-      }
+    if (req.method === 'GET' && requestOp(req) === 'balance') {
+      const wallet = await senderWallet(req, account, fetchImpl);
+      if (!wallet) return fail(401, 'unauthorized');
+      const checked = await holdingFor(wallet, deps, fetchImpl);
+      if (checked.status !== 200) console.warn('session rejected: ' + (checked.body && checked.body.error));
+      return checked;
     }
-    const used = await rtdb(fetchImpl, 'GET', env, 'loginNonces/' + key, access);
-    if (used) {
-      console.warn('session rejected: nonce_used');
-      return fail(401, 'nonce_used');
+    if (req.method === 'GET') return await issueNonce(req, env, fetchImpl, access);
+    if (req.method !== 'POST') return fail(405, 'method');
+    if (!await allowSession(fetchImpl, env, access, clientIp(req), 'post', now)) return fail(429, 'rate_limited');
+    const message = req.body && req.body.message;
+    const signature = req.body && req.body.signature;
+    const judged = classifyLogin(message, signature, now);
+    if (!judged.proof) {
+      const reason = sessionError(judged.reason);
+      console.warn('session rejected: ' + reason);
+      return fail(401, reason);
     }
-    const holding = deps.readBalance
-      ? await deps.readBalance(proof.wallet)
-      : await readMuzzHolding(proof.wallet, fetchImpl);
-    if (!holding || holding.unreachable) {
-      console.warn('session rejected: balance_unavailable');
-      return fail(503, 'balance_unavailable');
+    const proof = judged.proof;
+    const checked = await holdingFor(proof.wallet, deps, fetchImpl);
+    if (checked.status !== 200) {
+      console.warn('session rejected: ' + (checked.body && checked.body.error));
+      return checked;
     }
-    if (!holding.ok) {
-      console.warn('session rejected: balance');
-      return fail(403, 'balance');
+    const consumed = await consumeNonce(fetchImpl, env, access, proof.nonce, proof.wallet, proof.exp);
+    if (consumed) {
+      console.warn('session rejected: ' + consumed);
+      return fail(401, consumed);
     }
-    await rtdb(fetchImpl, 'PUT', env, 'loginNonces/' + key, access, { wallet: proof.wallet, exp: proof.exp || (Number(req.now) || Date.now()) });
     return {
       status: 200,
-      body: { customToken: createCustomToken(account, proof.wallet, req.now || Date.now()) }
+      body: { customToken: createCustomToken(account, proof.wallet, now) }
     };
   } catch (err) {
     if (err && err.code === 'balance_unavailable') {

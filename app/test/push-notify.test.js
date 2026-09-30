@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Wallet } from 'ethers';
 import { getGoogleAccessToken, resetGoogleCaches, signJwt, tokenId } from '../server/google.js';
 import { proveLogin } from '../server/login-proof.js';
+import { buildLoginMessage } from '../src/login-client.js';
 import {
   NOTIFICATION_BODY,
   PUBLIC_VAPID_KEY,
@@ -148,23 +149,10 @@ test('session proof, notify, register, and push config', async () => {
   const now = Date.now();
   const nonce = 'cd'.repeat(16);
   const exp = now + 60_000;
-  const message = [
-    'MuzzSnap Login',
-    '',
-    sender.address + ' wants to sign in to MuzzSnap.',
-    'Sign this message to prove you control this wallet. It does not spend gas.',
-    '',
-    'Wallet: ' + sender.address,
-    'Chain ID: 1',
-    'Nonce: ' + nonce,
-    'Expires: ' + exp,
-    'Token: 0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
-    'Minimum: 10000000 MUZZ'
-  ].join('\n');
+  const message = buildLoginMessage(sender.address, nonce, exp, new Date(now).toISOString());
   const signature = await sender.signMessage(message);
   assert.equal(proveLogin(message, signature, now).wallet, senderWallet);
   assert.equal(proveLogin(message, signature, exp + 1), null);
-  const issued = new Date(now).toISOString();
   const rootMessage = [
     'MuzzSnap Login',
     '',
@@ -172,14 +160,15 @@ test('session proof, notify, register, and push config', async () => {
     'You will continue in this browser after signing.',
     '',
     'Wallet: ' + sender.address,
-    'Issued: ' + issued
+    'Issued: ' + new Date(now).toISOString()
   ].join('\n');
   const rootSig = await sender.signMessage(rootMessage);
-  assert.equal(proveLogin(rootMessage, rootSig, now).wallet, senderWallet);
-  assert.equal(proveLogin(rootMessage, rootSig, now + 11 * 60 * 1000), null);
+  assert.equal(proveLogin(rootMessage, rootSig, now), null);
   assert.equal(proveLogin(message, await recipient.signMessage(message), now), null);
+  assert.equal(rootSig.startsWith('0x'), true);
 
   const db = {};
+  db['loginIssued/' + nonce] = { exp };
   const calls = [];
   const fetchImpl = mockBackend(db, calls);
   const session = await handleSession(
@@ -367,7 +356,10 @@ test('clients, rules, and the Android fallback do not ship the service account',
   assert.match(alerts, /IMPORTANCE_HIGH/);
   assert.match(alerts, /POST_NOTIFICATIONS/);
   assert.match(alerts, /fcm token obtained/);
-  assert.match(alerts, /https:\/\/localhost\/private\.html/);
+  assert.match(alerts, /getScheme\(\)/);
+  assert.match(alerts, /getHost\(\)/);
+  assert.match(alerts, /\/private\.html/);
+  assert.doesNotMatch(alerts, /https:\/\/localhost\/private\.html/);
   assert.match(readFileSync(new URL('../api/push.js', import.meta.url), 'utf8'), /handleNotifySelf/);
   for (const file of ['www/sw.js', '../sw.js']) {
     const sw = readFileSync(new URL('../' + file, import.meta.url), 'utf8');

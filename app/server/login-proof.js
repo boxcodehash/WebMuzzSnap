@@ -1,72 +1,56 @@
-import { verifyMessage } from 'ethers';
+import { getAddress, verifyMessage } from 'ethers';
 
 export const MAX_AGE_MS = 10 * 60 * 1000;
-/** A phone clock up to 7 minutes fast must not fail the future-dated Expires check. */
+/** A phone clock up to 7 minutes fast must not fail the Issued At check. */
 export const CLOCK_SKEW_MS = 7 * 60 * 1000;
-const CHAINS = new Set(['1', '56']);
+export const SIWE_DOMAIN = 'muzzsnap-app.vercel.app';
+export const SIWE_URI = 'https://muzzsnap-app.vercel.app/login.html';
+export const SIWE_STATEMENT = 'Sign in to MuzzSnap. This request does not spend gas or approve a token.';
 
-function chainValues(lines) {
-  return lines
-    .filter((line) => line.startsWith('Chain ID: '))
-    .map((line) => line.slice('Chain ID: '.length).trim());
+function field(line, name) {
+  const prefix = name + ': ';
+  if (!line.startsWith(prefix)) return '';
+  return line.slice(prefix.length).trim();
 }
 
-function inspectExpiring(lines, wallet, clock) {
-  const expiresLine = lines.find((line) => line.startsWith('Expires: '));
-  if (!expiresLine) return { reason: 'bad_format' };
-  const chains = chainValues(lines);
-  if (!chains.length || chains.some((value) => !CHAINS.has(value))) return { reason: 'bad_format' };
-  const nonceLine = lines.find((line) => line.startsWith('Nonce: '));
-  if (!nonceLine) return { reason: 'bad_format' };
-  const nonce = nonceLine.slice('Nonce: '.length).trim().toLowerCase();
-  if (!/^[a-f0-9]{32}$/.test(nonce)) return { reason: 'bad_format' };
-  const exp = Number(expiresLine.slice('Expires: '.length).trim());
-  if (!Number.isFinite(exp)) return { reason: 'bad_format' };
+/**
+ * Accept only the EIP-4361 message the app asks the wallet to sign.
+ * The three-line form and any "MuzzSnap Login" form are rejected.
+ */
+export function inspectLoginProof(message, now) {
+  const lines = String(message || '').replace(/\r\n/g, '\n').split('\n');
+  if (lines.length !== 11) return { reason: 'bad_format' };
+  if (lines[0] !== SIWE_DOMAIN + ' wants you to sign in with your Ethereum account:') return { reason: 'bad_format' };
+  const address = lines[1].trim();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { reason: 'bad_format' };
+  let checksum = '';
+  try {
+    checksum = getAddress(address.toLowerCase());
+  } catch {
+    return { reason: 'bad_format' };
+  }
+  if (checksum !== address) return { reason: 'bad_format' };
+  if (lines[2] !== '' || lines[4] !== '') return { reason: 'bad_format' };
+  if (lines[3] !== SIWE_STATEMENT) return { reason: 'bad_format' };
+  if (field(lines[5], 'URI') !== SIWE_URI) return { reason: 'bad_format' };
+  if (field(lines[6], 'Version') !== '1') return { reason: 'bad_format' };
+  if (field(lines[7], 'Chain ID') !== '1') return { reason: 'bad_format' };
+  const nonce = field(lines[8], 'Nonce').toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(nonce) || lines[8] !== 'Nonce: ' + nonce) return { reason: 'bad_format' };
+  const issuedAt = field(lines[9], 'Issued At');
+  const expiration = field(lines[10], 'Expiration Time');
+  const issued = Date.parse(issuedAt);
+  const exp = Date.parse(expiration);
+  const clock = Number(now) || Date.now();
+  if (!Number.isFinite(issued) || !Number.isFinite(exp)) return { reason: 'bad_format' };
+  if (lines[9] !== 'Issued At: ' + new Date(issued).toISOString()) return { reason: 'bad_format' };
+  if (lines[10] !== 'Expiration Time: ' + new Date(exp).toISOString()) return { reason: 'bad_format' };
+  if (issued > exp) return { reason: 'bad_format' };
+  if (issued > clock + CLOCK_SKEW_MS) return { reason: 'bad_format' };
   if (exp <= clock) return { reason: 'expired' };
   if (exp > clock + MAX_AGE_MS + CLOCK_SKEW_MS) return { reason: 'bad_format' };
-  return { wallet, exp, nonce };
-}
-
-function inspectShort(lines) {
-  if (lines[0] !== 'MuzzSnap') return null;
-  const walletLine = lines.find((line) => line.startsWith('Wallet: '));
-  const nonceLine = lines.find((line) => line.startsWith('Nonce: '));
-  if (!walletLine || !nonceLine) return { reason: 'bad_format' };
-  const wallet = walletLine.slice('Wallet: '.length).trim().toLowerCase();
-  const nonce = nonceLine.slice('Nonce: '.length).trim().toLowerCase();
-  if (!/^0x[a-f0-9]{40}$/.test(wallet)) return { reason: 'bad_format' };
-  if (!/^[a-f0-9]{32}$/.test(nonce)) return { reason: 'bad_format' };
-  return { wallet, nonce, exp: 0, short: true };
-}
-
-function inspectLoginProof(message, now) {
-  const lines = String(message || '').split('\n');
-  const clock = Number(now) || Date.now();
-  const short = inspectShort(lines);
-  if (short) return short;
-  if (/wants you to sign in with your Ethereum account:$/.test(String(lines[0] || ''))) {
-    if (!lines.some((line) => line === 'MuzzSnap Login')) return { reason: 'bad_format' };
-    if (!lines.some((line) => line.startsWith('Token: '))) return { reason: 'bad_format' };
-    if (!lines.some((line) => line.startsWith('Minimum: '))) return { reason: 'bad_format' };
-    const address = String(lines[1] || '').trim();
-    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { reason: 'bad_format' };
-    return inspectExpiring(lines, address.toLowerCase(), clock);
-  }
-  if (lines[0] !== 'MuzzSnap Login') return { reason: 'bad_format' };
-  const walletLine = lines.find((line) => line.startsWith('Wallet: '));
-  if (!walletLine) return { reason: 'bad_format' };
-  const walletRaw = walletLine.slice('Wallet: '.length).trim();
-  if (!/^0x[a-fA-F0-9]{40}$/.test(walletRaw)) return { reason: 'bad_format' };
-  const wallet = walletRaw.toLowerCase();
-  const expiresLine = lines.find((line) => line.startsWith('Expires: '));
-  if (expiresLine) return inspectExpiring(lines, wallet, clock);
-  const issuedLine = lines.find((line) => line.startsWith('Issued: '));
-  if (!issuedLine) return { reason: 'bad_format' };
-  const issued = Date.parse(issuedLine.slice('Issued: '.length).trim());
-  if (!Number.isFinite(issued)) return { reason: 'bad_format' };
-  if (issued > clock + CLOCK_SKEW_MS) return { reason: 'bad_format' };
-  if (clock - issued > MAX_AGE_MS) return { reason: 'expired' };
-  return { wallet, exp: issued + MAX_AGE_MS, nonce: '' };
+  if (exp - issued > MAX_AGE_MS + CLOCK_SKEW_MS) return { reason: 'bad_format' };
+  return { wallet: address.toLowerCase(), exp, nonce, issued };
 }
 
 export function parseLoginProof(message, now) {
@@ -82,7 +66,7 @@ export function classifyLogin(message, signature, now) {
   if (!/^0x[a-fA-F0-9]{128,132}$/.test(sig)) return { reason: 'bad_signature' };
   let recovered = '';
   try {
-    recovered = verifyMessage(String(message), sig);
+    recovered = verifyMessage(String(message).replace(/\r\n/g, '\n'), sig);
   } catch {
     return { reason: 'bad_signature' };
   }
@@ -91,8 +75,7 @@ export function classifyLogin(message, signature, now) {
     proof: {
       wallet: parsed.wallet,
       exp: parsed.exp,
-      nonce: parsed.nonce,
-      short: parsed.short === true
+      nonce: parsed.nonce
     }
   };
 }

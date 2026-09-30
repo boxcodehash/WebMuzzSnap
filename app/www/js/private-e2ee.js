@@ -1,5 +1,5 @@
 /**
- * Private text uses three keys. None of them is enough on its own.
+ * Private text and photos use three keys. None of them is enough on its own.
  *
  * 1. Sender: a fresh P-256 ephemeral key and a random AES-256-GCM content key per message.
  * 2. Receiver: a one-time prekey. The wrap key is HKDF(sender ephemeral × receiver prekey,
@@ -11,10 +11,7 @@
  * wallet addresses. The Ethereum private key stays in the wallet.
  */
 (function (global) {
-  var PRIV_KEY = 'muzz_e2ee_priv';
-  var PUB_KEY = 'muzz_e2ee_pub';
   var CURVE = 'P-256';
-  var INFO = 'muzzsnap-private-v1';
   var PUBLIC_API = 'https://muzzsnap-app.vercel.app';
   var READ_TTL_MS = 24 * 60 * 60 * 1000;
   var UNREAD_TTL_MS = 24 * 60 * 60 * 1000;
@@ -94,38 +91,6 @@
     try { localStorage.setItem(key, value); } catch (err) { /* private mode */ }
   }
 
-  function loadOrCreate() {
-    var privB64 = storageGet(PRIV_KEY);
-    var pubB64 = storageGet(PUB_KEY);
-    if (privB64 && pubB64) {
-      return crypto.subtle.importKey(
-        'pkcs8',
-        b64ToBytes(privB64),
-        { name: 'ECDH', namedCurve: CURVE },
-        true,
-        ['deriveBits']
-      ).then(function (privateKey) {
-        return { privateKey: privateKey, pub: pubB64 };
-      });
-    }
-    return crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: CURVE },
-      true,
-      ['deriveBits']
-    ).then(function (pair) {
-      return Promise.all([
-        crypto.subtle.exportKey('pkcs8', pair.privateKey),
-        crypto.subtle.exportKey('spki', pair.publicKey)
-      ]).then(function (exported) {
-        privB64 = bytesToB64(new Uint8Array(exported[0]));
-        pubB64 = bytesToB64(new Uint8Array(exported[1]));
-        storageSet(PRIV_KEY, privB64);
-        storageSet(PUB_KEY, pubB64);
-        return { privateKey: pair.privateKey, pub: pubB64 };
-      });
-    });
-  }
-
   function importPub(b64) {
     return crypto.subtle.importKey(
       'spki',
@@ -134,199 +99,6 @@
       true,
       []
     );
-  }
-
-  function aesKey(privateKey, peerPubB64) {
-    return importPub(peerPubB64).then(function (publicKey) {
-      return crypto.subtle.deriveBits({ name: 'ECDH', public: publicKey }, privateKey, 256);
-    }).then(function (bits) {
-      return crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
-    }).then(function (hkdf) {
-      return crypto.subtle.deriveKey(
-        {
-          name: 'HKDF',
-          hash: 'SHA-256',
-          salt: new Uint8Array(16),
-          info: new TextEncoder().encode(INFO)
-        },
-        hkdf,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt']
-      );
-    });
-  }
-
-  function encryptBytes(privateKey, peerPubB64, bytes) {
-    return aesKey(privateKey, peerPubB64).then(function (key) {
-      var iv = crypto.getRandomValues(new Uint8Array(12));
-      return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, bytes).then(function (ct) {
-        return { iv: bytesToB64(iv), ct: bytesToB64(new Uint8Array(ct)) };
-      });
-    });
-  }
-
-  function decryptBytes(privateKey, peerPubB64, ivB64, ctB64) {
-    return aesKey(privateKey, peerPubB64).then(function (key) {
-      return crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: b64ToBytes(ivB64) },
-        key,
-        b64ToBytes(ctB64)
-      ).then(function (plain) {
-        return new Uint8Array(plain);
-      });
-    });
-  }
-
-  function otherPub(seal, me, from) {
-    var mine = String(from || '').toLowerCase() === String(me || '').toLowerCase();
-    return mine ? seal.toPub : seal.fromPub;
-  }
-
-  function peerKey(wallet) {
-    return post('/api/wallet-key-read', { wallet: String(wallet || '').toLowerCase() }).then(function (data) {
-      return data && data.pub ? String(data.pub) : '';
-    });
-  }
-
-  function sealText(me, peer, text) {
-    return loadOrCreate().then(function (keys) {
-      return peerKey(peer).then(function (toPub) {
-        if (!toPub) return null;
-        return encryptBytes(keys.privateKey, toPub, new TextEncoder().encode(text)).then(function (box) {
-          return {
-            v: 1,
-            kind: 'text',
-            iv: box.iv,
-            ct: box.ct,
-            fromPub: keys.pub,
-            toPub: toPub
-          };
-        });
-      });
-    });
-  }
-
-  function openText(me, from, seal) {
-    return loadOrCreate().then(function (keys) {
-      return decryptBytes(keys.privateKey, otherPub(seal, me, from), seal.iv, seal.ct).then(function (plain) {
-        return new TextDecoder().decode(plain);
-      });
-    });
-  }
-
-  function preparePhoto(me, peer, bytes) {
-    return loadOrCreate().then(function (keys) {
-      return peerKey(peer).then(function (toPub) {
-        if (!toPub) {
-          var missing = new Error('no_peer_key');
-          missing.code = 'no_peer_key';
-          throw missing;
-        }
-        return encryptBytes(keys.privateKey, toPub, bytes).then(function (box) {
-          return {
-            v: 1,
-            kind: 'photo',
-            iv: box.iv,
-            ct: box.ct,
-            from: walletOf(me),
-            to: walletOf(peer),
-            fromPub: keys.pub,
-            toPub: toPub
-          };
-        });
-      });
-    });
-  }
-
-  function rememberBox(box, id) {
-    var row = {
-      id: id,
-      from: box.from,
-      to: box.to,
-      iv: box.iv,
-      ct: box.ct,
-      fromPub: box.fromPub,
-      toPub: box.toPub
-    };
-    if (global.MuzzTransfer && typeof global.MuzzTransfer.remember === 'function') {
-      return global.MuzzTransfer.remember(row).then(function () { return row; });
-    }
-    return Promise.resolve(row);
-  }
-
-  function uploadMailbox(box) {
-    return post('/api/private-blob', {
-      to: box.to,
-      ct: box.ct,
-      iv: box.iv,
-      fromPub: box.fromPub,
-      toPub: box.toPub
-    }).then(function (stored) {
-      var seal = {
-        v: 1,
-        kind: 'photo',
-        iv: box.iv,
-        id: stored.id,
-        fromPub: box.fromPub,
-        toPub: box.toPub
-      };
-      return rememberBox(box, stored.id).then(function () { return seal; });
-    });
-  }
-
-  function sealPhoto(me, peer, bytes) {
-    return preparePhoto(me, peer, bytes).then(function (box) {
-      return uploadMailbox(box);
-    });
-  }
-
-  function linkPhoto(id, thread, msgId) {
-    return post('/api/private-blob-link', { id: id, thread: thread, msgId: msgId }).catch(function () { return null; });
-  }
-
-  function pendingPhotos() {
-    return post('/api/photo-mailbox', {}).then(function (data) {
-      return (data && data.items) || [];
-    });
-  }
-
-  function ackPhoto(id) {
-    return post('/api/private-blob-ack', { id: id }).catch(function () { return null; });
-  }
-
-  function openPhoto(me, from, seal) {
-    var local = (global.MuzzTransfer && typeof global.MuzzTransfer.readLocal === 'function')
-      ? global.MuzzTransfer.readLocal(seal && seal.id)
-      : Promise.resolve(null);
-    return local.then(function (row) {
-      return loadOrCreate().then(function (keys) {
-        if (row && row.ct) {
-          return decryptBytes(keys.privateKey, otherPub(seal, me, from), row.iv || seal.iv, row.ct);
-        }
-        return post('/api/private-blob-read', { id: seal.id }).then(function (stored) {
-          var box = {
-            from: walletOf(from),
-            to: walletOf(me),
-            iv: seal.iv,
-            ct: stored.ct,
-            fromPub: seal.fromPub,
-            toPub: seal.toPub
-          };
-          return rememberBox(box, seal.id).then(function () {
-            return ackPhoto(seal.id);
-          }).then(function () {
-            return decryptBytes(keys.privateKey, otherPub(seal, me, from), seal.iv, stored.ct);
-          });
-        });
-      });
-    }).then(function (plain) {
-      return new Blob([plain], { type: 'image/webp' });
-    });
-  }
-
-  function forgetBlob(id) {
-    return ackPhoto(id);
   }
 
   function concatBytes(parts) {
@@ -796,12 +568,18 @@
     return post('/api/private?op=receipt', { id: id, peer: walletOf(peer) });
   }
 
+  function encodeBytes(bytes) {
+    return bytesToB64(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
+  }
+
+  function photoBlob(b64) {
+    return new Blob([b64ToBytes(b64)], { type: 'image/webp' });
+  }
+
   function publish(wallet) {
     var me = walletOf(wallet);
     if (!me) {
-      return loadOrCreate().then(function (keys) {
-        return post('/api/wallet-key', { pub: keys.pub }).then(function () { return keys.pub; });
-      });
+      return Promise.reject(Object.assign(new Error('bad_wallet'), { code: 'bad_wallet' }));
     }
     return ensureBundle(me).then(function (bundle) {
       return post('/api/wallet-key', { pub: bundle.pub, prekeys: bundle.prekeys }).then(function () {
@@ -865,21 +643,9 @@
 
   global.MuzzE2EE = {
     publish: publish,
-    peerKey: peerKey,
-    sealText: sealText,
-    openText: openText,
-    preparePhoto: preparePhoto,
-    uploadMailbox: uploadMailbox,
-    sealPhoto: sealPhoto,
-    linkPhoto: linkPhoto,
-    pendingPhotos: pendingPhotos,
-    ackPhoto: ackPhoto,
-    openPhoto: openPhoto,
-    forgetBlob: forgetBlob,
     compressImage: compressImage,
-    encryptBytes: encryptBytes,
-    decryptBytes: decryptBytes,
-    loadOrCreate: loadOrCreate,
+    encodeBytes: encodeBytes,
+    photoBlob: photoBlob,
     ensureBundle: ensureBundle,
     sealMessage: sealMessage,
     openMessage: openMessage,

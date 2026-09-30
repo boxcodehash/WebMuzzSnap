@@ -401,7 +401,7 @@ export async function walletConnectUri() {
       namespaces: {},
       optionalNamespaces: {
         eip155: {
-          chains: ['eip155:1', 'eip155:56'],
+          chains: ['eip155:1'],
           methods: AUTH_METHODS.slice(),
           events: ['chainChanged', 'accountsChanged']
         }

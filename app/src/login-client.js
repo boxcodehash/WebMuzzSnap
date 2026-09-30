@@ -1,4 +1,5 @@
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
+import { getAddress } from 'ethers';
 import { SUPPORTED_WALLETS, NATIVE_RETURN } from './walletCatalog.js';
 import { rewriteWalletOpen } from './walletLinks.js';
 
@@ -14,8 +15,30 @@ const RPCS = [
 ];
 const SIGN_KEY = 'muzz_sign_once';
 
-export function buildLoginMessage(address, nonce) {
-  return ['MuzzSnap', 'Wallet: ' + address, 'Nonce: ' + String(nonce || '').toLowerCase()].join('\n');
+export const SIWE_DOMAIN = 'muzzsnap-app.vercel.app';
+export const SIWE_URI = 'https://muzzsnap-app.vercel.app/login.html';
+export const SIWE_STATEMENT = 'Sign in to MuzzSnap. This request does not spend gas or approve a token.';
+
+/** One EIP-4361 personal_sign. Nonce and Expiration Time come from GET /api/session?op=nonce. */
+export function buildLoginMessage(address, nonce, exp, issuedAt) {
+  const checksum = getAddress(String(address || '').toLowerCase());
+  const id = String(nonce || '').toLowerCase();
+  const when = Number(exp);
+  const expiration = Number.isFinite(when) ? new Date(when).toISOString() : '';
+  const issued = issuedAt || new Date().toISOString();
+  return [
+    SIWE_DOMAIN + ' wants you to sign in with your Ethereum account:',
+    checksum,
+    '',
+    SIWE_STATEMENT,
+    '',
+    'URI: ' + SIWE_URI,
+    'Version: 1',
+    'Chain ID: 1',
+    'Nonce: ' + id,
+    'Issued At: ' + issued,
+    'Expiration Time: ' + expiration
+  ].join('\n');
 }
 
 export function shortAddress(address) {
@@ -155,7 +178,7 @@ export function dappUrl(loc) {
     const origin = loc.origin;
     if (host && host !== 'localhost' && host !== '127.0.0.1' && /^https?:/i.test(origin)) return origin.replace(/\/$/, '');
   } catch {
-    /* the APK WebView origin is https://localhost and must not be sent to WalletConnect */
+    /* a browser preview on localhost must still advertise the public origin */
   }
   return PUBLIC_APP;
 }
@@ -250,7 +273,6 @@ function providerOptions(deps) {
   return {
     projectId: id,
     chains: [1],
-    optionalChains: [56],
     showQrModal: true,
     methods: ['personal_sign', 'eth_requestAccounts', 'eth_accounts'],
     events: ['chainChanged', 'accountsChanged'],
@@ -573,7 +595,7 @@ export async function loginWithWallet(deps = {}) {
   }
   log('nonce:start');
   const issued = deps.nonce ? await deps.nonce() : await fetchNonce(fetchImpl);
-  const message = buildLoginMessage(address, issued.nonce);
+  const message = buildLoginMessage(address, issued.nonce, issued.exp);
   const signKey = address.toLowerCase() + ':' + issued.nonce;
   if (store && store.getItem(SIGN_KEY) === signKey) {
     const err = new Error('A signature request is already open in the wallet. Finish it there, or tap Retry.');

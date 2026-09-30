@@ -1,3 +1,12 @@
+import { createHash } from 'node:crypto';
+import {
+  databaseUrl,
+  getGoogleAccessToken,
+  loadServiceAccount,
+  verifyFirebaseIdToken
+} from './google.js';
+import { bearerToken } from './push.js';
+
 const TARGETS = new Set(['en', 'es', 'zh-CN', 'ja']);
 const MAX_CHARS = 1000;
 const WINDOW_MS = 60 * 1000;
@@ -107,6 +116,61 @@ function clientIp(headers) {
   const raw = headers && (headers['x-forwarded-for'] || headers['X-Forwarded-For'] || '');
   const first = String(raw).split(',')[0].trim();
   return (first || 'unknown').slice(0, 80);
+}
+
+function bearerWallet(headers) {
+  const token = bearerToken(headers);
+  return token;
+}
+
+async function callerWallet(req, deps) {
+  if (deps && deps.authWallet && /^0x[a-f0-9]{40}$/.test(String(deps.authWallet))) {
+    return String(deps.authWallet).toLowerCase();
+  }
+  const env = (deps && deps.env) || {};
+  const account = loadServiceAccount(env);
+  if (!account) return '';
+  const token = bearerWallet(req.headers);
+  if (!token) return '';
+  return verifyFirebaseIdToken(token, {
+    projectId: account.project_id,
+    fetchImpl: (deps && deps.fetch) || fetch,
+    now: req.now
+  });
+}
+
+async function rtdbRate(fetchImpl, env, access, path, value) {
+  const url = new URL(databaseUrl(env) + '/' + path.split('/').map(encodeURIComponent).join('/') + '.json');
+  url.searchParams.set('access_token', access);
+  const res = await fetchImpl(url.toString(), {
+    method: value === undefined ? 'GET' : 'PUT',
+    headers: value === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: value === undefined ? undefined : JSON.stringify(value)
+  });
+  if (!res.ok) {
+    const error = new Error('rtdb');
+    error.code = 'offline';
+    throw error;
+  }
+  if (value !== undefined) return null;
+  return res.json().catch(() => null);
+}
+
+async function allowStored(wallet, now, deps) {
+  const env = deps.env || {};
+  const account = loadServiceAccount(env);
+  if (!account) return allow(wallet, now);
+  const fetchImpl = deps.fetch || fetch;
+  const access = await getGoogleAccessToken(account, fetchImpl, now);
+  const path = 'translateRate/' + createHash('sha256').update(wallet).digest('hex').slice(0, 32);
+  const prev = await rtdbRate(fetchImpl, env, access, path);
+  const windowStart = prev && Number(prev.windowStart) ? Number(prev.windowStart) : 0;
+  const count = prev && Number(prev.count) ? Number(prev.count) : 0;
+  const fresh = !windowStart || now - windowStart >= WINDOW_MS;
+  const next = { windowStart: fresh ? now : windowStart, count: fresh ? 1 : count + 1 };
+  if (next.count > MAX_PER_WINDOW) return false;
+  await rtdbRate(fetchImpl, env, access, path, next);
+  return true;
 }
 
 function allow(ip, now) {
@@ -515,8 +579,16 @@ export async function handleTranslate(req, deps = {}) {
   if (!TARGETS.has(target)) return { status: 400, body: { error: 'bad_target' } };
   if (!text) return { status: 400, body: { error: 'empty' } };
   if (text.length > MAX_CHARS) return { status: 400, body: { error: 'too_long' } };
-  const ip = clientIp(req.headers);
-  if (!allow(ip, req.now || Date.now())) return { status: 429, body: { error: 'rate_limited' } };
+  const wallet = await callerWallet(req, deps);
+  if (!wallet) return { status: 401, body: { error: 'unauthorized' } };
+  let allowed = false;
+  try {
+    allowed = await allowStored(wallet, req.now || Date.now(), deps);
+  } catch (err) {
+    if (err && err.code === 'offline') return { status: 503, body: { error: 'offline' } };
+    return { status: 503, body: { error: 'offline' } };
+  }
+  if (!allowed) return { status: 429, body: { error: 'rate_limited' } };
   try {
     const translated = await translateMessage(text, target, deps);
     return { status: 200, body: { text: translated } };
