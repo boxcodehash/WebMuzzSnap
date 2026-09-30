@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com https://cdn.tailwindcss.com 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://muzzsnap-app.vercel.app https://www.gstatic.com https://fonts.gstatic.com https://fonts.googleapis.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://ethereum.publicnode.com https://eth.drpc.org https://rpc.ankr.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://api.web3modal.org https://api.web3modal.com https://*.web3modal.org https://*.web3modal.com https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://rpc.walletconnect.org https://rpc.walletconnect.com wss://relay.walletconnect.org wss://relay.walletconnect.com https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://secure-mobile.walletconnect.com https://secure-mobile.walletconnect.org https://echo.walletconnect.com; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://*.walletconnect.com https://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://*.reown.com; object-src 'none'; base-uri 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070708">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MuzzSnap">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-320x568@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-375x667@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-375x812@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-390x844@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-393x852@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-402x874@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-414x896@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-414x896@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-428x926@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-430x932@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-440x956@3.png">
+  <link rel="stylesheet" href="css/ios-pwa.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="js/ios-pwa.js"></script>
+  <script src="js/android-back.js"></script>
+  <title>MuzzSnap | Chat</title>
+  <link rel="icon" href="muzzsnap.jpg">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+  <script src="js/muzz-names.js"></script>
+  <script src="js/muzz-gate.js"></script>
+  <script src="js/private-notify.js"></script>
+  <script src="js/fcm-client.js"></script>
+  <script src="js/private-e2ee.js"></script>
+  <script src="js/photo-transfer.js"></script>
+  <script src="js/translate.js"></script>
+  <script src="js/stickers.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            orbitron: ['Orbitron', 'sans-serif'],
+            rajdhani: ['Outfit', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --red: #ff1a1a;
+      --red-glow: rgba(255, 20, 20, 0.4);
+      --ryachu-gold: #ffcc00;
+      --itsuki-blue: #00d4ff;
+      --bg: #050505;
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
+    }
+
+    * { box-sizing: border-box; }
+    html, body, #root { height: 100%; margin: 0; }
+    html, body { overflow: hidden; background: var(--bg); overscroll-behavior: none; }
+    body { font-family: 'Outfit', 'Segoe UI', sans-serif; color: #f4f5f7; -webkit-tap-highlight-color: transparent; }
+    button, a, input { touch-action: manipulation; }
+
+    body.dark-theme {
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(120, 0, 0, 0.22), transparent 58%),
+        #050505;
+      color: #fff;
+    }
+    body.light-theme { background: #eceff3; color: #161616; }
+
+    .space-grid {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(255, 30, 30, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 30, 30, 0.05) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 10%, transparent 80%);
+    }
+    .light-theme .space-grid { opacity: 0.12; }
+
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      height: var(--app-h, 100dvh);
+      margin-top: var(--app-top, 0px);
+      display: flex;
+      gap: 14px;
+      padding: 12px 12px 12px 96px;
+      max-width: 1600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .panel-3d {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #141414 0%, #0b0b0b 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        0 0 0 1px rgba(255, 30, 30, 0.22),
+        0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+    .light-theme .panel-3d {
+      background: #fff;
+      box-shadow: inset 0 1px 0 #fff, 0 0 0 1px #e4e4e4, 0 10px 24px rgba(0,0,0,0.06);
+    }
+
+    .sidebar {
+      position: fixed;
+      z-index: 60;
+      top: 16px;
+      bottom: 16px;
+      left: 96px;
+      width: min(280px, calc(100vw - 124px));
+      padding: 16px 14px;
+      border-radius: 24px;
+      overflow: hidden;
+      transform: translateX(calc(-100% - 160px));
+      transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar.orbit-panel {
+      background:
+        radial-gradient(circle at 16% 10%, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 78% 36%, rgba(255, 255, 255, 0.35) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 42% 82%, rgba(255, 70, 70, 0.75) 0 1px, transparent 1.6px),
+        linear-gradient(180deg, rgba(18, 16, 20, 0.94), rgba(7, 7, 9, 0.97));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 0 1px rgba(255, 42, 42, 0.32),
+        0 18px 48px rgba(0, 0, 0, 0.5),
+        0 0 32px rgba(255, 20, 20, 0.12);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand-logo {
+      width: 42px; height: 42px; border-radius: 12px; object-fit: cover;
+      box-shadow: 0 0 0 1px rgba(255, 40, 40, 0.4), 0 6px 16px rgba(255, 0, 0, 0.2);
+    }
+
+    .brand-title {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 0.95rem;
+      line-height: 1.1;
+    }
+    .brand-title span { color: var(--red); }
+
+    .icon-btn {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 0; cursor: pointer;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 0 0 1px rgba(255, 30, 30, 0.25);
+      color: var(--red);
+    }
+
+    .nav-btn {
+      width: 100%;
+      text-align: left;
+      padding: 12px 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      margin-bottom: 4px;
+      border: 0;
+      cursor: pointer;
+      background: transparent;
+      color: rgba(255,255,255,0.62);
+    }
+    .light-theme .nav-btn { color: #6b6b6b; }
+    .light-theme .chat-title { color: #161616; }
+    .light-theme .chat-kicker { color: #6b6b6b; }
+    body.shot-mode #muzzUpdateBar { display: none !important; }
+    .nav-btn.active {
+      color: #fff;
+      background: rgba(255, 20, 20, 0.14);
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+    .nav-btn:hover { color: #fff; background: rgba(255, 20, 20, 0.08); }
+
+    .bubble-3d {
+      padding: 11px 14px;
+      border-radius: 18px;
+      font-size: 15.5px;
+      max-width: min(86%, 520px);
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .bubble-3d.muzz-sticker-only,
+    .bubble-3d.me.muzz-sticker-only {
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+    }
+    .bubble-3d.me {
+      background: linear-gradient(180deg, #ff3a3a, #b40000);
+      color: #fff;
+      border-bottom-right-radius: 5px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 8px 16px rgba(255,0,0,0.18);
+    }
+    .dark-theme .bubble-3d.other {
+      background: #161616;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .light-theme .bubble-3d.other {
+      background: #fff; color: #111; box-shadow: inset 0 0 0 1px #e6e6e6;
+    }
+    .bubble-3d.muted { opacity: 0.5; }
+
+    .ryachu-name { color: var(--ryachu-gold); font-weight: 800; }
+    .itsuki-name { color: var(--itsuki-blue); font-weight: 800; }
+    .esteban-name { color: #ff6b6b; font-weight: 800; }
+
+    .msg-input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: 0;
+      outline: none;
+      color: inherit;
+      font-family: 'Outfit', 'Segoe UI', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .dark-theme .msg-input { color: #f5f5f5; }
+    .msg-input:disabled { opacity: 0.5; }
+
+    .send-btn {
+      width: 44px; height: 44px; flex-shrink: 0;
+      border: 0; border-radius: 14px; cursor: pointer; color: #fff;
+      background: linear-gradient(180deg, #ff4a4a, #9a0000);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 0 #3a0000, 0 10px 18px rgba(255,0,0,0.25);
+    }
+    .send-btn.pin { background: linear-gradient(180deg, #f0c000, #9a7400); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 0 #4a3800; }
+
+    .emoji-window { max-height: 232px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px 8px 10px; }
+    .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 300px; padding: 10px 12px 14px; }
+
+    .custom-scroll { scrollbar-width: thin; scrollbar-color: var(--red) transparent; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: var(--red); border-radius: 10px; }
+
+    .online-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: #39ff14; box-shadow: 0 0 8px #39ff14;
+    }
+
+    .admin-btn {
+      font-size: 10px; padding: 9px 10px; border-radius: 10px; font-weight: 800;
+      background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.3);
+      color: #ff3a3a; cursor: pointer; letter-spacing: 0.06em;
+    }
+    .admin-btn:hover { background: #ff1a1a; color: #fff; }
+
+    .boot-screen {
+      height: 100dvh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      font-family: 'Orbitron', sans-serif;
+    }
+    .boot-logo {
+      width: 92px; height: 92px; border-radius: 24px; object-fit: cover;
+      box-shadow: 0 0 0 1px rgba(255,40,40,0.45), 0 16px 40px rgba(255,0,0,0.25);
+    }
+    .boot-text { color: var(--red); letter-spacing: 0.42em; font-size: 0.72rem; }
+
+    .composer {
+      padding: 10px 12px calc(10px + var(--safe-b));
+    }
+
+    .msg-time {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.32);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+    .light-theme .msg-time { color: #8a8a8a; }
+
+    .channel-strip {
+      display: none;
+      gap: 8px;
+      padding: 0 12px 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chip {
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.04);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    }
+    .chip.active {
+      color: #fff;
+      background: rgba(255, 20, 20, 0.2);
+      box-shadow: inset 0 0 0 1px rgba(255, 40, 40, 0.55);
+    }
+
+    .header-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .online-count {
+      min-width: 40px;
+      height: 40px;
+      padding: 0 10px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      color: #39ff14;
+      box-shadow: inset 0 0 0 1px rgba(57,255,20,0.35), 0 0 12px rgba(57,255,20,0.12);
+    }
+
+    .drawer-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+    }
+    .light-theme .sidebar.orbit-panel {
+      background: #fff;
+      color: #161616;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(180, 20, 20, 0.2);
+    }
+
+    /* Portrait phones, and landscape windows taller than a phone, keep the bottom bar. */
+    @media (max-width: 1023px) and (orientation: portrait),
+           (max-width: 1023px) and (min-height: 501px) {
+      .app-shell { padding: 0 0 calc(var(--muzz-nav-h, 54px) + var(--safe-b)) 0; gap: 0; }
+      .panel-3d { border-radius: 0; box-shadow: none; }
+      .sidebar {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(74vw, 280px);
+        padding: calc(16px + var(--safe-t)) 14px calc(var(--muzz-nav-h, 54px) + 12px + var(--safe-b)) calc(14px + var(--safe-l));
+        border-radius: 0 24px 24px 0;
+        transform: translateX(-110%);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .chat-header {
+        min-height: 64px;
+        padding: calc(8px + var(--safe-t)) 12px 8px !important;
+      }
+      .channel-strip { display: none; }
+      .bubble-3d { font-size: 16px; padding: 12px 15px; max-width: 88%; }
+      .emoji-window { grid-template-columns: repeat(6, 1fr); max-height: 220px; }
+      .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 280px; }
+      .icon-btn { width: 44px; height: 44px; }
+      .send-btn { width: 48px; height: 48px; border-radius: 16px; }
+      .composer { padding: 8px 10px 8px; }
+      .drawer-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: rgba(0,0,0,0.62);
+        backdrop-filter: blur(8px);
+      }
+      .msg-list { padding: 12px 12px 16px; gap: 12px; -webkit-overflow-scrolling: touch; }
+    }
+
+    @media (min-width: 768px) {
+      .msg-input { font-size: 16px; }
+    }
+  </style>
+</head>
+<body class="dark-theme">
+  <div class="space-grid"></div>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const firebaseConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
+      messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const ADMIN_WALLETS = {
+      ryachu: MuzzNames.ADMINS.ryachu.wallet,
+      itsuki: MuzzNames.ADMINS.itsuki.wallet,
+      esteban: MuzzNames.ADMINS.esteban.wallet
+    };
+
+    const ADMIN_ROLES = ['ryachu','itsuki','esteban'];
+    const PRIVATE_GATE = {
+      tokenAddress: '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
+      minRequired: 10000000
+    };
+    const ERC20_ABI = [
+      'function balanceOf(address) view returns (uint256)',
+      'function decimals() view returns (uint8)'
+    ];
+
+    const EMOJIS = {
+      FACES:["😊","😂","😉","😍","😘","😛","😅","😢","😭","😠","😈","👽","🤖","🤡","💀","👻","💩"],
+      HANDS:["👍","👎","👌","✌️","👏","👋","🙏","💪","☝️","🖖"],
+      OBJECTS:["❤️","⭐","🔥","📚","💻","📱","📷","🔑","🔒","💡","💰","💎"],
+      NATURE:["☀️","☁️","🌈","🌳","🌸","🌵","🐱","🐶","🦁","🦄","🐉","🐍"],
+      FOOD:["🍕","🍔","🌮","🍣","🍰","🍦","☕","🍺","🍷","🍸"],
+      ACTIVITIES:["⚽","🏀","🎾","🎵","🎸","🎮","♟️","🎨","🎬"]
+    };
+    const EMOJI_LABELS = { FACES: 'Faces', HANDS: 'Hands', OBJECTS: 'Objects', NATURE: 'Nature', FOOD: 'Food', ACTIVITIES: 'Activities', STICKERS: 'Stickers' };
+
+    function stickerById(id) {
+      const list = (window.MuzzStickers && window.MuzzStickers.list) || [];
+      return list.find((item) => item.id === id) || null;
+    }
+    function isStickerOnly(text) {
+      return window.MuzzStickers ? window.MuzzStickers.only(text) : false;
+    }
+    function renderRich(text) {
+      const raw = String(text || '');
+      const out = [];
+      const re = /\[\[sticker:([a-z0-9-]+)\]\]/g;
+      let last = 0;
+      let match;
+      let n = 0;
+      while ((match = re.exec(raw))) {
+        if (match.index > last) out.push(raw.slice(last, match.index));
+        const sticker = stickerById(match[1]);
+        if (sticker) out.push(<img key={'st-' + n} className="muzz-sticker" src={sticker.src} alt={sticker.label} />);
+        else out.push(match[0]);
+        last = match.index + match[0].length;
+        n += 1;
+      }
+      if (!out.length) return raw;
+      if (last < raw.length) out.push(raw.slice(last));
+      return out;
+    }
+    function senderLabel(msg) {
+      const wallet = (msg && (msg.wallet || msg.userId)) || '';
+      if (window.MuzzNames && /^0x[a-fA-F0-9]{40}$/i.test(String(wallet))) return MuzzNames.displayName(wallet);
+      return (msg && msg.username) || '';
+    }
+
+    const CHANNELS = [
+      { id:"general", name:"GENERAL" }
+    ];
+    const ONLINE_TTL_MS = 45000;
+
+    const liveOnlineList = (raw) => {
+      const now = Date.now();
+      const map = new Map();
+      Object.values(raw || {}).forEach((user) => {
+        if (!user) return;
+        const seen = Number(user.lastSeen || 0);
+        if (!seen || now - seen > ONLINE_TTL_MS) return;
+        const key = user.identityKey || user.wallet || user.uid;
+        if (!key) return;
+        const prev = map.get(key);
+        if (!prev || seen >= Number(prev.lastSeen || 0)) map.set(key, user);
+      });
+      return Array.from(map.values()).sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
+    };
+
+    const safeKey = (value) => String(value || '').replace(/[.#$/\[\]]/g, '_');
+    const makeIdentityKey = (raw) => {
+      const value = String(raw || '').trim().toLowerCase();
+      if (!value) return 'guest_unknown';
+      if (value.startsWith('guest_')) return `guest_${safeKey(value.slice(6) || 'unknown')}`;
+      return `wallet_${safeKey(value)}`;
+    };
+
+    const pinPathForChannel = (channelId) => `settings/pinned/${channelId}`;
+
+    const shotParams = new URLSearchParams(location.search);
+    const nativeShot = window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform();
+    const shotName = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || nativeShot)
+      ? (shotParams.get('shot') || '')
+      : '';
+    const localShot = shotName === '1' || shotName === 'install' || shotName === 'min' || shotName === 'standalone';
+    if (localShot) document.body.classList.add('shot-mode');
+    const shotMenu = localShot && shotParams.get('menu') === '1';
+    const shotEmoji = localShot && shotParams.get('emoji') === '1';
+    const SHOT_MESSAGES = [
+      { id: 'shot1', userId: 'ry', username: 'RYASHU', role: 'ryachu', content: 'Welcome to General.', timestamp: Date.now() - 180000 },
+      { id: 'shot2', userId: 'shot', username: 'Node_6bcb8a', role: 'user', content: '[[sticker:muzz]]', timestamp: Date.now() - 120000 },
+      { id: 'shot3', userId: 'it', username: 'ITSUKI', role: 'itsuki', content: '[[sticker:moon]]', timestamp: Date.now() - 90000 },
+      { id: 'shot4', userId: 'shot', username: 'Node_6bcb8a', role: 'user', content: 'Holding the floor. [[sticker:boss]]', timestamp: Date.now() - 40000 },
+      { id: 'shot5', userId: 'es', username: 'ESTEBAN', role: 'esteban', content: '[[sticker:soy-verga]]', timestamp: Date.now() - 8000 }
+    ];
+
+    function App(){
+      const [me, setMe] = useState(localShot ? {
+        uid: 'shot',
+        username: 'Node_6bcb8a',
+        role: 'user',
+        isWallet: true,
+        wallet: '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a',
+        identityKey: 'wallet_shot'
+      } : null);
+      const [messages, setMessages] = useState(localShot ? SHOT_MESSAGES : []);
+      const [onlineUsers, setOnlineUsers] = useState(localShot ? [
+        { uid: 'a', identityKey: 'a', username: 'RYASHU', role: 'ryachu' },
+        { uid: 'b', identityKey: 'b', username: 'ITSUKI', role: 'itsuki' },
+        { uid: 'c', identityKey: 'c', username: 'Node_6bcb8a', role: 'user' }
+      ] : []);
+      const [mutedMap, setMutedMap] = useState({});
+      const [pinnedMessage, setPinnedMessage] = useState("");
+      const [messageText, setMessageText] = useState("");
+      const [darkMode, setDarkMode] = useState(true);
+      const [showEmoji, setShowEmoji] = useState(shotEmoji);
+      const [showTranslate, setShowTranslate] = useState(false);
+      const [undoText, setUndoText] = useState(null);
+      const [translating, setTranslating] = useState(false);
+      const [emojiTab, setEmojiTab] = useState(shotEmoji ? 'STICKERS' : 'FACES');
+      const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
+      const [mobileMenu, setMobileMenu] = useState(shotMenu);
+      const [pinMode, setPinMode] = useState(false);
+      const [banPanel, setBanPanel] = useState(false);
+      const [mutePanel, setMutePanel] = useState(false);
+      const [notice, setNotice] = useState({show:false,title:"",desc:"",tone:"red"});
+      const [nowTick, setNowTick] = useState(Date.now());
+      const [pushStatus, setPushStatus] = useState('Notifications not granted · no token');
+      const bottomRef = useRef(null);
+      const presenceRawRef = useRef({});
+
+      const toggleTheme = () => {
+        setDarkMode((prev) => {
+          const next = !prev;
+          document.body.className = next ? 'dark-theme' : 'light-theme';
+          return next;
+        });
+      };
+
+      const isAdmin = !!me && ADMIN_ROLES.includes(me.role);
+      const mutedUntilForMe = me?.identityKey ? mutedMap[me.identityKey] : null;
+      const iAmMuted = !!(mutedUntilForMe && mutedUntilForMe > Date.now());
+
+      const showNotice = (title, desc, tone='red') => setNotice({show:true,title,desc,tone});
+      const closeNotice = () => setNotice({show:false,title:"",desc:"",tone:"red"});
+
+      const roleClass = (role, fallback='text-gray-400') => {
+        if (role === 'ryachu') return 'ryachu-name';
+        if (role === 'itsuki') return 'itsuki-name';
+        if (role === 'esteban') return 'esteban-name';
+        return fallback;
+      };
+
+      const roleBadge = (role) => {
+        if (role === 'ryachu') return '👑 ';
+        if (role === 'itsuki') return '💎 ';
+        if (role === 'esteban') return '🛡️ ';
+        return '';
+      };
+
+      const requireAdmin = () => {
+        if (!isAdmin) {
+          alert('Admin only.');
+          return false;
+        }
+        return true;
+      };
+
+      useEffect(() => {
+        const apply = () => {
+          if (window.MuzzPush && MuzzPush.statusLine) setPushStatus(MuzzPush.statusLine());
+        };
+        apply();
+        window.addEventListener('muzz-push-status', apply);
+        return () => window.removeEventListener('muzz-push-status', apply);
+      }, []);
+
+      useEffect(() => {
+        if (localShot) return undefined;
+        const sessionWallet = (muzzGate.savedWallet() || '').toLowerCase();
+        try {
+          if (sessionStorage.getItem('muzz_login_hold')) {
+            window.location.replace('login.html');
+            return;
+          }
+        } catch (err) { /* private mode */ }
+        if (!/^0x[a-f0-9]{40}$/.test(sessionWallet)) {
+          muzzGate.clearWallet();
+          window.location.href = 'login.html';
+          return;
+        }
+        sessionStorage.setItem('muzz_wallet_address', sessionWallet);
+
+        let statusRef = null;
+        let statusListRef = null;
+        let bannedRef = null;
+        let mutedRef = null;
+        let registryRef = null;
+        let cancelled = false;
+
+        (async () => {
+        const authReady = window.MuzzPush
+          ? MuzzPush.signInForChat(sessionWallet)
+          : Promise.resolve({ needsSign: true });
+        authReady.then(async (user) => {
+          if (cancelled) return;
+          if (!user || user.needsSign) {
+            window.location.replace('login.html');
+            return;
+          }
+          try {
+            const holding = await muzzGate.confirmServerBalance();
+            if (cancelled) return;
+            if (!holding.ok) {
+              try { await firebase.auth().signOut(); } catch (err) { /* already signed out */ }
+              muzzGate.clearWallet();
+              if (holding.code === 'balance') {
+                alert('Insufficient MUZZ balance. You have ' + (holding.formatted || '0') + ' MUZZ and the minimum is 10,000,000 MUZZ.');
+              } else {
+                try { sessionStorage.setItem('muzz_balance_hold', '1'); } catch (e) { /* private mode */ }
+                alert('Could not verify the MUZZ balance. The chat was not opened, so nothing was written.');
+              }
+              window.location.href = 'login.html';
+              return;
+            }
+            try { sessionStorage.removeItem('muzz_balance_hold'); } catch (err) { /* private mode */ }
+          } catch (err) {
+            console.error(err);
+            if (!cancelled) {
+              try { sessionStorage.setItem('muzz_balance_hold', '1'); } catch (e) { /* private mode */ }
+              alert('Could not verify the MUZZ balance. The chat was not opened, so nothing was written.');
+              window.location.href = 'login.html';
+            }
+            return;
+          }
+          if (cancelled) return;
+          const isWallet = !sessionWallet.startsWith('guest_');
+          const wallet = isWallet ? sessionWallet.toLowerCase() : '';
+          let username = '';
+          let role = 'user';
+
+          if (isWallet) {
+            username = MuzzNames.displayName(wallet);
+            role = MuzzNames.roleOf(wallet);
+          } else {
+            username = sessionWallet.replace('guest_','');
+            role = 'guest';
+          }
+
+          const identityKey = makeIdentityKey(sessionWallet);
+          const currentUser = {
+            uid: user.uid,
+            username,
+            role,
+            isWallet,
+            wallet,
+            identityKey
+          };
+          setMe(currentUser);
+
+          statusRef = db.ref(`status/${identityKey}`);
+          const writePresence = () => {
+            const payload = {
+              uid: user.uid,
+              username,
+              role,
+              wallet: wallet || null,
+              identityKey,
+              lastSeen: Date.now()
+            };
+            statusRef.set(payload);
+            if (isWallet && wallet) {
+              db.ref(`walletRegistry/${wallet}`).update({
+                lastSeen: firebase.database.ServerValue.TIMESTAMP,
+                active: true
+              });
+            }
+          };
+
+          const connectedRef = db.ref('.info/connected');
+          connectedRef.on('value', (snap) => {
+            if (snap.val() !== true) return;
+            statusRef.onDisconnect().remove();
+            if (isWallet && wallet) {
+              db.ref(`walletRegistry/${wallet}/active`).onDisconnect().set(false);
+              db.ref(`walletRegistry/${wallet}/lastSeen`).onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+            }
+            writePresence();
+          });
+
+          const beat = setInterval(writePresence, 20000);
+          statusRef._beat = beat;
+
+          statusListRef = db.ref('status');
+          statusListRef.on('value', (snap) => {
+            presenceRawRef.current = snap.val() || {};
+            setOnlineUsers(liveOnlineList(presenceRawRef.current));
+          });
+
+          mutedRef = db.ref('muted');
+          mutedRef.on('value', (snap) => setMutedMap(snap.val() || {}));
+
+          bannedRef = db.ref(`banned/${identityKey}`);
+          bannedRef.on('value', (snap) => {
+            if (snap.val()) {
+              alert('Your account has been banned from public chat.');
+              muzzGate.clearWallet();
+              window.location.href = 'login.html';
+            }
+          });
+
+          if (isWallet && wallet) {
+            if (window.MuzzE2EE) MuzzE2EE.publish(wallet).catch((err) => console.error(err));
+            if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: wallet });
+            registryRef = db.ref(`walletRegistry/${wallet}`);
+            registryRef.once('value').then((snap) => {
+              const prev = snap.val() || {};
+              registryRef.update({
+                wallet,
+                username,
+                role,
+                isAdmin: ADMIN_ROLES.includes(role),
+                isWallet: true,
+                firstSeen: prev.firstSeen || firebase.database.ServerValue.TIMESTAMP,
+                lastLogin: firebase.database.ServerValue.TIMESTAMP,
+                lastSeen: firebase.database.ServerValue.TIMESTAMP,
+                active: true
+              });
+            }).catch((err) => console.error('walletRegistry update failed:', err));
+            registryRef.child('active').onDisconnect().set(false);
+            registryRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+          }
+        }).catch((err) => {
+          console.error('Sign-in failed:', err);
+          alert('Sign-in failed. Please reload and try again.');
+          window.location.href = 'login.html';
+        });
+
+        })();
+
+        return () => {
+          cancelled = true;
+          try { if (statusRef && statusRef._beat) clearInterval(statusRef._beat); } catch {}
+          try { if (statusRef) { statusRef.onDisconnect().cancel(); statusRef.remove(); statusRef.off(); } } catch {}
+          try { if (statusListRef) statusListRef.off(); } catch {}
+          try { if (bannedRef) bannedRef.off(); } catch {}
+          try { if (mutedRef) mutedRef.off(); } catch {}
+          try { if (registryRef) registryRef.off(); } catch {}
+          try { db.ref('.info/connected').off(); } catch {}
+        };
+      }, []);
+
+      useEffect(() => {
+        const tick = setInterval(() => {
+          setNowTick(Date.now());
+          setOnlineUsers(liveOnlineList(presenceRawRef.current));
+        }, 10000);
+        return () => clearInterval(tick);
+      }, []);
+
+      useEffect(() => {
+        if (localShot || !me) return undefined;
+        const pinRef = db.ref(pinPathForChannel(activeChannel.id));
+        pinRef.on('value', (snap) => setPinnedMessage(snap.val() || ""));
+        return () => pinRef.off();
+      }, [me, activeChannel]);
+
+      useEffect(() => {
+        if (localShot || !me) return undefined;
+        const ref = db.ref(`messages/${activeChannel.id}`).limitToLast(50);
+        ref.on('value', (snap) => {
+          const data = snap.val();
+          setMessages(data ? Object.keys(data).map((id) => ({ id, ...data[id] })) : []);
+        });
+        return () => ref.off();
+      }, [me, activeChannel]);
+
+      useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior:'smooth' });
+      }, [messages]);
+
+      useEffect(() => {
+        const apply = () => {
+          const vv = window.visualViewport;
+          const h = Math.round(vv ? vv.height : window.innerHeight);
+          const top = Math.round(vv ? vv.offsetTop : 0);
+          document.documentElement.style.setProperty('--app-h', h + 'px');
+          document.documentElement.style.setProperty('--app-top', top + 'px');
+        };
+        apply();
+        const onKeyboard = () => {
+          apply();
+          bottomRef.current?.scrollIntoView({ block: 'end' });
+        };
+        window.visualViewport?.addEventListener('resize', onKeyboard);
+        window.visualViewport?.addEventListener('scroll', apply);
+        window.addEventListener('orientationchange', apply);
+        return () => {
+          window.visualViewport?.removeEventListener('resize', onKeyboard);
+          window.visualViewport?.removeEventListener('scroll', apply);
+          window.removeEventListener('orientationchange', apply);
+        };
+      }, []);
+
+      useEffect(() => {
+        if (localShot || !me || !me.wallet || !window.MuzzNotify) return;
+        MuzzNotify.start({
+          db,
+          me: me.wallet,
+          viewing: () => '',
+          open: (peer) => { window.location.href = 'private.html?peer=' + encodeURIComponent(peer); },
+          nameOf: (wallet) => MuzzNames.displayName(wallet)
+        });
+      }, [me]);
+
+      const goToPrivate = async () => {
+        if (!me) return;
+
+        const walletAddress = (muzzGate.savedWallet() || '').toLowerCase();
+        if (!/^0x[a-f0-9]{40}$/.test(walletAddress)) {
+          showNotice('WALLET REQUIRED', 'Sign in with a wallet that holds at least 10,000,000 MUZZ.', 'yellow');
+          return;
+        }
+
+        try {
+          showNotice('VERIFYING ACCESS', 'Checking balanceOf on Ethereum mainnet...', 'blue');
+          const holding = await muzzGate.confirmServerBalance();
+          if (holding.ok) {
+            window.location.href = 'private.html';
+            return;
+          }
+          if (holding.code === 'balance') {
+            showNotice(
+              'Insufficient MUZZ balance.',
+              `You have ${holding.formatted || '0'} MUZZ and the minimum is ${holding.minimum || '10,000,000'} MUZZ.`,
+              'red'
+            );
+            return;
+          }
+          showNotice('VERIFICATION ERROR', 'Your MUZZ balance could not be verified. Nothing was changed.', 'red');
+        } catch (err) {
+          console.error('Private access check failed:', err);
+          showNotice('VERIFICATION ERROR', 'Your MUZZ balance could not be verified. Nothing was changed.', 'red');
+        }
+      };
+
+      const sendMessage = async () => {
+        if (!messageText.trim() || !me) return;
+        if (iAmMuted) {
+          alert('You are temporarily muted.');
+          return;
+        }
+
+        try {
+          if (pinMode) {
+            if (!requireAdmin()) return;
+            await db.ref(pinPathForChannel(activeChannel.id)).set(messageText);
+            setPinMode(false);
+            setMessageText('');
+            setUndoText(null);
+            alert('Pinned message updated.');
+            return;
+          }
+
+          await db.ref(`messages/${activeChannel.id}`).push({
+            content: messageText,
+            username: me.username,
+            role: me.role,
+            userId: me.uid,
+            identityKey: me.identityKey,
+            wallet: me.wallet || null,
+            timestamp: Date.now()
+          });
+
+          setMessageText('');
+          setUndoText(null);
+          setShowEmoji(false);
+          setShowTranslate(false);
+        } catch (err) {
+          console.error('send message failed:', err);
+          alert(`Operation failed: ${err.message || err}`);
+        }
+      };
+
+      const adminActions = {
+        enablePinMode: () => {
+          if (!requireAdmin()) return;
+          setPinMode(true);
+          setMessageText('');
+        },
+        clearChat: async () => {
+          if (!requireAdmin()) return;
+          if (!confirm('Clear the whole chat history?')) return;
+          try {
+            await db.ref(`messages/${activeChannel.id}`).set(null);
+            setMessages([]);
+            alert('Public chat cleared successfully.');
+          } catch (err) {
+            console.error('clearChat failed:', err);
+            alert(`Could not clear this chat: ${err.message || err}`);
+          }
+        },
+        removePin: async () => {
+          if (!requireAdmin()) return;
+          try {
+            await db.ref(pinPathForChannel(activeChannel.id)).remove();
+            alert('Pinned message removed.');
+          } catch (err) {
+            console.error('removePin failed:', err);
+            alert(`Could not remove pinned message: ${err.message || err}`);
+          }
+        },
+        openBanPanel: () => {
+          if (!requireAdmin()) return;
+          setBanPanel(true);
+        },
+        openMutePanel: () => {
+          if (!requireAdmin()) return;
+          setMutePanel(true);
+        },
+        banUser: async (target) => {
+          if (!requireAdmin()) return;
+          if (!target?.identityKey) {
+            alert('This user has no stable identity key.');
+            return;
+          }
+          if (!confirm(`Ban ${target.username} permanently?`)) {
+            setBanPanel(false);
+            return;
+          }
+          try {
+            await db.ref(`banned/${target.identityKey}`).set({
+              username: target.username,
+              role: target.role || 'user',
+              uid: target.uid || null,
+              wallet: target.wallet || null,
+              bannedAt: Date.now(),
+              bannedBy: me?.username || 'admin'
+            });
+            if (target.uid) await db.ref(`status/${target.uid}`).remove();
+            alert(`${target.username} has been banned.`);
+          } catch (err) {
+            console.error('banUser failed:', err);
+            alert(`Could not ban user: ${err.message || err}`);
+          }
+          setBanPanel(false);
+        },
+        muteUser: async (target) => {
+          if (!requireAdmin()) return;
+          if (!target?.identityKey) {
+            alert('This user has no stable identity key.');
+            return;
+          }
+          try {
+            await db.ref(`muted/${target.identityKey}`).set(Date.now() + 60000);
+            alert(`${target.username} has been muted for 1 minute.`);
+          } catch (err) {
+            console.error('muteUser failed:', err);
+            alert(`Could not mute user: ${err.message || err}`);
+          }
+          setMutePanel(false);
+        }
+      };
+
+      if (!me) {
+        return (
+          <div className="boot-screen">
+            <img src="muzzsnap.jpg" alt="MuzzSnap" className="boot-logo" />
+            <p className="boot-text">CONNECTING</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="app-shell">
+          <aside id="muzzMenu" className={`sidebar panel-3d orbit-panel ${mobileMenu ? 'open' : ''}`}>
+            <div className="flex items-center gap-3 mb-5">
+              <img src="muzzsnap.jpg" alt="MuzzSnap" className="brand-logo" />
+              <div className="min-w-0 flex-1">
+                <h1 className="brand-title">MUZZ<span>SNAP</span></h1>
+                <p className="chat-me truncate">{me.username}</p>
+              </div>
+              <button type="button" className="icon-btn" onClick={() => setMobileMenu(false)} aria-label="Close menu">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scroll space-y-6 pr-1">
+              {isAdmin && (
+                <div>
+                  <p className="text-[10px] text-red-500 font-bold tracking-[0.28em] mb-3 uppercase">Admin</p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <button onClick={adminActions.enablePinMode} className="admin-btn"><i className="fas fa-thumbtack mr-1"></i>PIN</button>
+                    <button onClick={adminActions.clearChat} className="admin-btn"><i className="fas fa-trash mr-1"></i>CLEAR</button>
+                  </div>
+                  <details className="rounded-xl" style={{background:'rgba(255,0,0,0.05)', boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.2)'}}>
+                    <summary className="cursor-pointer px-3 py-2 text-[10px] font-bold text-red-500 uppercase tracking-wider">Moderation</summary>
+                    <div className="p-3 space-y-2 border-t border-red-600/20">
+                      <button onClick={adminActions.openBanPanel} className="w-full admin-btn text-left"><i className="fas fa-user-slash mr-2"></i>Ban</button>
+                      <button onClick={adminActions.openMutePanel} className="w-full admin-btn text-left"><i className="fas fa-volume-mute mr-2"></i>Mute 1 min</button>
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              <div>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Chat</p>
+                {CHANNELS.map((channel) => (
+                  <button
+                    key={channel.id}
+                    onClick={() => { setActiveChannel(channel); setMobileMenu(false); }}
+                    className={`nav-btn ${activeChannel.id === channel.id ? 'active' : ''}`}
+                  >
+                    General
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Rooms</p>
+                <button onClick={goToPrivate} className="nav-btn">
+                  <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'} mr-2`}></i>
+                  Private
+                </button>
+                <p className="text-[10px] text-gray-600 px-1 mt-1 uppercase tracking-wider leading-snug">10,000,000 MUZZ · same live chat</p>
+              </div>
+
+              <div>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Online — {onlineUsers.length}</p>
+                <div className="space-y-2">
+                  {onlineUsers.length === 0 && (
+                    <p className="text-[11px] text-gray-600 px-1">Nobody online</p>
+                  )}
+                  {onlineUsers.map((user, idx) => (
+                    <div key={`${user.identityKey || user.uid || idx}`} className="flex items-center gap-2 px-1">
+                      <span className="online-dot"></span>
+                      <span className={`text-[12px] truncate font-bold uppercase flex-1 ${roleClass(user.role,'text-gray-400')}`}>
+                        {roleBadge(user.role)}{user.username}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p id="muzzPushStatus" data-react="1" role="status" className="text-[11px] text-gray-500 px-1 mt-4 leading-snug">{pushStatus}</p>
+            <p className="build-tag">Version 1.0.31</p>
+            <button
+              onClick={() => {
+                try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}
+                muzzGate.clearWallet();
+                window.location.href = 'login.html';
+              }}
+              className="mt-4 w-full py-3 text-[11px] uppercase font-black tracking-widest rounded-xl"
+              style={{color:'#ff3a3a', boxShadow:'inset 0 0 0 1px rgba(255,30,30,0.35)'}}
+            >
+              <i className="fas fa-power-off mr-2"></i>Disconnect
+            </button>
+          </aside>
+
+          <main className="panel-3d flex-1 min-w-0 relative">
+            {pinnedMessage && (
+              <div className="bg-red-600/10 border-b border-red-600/30 py-2 px-3 md:px-5 flex items-center gap-3 flex-shrink-0">
+                <i className="fas fa-thumbtack text-red-600 text-[10px]"></i>
+                <div className="text-[11px] font-bold tracking-[0.14em] text-red-500 uppercase flex-1 truncate">{pinnedMessage}</div>
+                {isAdmin && (
+                  <button onClick={adminActions.removePin} className="text-red-400 hover:text-red-600 px-2">
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <header className="chat-header min-h-16 flex items-center justify-between px-3 md:px-5 flex-shrink-0" style={{boxShadow:'inset 0 -1px 0 rgba(255,255,255,0.06)'}}>
+              <div className="flex items-center gap-3 min-w-0">
+                <img src="muzzsnap.jpg" alt="" className="header-logo" />
+                <div className="min-w-0">
+                  <p className="chat-me">{me.username}</p>
+                  <h2 className="chat-title truncate">{activeChannel.name === 'GENERAL' ? 'General' : activeChannel.name}</h2>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="online-count" title="Connected now">{onlineUsers.length}</div>
+                <button type="button" className="muzz-fs" aria-label="Full screen">Full screen</button>
+                <button type="button" onClick={toggleTheme} className="icon-btn" aria-label="Toggle theme">
+                  {darkMode ? <i className="fas fa-sun text-yellow-400"></i> : <i className="fas fa-moon text-blue-500"></i>}
+                </button>
+              </div>
+            </header>
+
+            <div className="msg-list flex-1 min-h-0 overflow-y-auto px-3 py-4 md:px-6 md:py-6 flex flex-col gap-4 custom-scroll">
+              {muzzGate.visible(messages, nowTick).length === 0 && (
+                <div className="empty-chat">
+                  <img src="muzzsnap.jpg" alt="" />
+                  <p>No messages yet</p>
+                  <span>Say hello in General.</span>
+                </div>
+              )}
+              {muzzGate.visible(messages, nowTick).map((msg, index, shown) => {
+                const muted = !!(msg.identityKey && mutedMap[msg.identityKey] && mutedMap[msg.identityKey] > Date.now());
+                const date = new Date(msg.timestamp);
+                const prev = index > 0 ? shown[index - 1] : null;
+                const prevDate = prev ? new Date(prev.timestamp) : null;
+                const showDay = !prevDate || date.toDateString() !== prevDate.toDateString();
+
+                const formatDay = (d) => {
+                  const now = new Date();
+                  const yesterday = new Date(now);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  if (d.toDateString() === now.toDateString()) return 'TODAY';
+                  if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY';
+                  return d.toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).toUpperCase();
+                };
+
+                return (
+                  <React.Fragment key={msg.id}>
+                    {showDay && (
+                      <div className="flex items-center gap-3 my-2">
+                        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-red-600/30 to-transparent"></div>
+                        <span className="text-[9px] font-black tracking-[0.22em] text-red-500/80 px-3 py-1 rounded-full" style={{boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.2)'}}>{formatDay(date)}</span>
+                        <div className="flex-1 h-px bg-gradient-to-r from-red-600/30 via-transparent to-transparent"></div>
+                      </div>
+                    )}
+
+                    <div className={`flex flex-col ${msg.userId === me.uid ? 'items-end' : 'items-start'}`}>
+                      <span className={`text-[10px] font-black mb-1 px-1 ${roleClass(msg.role,'text-gray-500')}`}>
+                        {roleBadge(msg.role)}{senderLabel(msg)} {muted && '🔇'}
+                      </span>
+                      <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''} ${isStickerOnly(msg.content) ? 'muzz-sticker-only' : ''}`}>
+                        {renderRich(msg.content)}
+                      </div>
+                      <span className="msg-time">
+                        {isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
+              <div ref={bottomRef}></div>
+            </div>
+
+            <div className={`composer flex-shrink-0 ${darkMode ? 'bg-black/30' : 'bg-gray-50'}`} style={{boxShadow:'inset 0 1px 0 rgba(255,255,255,0.06)'}}>
+              {notice.show && (
+                <div className={`mb-3 px-3 py-3 rounded-xl text-xs ${notice.tone === 'blue' ? 'bg-cyan-500/10 text-cyan-300' : notice.tone === 'yellow' ? 'bg-yellow-500/10 text-yellow-300' : 'bg-red-600/10 text-red-300'}`} style={{boxShadow:'inset 0 0 0 1px rgba(255,255,255,0.08)'}}>
+                  <div className="flex items-start gap-3">
+                    <i className={`fas ${notice.tone === 'blue' ? 'fa-shield-alt' : notice.tone === 'yellow' ? 'fa-lock' : 'fa-ban'} mt-0.5`}></i>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black uppercase tracking-wider mb-1">{notice.title}</p>
+                      <p className="leading-relaxed">{notice.desc}</p>
+                    </div>
+                    <button onClick={closeNotice} className="opacity-70 px-1"><i className="fas fa-times"></i></button>
+                  </div>
+                </div>
+              )}
+
+              {pinMode && (
+                <div className="mb-3 px-3 py-2 rounded-lg text-yellow-500 text-xs font-bold flex items-center gap-2" style={{background:'rgba(234,179,8,0.1)'}}>
+                  <i className="fas fa-thumbtack"></i>
+                  <span className="flex-1">PIN MODE — type a message and send</span>
+                  <button onClick={() => setPinMode(false)}><i className="fas fa-times"></i></button>
+                </div>
+              )}
+
+              {banPanel && (
+                <div className="mb-3 rounded-xl p-3 max-h-40 overflow-y-auto custom-scroll" style={{boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.3)'}}>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs font-bold text-red-500 uppercase">Ban user</p>
+                    <button onClick={() => setBanPanel(false)}><i className="fas fa-times"></i></button>
+                  </div>
+                  {onlineUsers.filter((user) => !ADMIN_ROLES.includes(user.role)).map((user) => (
+                    <button key={user.uid} onClick={() => adminActions.banUser(user)} className="w-full text-left px-3 py-2 text-xs rounded mb-1 flex items-center gap-2">
+                      <i className="fas fa-user-slash text-red-500"></i>
+                      <span className="font-bold">{user.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {mutePanel && (
+                <div className="mb-3 rounded-xl p-3 max-h-40 overflow-y-auto custom-scroll" style={{boxShadow:'inset 0 0 0 1px rgba(234,179,8,0.3)'}}>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs font-bold text-yellow-500 uppercase">Mute user</p>
+                    <button onClick={() => setMutePanel(false)}><i className="fas fa-times"></i></button>
+                  </div>
+                  {onlineUsers.filter((user) => !ADMIN_ROLES.includes(user.role)).map((user) => (
+                    <button key={user.uid} onClick={() => adminActions.muteUser(user)} className="w-full text-left px-3 py-2 text-xs rounded mb-1 flex items-center gap-2">
+                      <i className="fas fa-volume-mute text-yellow-500"></i>
+                      <span className="font-bold">{user.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showTranslate && (
+                <div className="muzz-translate-picker" role="listbox" aria-label="Translate to">
+                  <p className="muzz-translate-label">Translate to</p>
+                  {(window.MuzzTranslate ? window.MuzzTranslate.langs : []).map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      className={window.MuzzTranslate && window.MuzzTranslate.lastTarget() === lang.id ? 'is-on' : ''}
+                      disabled={translating}
+                      onClick={async () => {
+                        const source = messageText;
+                        if (!window.MuzzTranslate) return;
+                        setTranslating(true);
+                        try {
+                          const out = await window.MuzzTranslate.translate(source, lang.id);
+                          setUndoText((prev) => (prev == null ? source : prev));
+                          setMessageText(out);
+                          setShowTranslate(false);
+                        } catch (err) {
+                          window.MuzzTranslate.showError(err && err.message);
+                        } finally {
+                          setTranslating(false);
+                        }
+                      }}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showEmoji && (
+                <div className="emoji-sheet" role="dialog" aria-label="Emoji and stickers">
+                  <div className="emoji-tabs custom-scroll" role="tablist">
+                    {Object.keys(EMOJIS).concat(['STICKERS']).map((tab) => (
+                      <button key={tab} type="button" role="tab" aria-selected={emojiTab === tab} onClick={() => setEmojiTab(tab)} className={`emoji-tab ${emojiTab === tab ? 'on' : ''}`}>
+                        {EMOJI_LABELS[tab] || tab}
+                      </button>
+                    ))}
+                  </div>
+                  {emojiTab === 'STICKERS' ? (
+                    <div className="sticker-grid emoji-window custom-scroll">
+                      {((window.MuzzStickers && window.MuzzStickers.list) || []).map((sticker) => (
+                        <button key={sticker.id} type="button" className="sticker-tile" onClick={() => setMessageText((prev) => prev + window.MuzzStickers.token(sticker.id))}>
+                          <img src={sticker.src} alt="" />
+                          <span>{sticker.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="emoji-window custom-scroll">
+                      {(EMOJIS[emojiTab] || []).map((emoji) => (
+                        <button key={emoji} type="button" onClick={() => setMessageText((prev) => prev + emoji)} className="emoji-btn">{emoji}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 rounded-2xl px-3 py-2" style={{background:'rgba(0,0,0,0.28)', boxShadow:'inset 0 0 0 1px rgba(255,255,255,0.08)'}}>
+                <button type="button" onClick={() => { setShowEmoji((prev) => !prev); setShowTranslate(false); }} className="text-gray-400 hover:text-red-500 px-1" aria-label="Emoji">
+                  <i className="far fa-laugh-beam text-xl"></i>
+                </button>
+                <button type="button" onClick={() => { setShowTranslate((prev) => !prev); setShowEmoji(false); }} className="muzz-translate-btn" aria-label="Translate" aria-pressed={showTranslate}>
+                  <span aria-hidden="true">文A</span>
+                </button>
+                {undoText != null && (
+                  <button type="button" className="muzz-translate-undo" onClick={() => { setMessageText(undoText); setUndoText(null); }}>Undo</button>
+                )}
+                <input
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  placeholder={iAmMuted ? 'You are muted...' : pinMode ? 'Message to pin...' : 'Write a message...'}
+                  disabled={iAmMuted}
+                  className="msg-input"
+                />
+                <button type="button" onClick={sendMessage} className={`send-btn ${pinMode ? 'pin' : ''}`} aria-label="Send">
+                  <i className={`fas ${pinMode ? 'fa-thumbtack' : 'fa-paper-plane'}`}></i>
+                </button>
+              </div>
+            </div>
+          </main>
+
+          <nav className="orbit-dock" data-place="chat" aria-label="MuzzSnap">
+            <span className="orbit-indicator" aria-hidden="true"></span>
+            <button type="button" className="orbit-item is-on" aria-current="page">
+              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              <span>Chat</span>
+            </button>
+            <button
+              type="button"
+              className={`orbit-core ${mobileMenu ? 'is-open' : ''}`}
+              aria-label="Menu"
+              aria-expanded={mobileMenu}
+              aria-controls="muzzMenu"
+              onClick={() => setMobileMenu((open) => !open)}
+            >
+              <span className="orbit-planet"><img src="muzzsnap.jpg" alt="" /></span>
+              <span className="orbit-core-label">Menu</span>
+            </button>
+            <button type="button" className="orbit-item" onClick={goToPrivate}>
+              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="16" cy="20" r="1.3" fill="currentColor" />
+                <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor" />
+              </svg>
+              <span>Private</span>
+            </button>
+          </nav>
+          <nav className="muzz-nav" data-place="chat" aria-label="MuzzSnap">
+            <button type="button" className="muzz-nav-item is-on" aria-current="page">
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              <span>Chat</span>
+            </button>
+            <button
+              type="button"
+              className={`muzz-nav-item ${mobileMenu ? 'is-open' : ''}`}
+              aria-label="Menu"
+              aria-expanded={mobileMenu}
+              aria-controls="muzzMenu"
+              onClick={() => setMobileMenu((open) => !open)}
+            >
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M7 10h18M7 16h18M7 22h18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <span>Menu</span>
+            </button>
+            <button type="button" className="muzz-nav-item" onClick={goToPrivate}>
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="16" cy="20" r="1.3" fill="currentColor" />
+                <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor" />
+              </svg>
+              <span>Private</span>
+            </button>
+          </nav>
+          {mobileMenu && <div onClick={() => setMobileMenu(false)} className="drawer-backdrop"></div>}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

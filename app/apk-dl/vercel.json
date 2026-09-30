@@ -1,0 +1,13 @@
+{
+  "headers": [
+    {
+      "source": "/version.json",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, HEAD, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "*" },
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+      ]
+    }
+  ]
+}

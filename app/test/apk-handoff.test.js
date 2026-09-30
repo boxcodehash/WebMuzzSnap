@@ -1,0 +1,313 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import vm from 'node:vm';
+import { Wallet, getAddress, verifyMessage } from 'ethers';
+
+const root = fileURLToPath(new URL('..', import.meta.url));
+
+function memoryStorage() {
+  const data = new Map();
+  return {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(key, String(value)); },
+    removeItem(key) { data.delete(key); }
+  };
+}
+
+function loadGate(location) {
+  const context = {
+    ethers: { utils: { getAddress, verifyMessage } },
+    localStorage: memoryStorage(),
+    crypto: globalThis.crypto,
+    TextEncoder,
+    TextDecoder,
+    btoa: (value) => Buffer.from(value, 'binary').toString('base64'),
+    atob: (value) => Buffer.from(value, 'base64').toString('binary'),
+    location,
+    URL,
+    MUZZ_PUBLIC: { appPublicUrl: 'https://muzzsnap-app.vercel.app', walletConnectProjectId: '' }
+  };
+  context.window = context;
+  vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8'), context);
+  return context.muzzGate;
+}
+
+test('los deep links del APK abren la URL pública, no localhost', () => {
+  const gate = loadGate({
+    origin: 'https://localhost',
+    hostname: 'localhost',
+    protocol: 'https:',
+    host: 'localhost'
+  });
+  assert.equal(gate.isEmbeddedOrigin(), true);
+  const page = gate.loginPageForWallets(true);
+  assert.equal(page, 'https://muzzsnap-app.vercel.app/login.html#from=apk');
+  const links = gate.walletDeepLinks(page);
+  const names = Array.from(links, (item) => String(item.name)).sort();
+  assert.deepEqual(names, ['Coinbase Wallet', 'MetaMask', 'OKX', 'Phantom', 'Rainbow', 'Trust Wallet']);
+  for (const item of links) {
+    const href = String(item.href);
+    assert.doesNotMatch(href, /localhost/);
+    assert.doesNotMatch(href, /\/dapp\/|\/browse|open_url|dappUrl/);
+    assert.match(href, /:\/\/wc$/);
+  }
+  const wc = gate.walletConnectDeepLinks('wc:abc');
+  const byName = Object.fromEntries(wc.map((item) => [item.name, item.href]));
+  assert.match(byName.MetaMask, /^metamask:\/\/wc\?uri=wc%3Aabc$/);
+  assert.match(byName.Phantom, /redirect_link=muzzsnap%3A%2F%2Fwc/);
+  assert.doesNotMatch(byName.MetaMask, /metamask\.app\.link\/dapp/);
+});
+
+test('el token de vuelta se verifica una sola vez y caduca', async () => {
+  const gate = loadGate({
+    origin: 'https://muzzsnap-app.vercel.app',
+    hostname: 'muzzsnap-app.vercel.app',
+    protocol: 'https:',
+    host: 'muzzsnap-app.vercel.app'
+  });
+  const wallet = Wallet.createRandom();
+  const exp = Date.now() + 60_000;
+  const nonce = 'ab'.repeat(16);
+  const message = gate.buildLoginMessage(wallet.address, { nonce, exp, returnApk: true });
+  assert.match(message, /Return: apk/);
+  const inApp = gate.buildLoginMessage(wallet.address, { nonce, exp, returnApk: false });
+  assert.doesNotMatch(inApp, /Return: apk/);
+  assert.match(message, new RegExp(`Nonce: ${nonce}`));
+  const signature = await wallet.signMessage(message);
+  const inAppSig = await wallet.signMessage(inApp);
+  assert.equal(verifyMessage(inApp, inAppSig).toLowerCase(), wallet.address.toLowerCase());
+  const token = gate.encodeHandoff({ a: wallet.address, n: nonce, e: exp, s: signature });
+  const url = gate.handoffUrl(token);
+  assert.match(url, /^muzzsnap:\/\/auth\?token=/);
+  assert.equal(gate.tokenFromUrl(url), token);
+  const proof = gate.verifyHandoff(token, Date.now());
+  assert.equal(proof.address, wallet.address.toLowerCase());
+  assert.throws(() => gate.verifyHandoff(token, Date.now()), /ALREADY_USED/);
+  const expired = gate.encodeHandoff({ a: wallet.address, n: 'cd'.repeat(16), e: Date.now() - 1000, s: signature });
+  assert.throws(() => gate.verifyHandoff(expired, Date.now()), /EXPIRED/);
+  const explained = gate.explainSignError(Object.assign(new Error('EXPIRED'), { code: 'expired' }));
+  assert.equal(explained.title, 'Sign-in expired.');
+  assert.match(explained.desc, /10 minutes/);
+  const chainish = gate.explainSignError(Object.assign(new Error('Switch network failed'), { code: 'chain' }));
+  assert.notEqual(chainish.title, 'Wrong network.');
+  assert.doesNotMatch(`${chainish.title} ${chainish.desc}`, /switch to Ethereum mainnet/i);
+  const line = gate.debugLine(Object.assign(new Error('x'), { code: 'balance' }), {
+    chain: 56,
+    namespaces: { eip155: { chains: ['eip155:56'], accounts: [`eip155:56:${wallet.address}`] } }
+  });
+  assert.equal(line, 'err: balance chain:56 ns:eip155:56 msg:x');
+  assert.equal(gate.debugLine(new Error('x'), {}).startsWith('err: error chain:unknown ns:none'), true);
+});
+
+test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => {
+  const login = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
+  const pub = readFileSync(new URL('../www/config.public.js', import.meta.url), 'utf8');
+  const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+  const activity = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/MainActivity.java', import.meta.url), 'utf8');
+  const wallet = readFileSync(new URL('../src/wallet.js', import.meta.url), 'utf8');
+  assert.match(pub, /https:\/\/muzzsnap-app\.vercel\.app/);
+  assert.match(pub, /8ff03dad157892146048cfe2b4e381ca/);
+  assert.match(login, /config\.public\.js/);
+  assert.doesNotMatch(login, /walletDeepLinks\(location\.href/);
+  assert.match(login, /data-wallet="metamask"/);
+  assert.match(login, /Other wallets/);
+  assert.match(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /NATIVE_RETURN/);
+  assert.match(readFileSync(new URL('../src/walletCatalog.js', import.meta.url), 'utf8'), /muzzsnap:\/\/wc/);
+  assert.match(login, /id="debugLine"/);
+  assert.doesNotMatch(login, /ensureMainnet/);
+  assert.doesNotMatch(login, /method:\s*'wallet_switchEthereumChain'/);
+  assert.doesNotMatch(login, /Wrong network/);
+  assert.doesNotMatch(login, /chainId === '0x1'/);
+  assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
+  assert.doesNotMatch(login, /WalletConnect opens your wallet/);
+  assert.match(login, /Open in wallet/);
+  assert.match(login, /v1\.0\.31/);
+  assert.match(login, /Disconnect \/ Change wallet/);
+  assert.match(login, /id="btnContinue"/);
+  assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Connecting…/);
+  assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Check your wallet to sign/);
+  assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Verifying…/);
+  assert.doesNotMatch(login, /wc_sessionAuthenticate|one-click|siwe/i);
+  assert.doesNotMatch(wallet, /eip155:56/);
+  assert.doesNotMatch(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /optionalChains/);
+  assert.doesNotMatch(readFileSync(new URL('../src/wc-auth.js', import.meta.url), 'utf8'), /eth_sign/);
+  assert.match(wallet, /ignoreChainSwitch/);
+  assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.31"/);
+  const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
+  assert.equal(capacitor.server.url, undefined);
+  assert.equal(capacitor.server.androidScheme, 'https');
+  assert.equal(capacitor.server.hostname, 'muzzsnap-app.vercel.app');
+  const bundledCap = JSON.parse(readFileSync(new URL('../android/app/src/main/assets/capacitor.config.json', import.meta.url), 'utf8'));
+  assert.equal(bundledCap.server.url, undefined);
+  assert.equal(bundledCap.server.hostname, 'muzzsnap-app.vercel.app');
+  assert.match(readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletWebViewClient.java', import.meta.url), 'utf8'), /isRemoteApi/);
+  assert.match(wallet, /enableCoinbase:\s*false/);
+  const gateSrc = readFileSync(new URL('../www/js/muzz-gate.js', import.meta.url), 'utf8');
+  assert.match(gateSrc, /https:\/\/ethereum\.publicnode\.com/);
+  assert.match(gateSrc, /https:\/\/eth\.drpc\.org/);
+  assert.match(gateSrc, /https:\/\/rpc\.ankr\.com\/eth/);
+  assert.doesNotMatch(gateSrc, /cloudflare-eth\.com|eth\.llamarpc\.com/);
+  assert.match(login, /Continue in this browser/);
+  assert.match(login, /js\/login-page\.js/);
+  assert.match(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /explainLoginError/);
+  assert.match(manifest, /android:host="auth"/);
+  assert.match(manifest, /android:host="wc"/);
+  assert.match(manifest, /android:scheme="metamask"/);
+  assert.match(manifest, /android:scheme="wc"/);
+  assert.match(activity, /muzzAcceptAuth/);
+  assert.match(activity, /"auth"/);
+  assert.match(activity, /muzz-wc-return/);
+  assert.match(activity, /onCreateWindow/);
+  assert.match(activity, /WalletWebViewClient/);
+  assert.match(activity, /client-override/);
+  assert.match(activity, /OnBackPressedCallback/);
+  assert.match(activity, /moveTaskToBack\(true\)/);
+  assert.match(activity, /muzzConsumeBack/);
+  assert.match(activity, /UpdateChecker/);
+  const update = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/UpdateChecker.java', import.meta.url), 'utf8');
+  assert.match(update, /https:\/\/muzzsnap-apk-dl\.vercel\.app\/version\.json/);
+  assert.match(update, /Cache-Control", "no-cache"/);
+  assert.match(update, /Update available/);
+  assert.match(update, /MuzzSnap /);
+  assert.match(update, /is ready/);
+  assert.match(update, /"Update"/);
+  assert.match(update, /"Later"/);
+  assert.match(update, /Intent\.ACTION_VIEW/);
+  assert.match(update, /setCancelable\(false\)/);
+  assert.doesNotMatch(update, /\.finish\(\)/);
+  assert.match(update, /DEBOUNCE_MS = 30_000L/);
+  assert.match(update, /onWindowReady/);
+  assert.match(update, /update wait/);
+  assert.match(activity, /onWindowFocusChanged/);
+  assert.doesNotMatch(update, /4L \* 60L \* 60L/);
+  assert.match(update, /update check/);
+  assert.match(update, /You're up to date \(v/);
+  assert.match(update, /checkNow/);
+  assert.match(update, /update manual/);
+  assert.match(readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8'), /checkUpdate/);
+  assert.match(readFileSync(new URL('../www/js/android-back.js', import.meta.url), 'utf8'), /muzzCheckUpdates/);
+  assert.doesNotMatch(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates|Check update|Send test notification/);
+  assert.doesNotMatch(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates|Check update|Send test notification/);
+  const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
+  assert.equal(manifestJson.versionCode, 31);
+  assert.equal(manifestJson.versionName, '1.0.31');
+  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=131');
+  assert.equal(manifestJson.notes, 'Connect opens the wallet to approve and sign once, then returns to the app. Chat, private, and stickers share one build. Private messages delete 24 hours after they are read.');
+  assert.equal(manifestJson.force, false);
+  const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
+  assert.match(JSON.stringify(dlHeaders), /Access-Control-Allow-Origin/);
+  assert.match(activity, /enableOnBackInvokedCallback|back handler installed/);
+  assert.doesNotMatch(activity, /\.finish\(\)|exitApp\(/);
+  assert.match(manifest, /android:launchMode="singleTask"/);
+  assert.match(manifest, /android:enableOnBackInvokedCallback="true"/);
+  const backJs = readFileSync(new URL('../www/js/android-back.js', import.meta.url), 'utf8');
+  assert.match(backJs, /window\.muzzConsumeBack/);
+  assert.match(backJs, /return 'closed'/);
+  assert.match(backJs, /return 'back'/);
+  assert.match(backJs, /return 'minimize'/);
+  assert.match(login, /js\/android-back\.js/);
+  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /js\/android-back\.js/);
+  assert.match(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /js\/android-back\.js/);
+  const client = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletWebViewClient.java', import.meta.url), 'utf8');
+  assert.match(client, /shouldOverrideUrlLoading/);
+  assert.match(client, /webview-handoff/);
+  assert.match(client, /WalletLinks\.start/);
+  assert.match(manifest, /android:scheme="rainbow"/);
+  assert.match(manifest, /android:scheme="phantom"/);
+  assert.match(manifest, /android:scheme="cbwallet"/);
+  assert.match(manifest, /android:scheme="okx"/);
+  const links = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinks.java', import.meta.url), 'utf8');
+  const plugin = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8');
+  assert.match(links, /Intent\.ACTION_VIEW/);
+  assert.match(links, /metamask\.app\.link/);
+  assert.match(links, /blocked in-app browser/);
+  assert.match(links, /preferNativeWallet/);
+  assert.match(links, /indexOf\('\/dapp'\)/);
+  assert.doesNotMatch(links, /metamask\.app\.link\/dapp/);
+  assert.match(links, /link\.trustwallet\.com/);
+  assert.match(links, /Intent\.parseUri/);
+  assert.match(links, /window\.open/);
+  assert.match(plugin, /shouldOverrideLoad/);
+  assert.match(plugin, /WalletLinks\.start/);
+  assert.match(wallet, /MUZZ_PUBLIC/);
+  assert.doesNotMatch(wallet, /return 'https:\/\/localhost'/);
+  assert.match(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /personal_sign/);
+  assert.doesNotMatch(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /authenticate\(/);
+  const legacy = readFileSync(new URL('../www/index.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(legacy, /metamask\.app\.link\/dapp/);
+  assert.match(legacy, /return 'login\.html'/);
+  assert.doesNotMatch(legacy, /Wrong network/);
+  assert.doesNotMatch(legacy, /wallet_switchEthereumChain/);
+  assert.match(legacy, /https:\/\/ethereum\.publicnode\.com/);
+  assert.match(legacy, /https:\/\/eth\.drpc\.org/);
+  assert.match(legacy, /https:\/\/rpc\.ankr\.com\/eth/);
+  assert.doesNotMatch(login, /acceptAuthToken|muzzAcceptAuth|ensureMainnet|wallet_switchEthereumChain/);
+  assert.doesNotMatch(readFileSync(new URL('../src/login-client.js', import.meta.url), 'utf8'), /ensureMainnet|wallet_switchEthereumChain/);
+  assert.doesNotMatch(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /ensureMainnet|wallet_switchEthereumChain|wc_sessionAuthenticate/);
+});
+
+test('APP_PUBLIC_URL se escribe solo si es https', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'muzz-pub-'));
+  const out = join(dir, 'config.local.json');
+  const ok = spawnSync(process.execPath, ['scripts/write-local-config.mjs', out], {
+    cwd: root,
+    env: { ...process.env, APP_PUBLIC_URL: 'https://muzzsnap-app.vercel.app/', WALLETCONNECT_PROJECT_ID: '' },
+    encoding: 'utf8'
+  });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(JSON.parse(readFileSync(out, 'utf8')).appPublicUrl, 'https://muzzsnap-app.vercel.app');
+  const bad = spawnSync(process.execPath, ['scripts/write-local-config.mjs', join(dir, 'bad.json')], {
+    cwd: root,
+    env: { ...process.env, APP_PUBLIC_URL: 'http://insecure.example' },
+    encoding: 'utf8'
+  });
+  assert.equal(bad.status, 1);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('phone landscape uses the desktop rail and rotation does not reload the activity', () => {
+  const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+  const activity = manifest.slice(manifest.indexOf('<activity'), manifest.indexOf('</activity>'));
+  assert.match(activity, /android:screenOrientation="fullUser"/);
+  assert.doesNotMatch(activity, /screenOrientation="portrait"/);
+  assert.match(activity, /android:configChanges="[^"]*orientation[^"]*screenSize/);
+  const rail = '(orientation: landscape) and (max-height: 500px)';
+  assert.match(readFileSync(new URL('../www/css/app.css', import.meta.url), 'utf8'), new RegExp(rail.replace(/[()]/g, '\\$&')));
+  const chat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
+  const priv = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
+  assert.match(chat, /orientation: portrait/);
+  assert.match(chat, /min-height: 501px/);
+  assert.match(priv, /orientation: landscape\) and \(max-height: 500px\)/);
+  assert.equal(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8').match(/versionName "([^"]+)"/)[1], '1.0.31');
+  assert.match(chat, /className="muzz-nav"/);
+  assert.match(chat, /className="orbit-dock"/);
+  assert.match(chat, /orbit-planet/);
+  assert.match(priv, /class="muzz-nav"/);
+  assert.match(priv, /class="orbit-dock"/);
+  const css = readFileSync(new URL('../www/css/app.css', import.meta.url), 'utf8');
+  assert.match(css, /scale\(0\.92\)/);
+  assert.match(css, /width: 72px/);
+  assert.match(css, /\.orbit-dock \{ display: none; \}/);
+});
+
+test('www has no test-notification or check-for-updates buttons', () => {
+  const banned = [/Send test notification/i, /Check for updates/i, /Check updates?/i];
+  const www = fileURLToPath(new URL('../www/', import.meta.url));
+  const files = readdirSync(www, { recursive: true })
+    .map((name) => join(www, name))
+    .filter((path) => statSync(path).isFile());
+  assert.ok(files.length > 10);
+  for (const path of files) {
+    const text = readFileSync(path, 'utf8');
+    for (const pattern of banned) {
+      assert.doesNotMatch(text, pattern, path);
+    }
+  }
+});

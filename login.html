@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#050505">
     <link rel="icon" href="muzzsnap.jpg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="muzz-names.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -467,7 +468,7 @@
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itsuki</span></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span></footer>
 
     <script>
         const loadingUI = document.getElementById('loadingUI');
@@ -475,12 +476,6 @@
         const signOverlay = document.getElementById('signOverlay');
         const statusText = document.getElementById('statusText');
         const signStep = document.getElementById('signStep');
-
-        const ADMIN_WALLETS = [
-            '0x208157b5ec396759e8754058108ecf53e32392ff',
-            '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
-            '0x875c5a7794b601f273da58e3c1d10671d16130ec'
-        ];
 
         let mmSdk = null;
 
@@ -507,7 +502,7 @@
 
         function saveUserSession(address) {
             const normalizedAddress = normalizeAddress(address);
-            const isAdmin = ADMIN_WALLETS.includes(normalizedAddress);
+            const isAdmin = window.MuzzNames ? MuzzNames.isAdmin(normalizedAddress) : false;
             sessionStorage.setItem('muzz_wallet_address', normalizedAddress);
             sessionStorage.setItem('muzz_user_role', isAdmin ? 'admin' : 'user');
             sessionStorage.setItem('muzz_is_admin', isAdmin ? 'true' : 'false');

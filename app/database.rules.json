@@ -1,0 +1,111 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "messages": {
+      "$channel": {
+        ".read": "auth != null",
+        ".write": "auth != null && !newData.exists() && (auth.uid == '0x208157b5ec396759e8754058108ecf53e32392ff' || auth.uid == '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501' || auth.uid == '0x875c5a7794b601f273da58e3c1d10671d16130ec')",
+        "$msgId": {
+          ".write": "auth != null && ((!data.exists() && newData.exists()) || (data.exists() && !newData.exists() && data.child('wallet').val() == auth.uid))",
+          ".validate": "!newData.exists() || (newData.child('wallet').val() == auth.uid && newData.child('wallet').val().matches(/^0x[a-f0-9]{40}$/) && newData.child('content').isString() && newData.child('content').val().length > 0 && newData.child('content').val().length <= 4000 && newData.child('timestamp').isNumber() && newData.child('userId').val() == auth.uid && newData.child('identityKey').val() == 'wallet_' + auth.uid && ((auth.uid == '0x208157b5ec396759e8754058108ecf53e32392ff' && newData.child('username').val() == 'RYASHU' && newData.child('role').val() == 'ryachu') || (auth.uid == '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501' && newData.child('username').val() == 'ITZUKI' && newData.child('role').val() == 'itsuki') || (auth.uid == '0x875c5a7794b601f273da58e3c1d10671d16130ec' && newData.child('username').val() == 'Esteban' && newData.child('role').val() == 'esteban') || (auth.uid == '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a' && newData.child('username').val() == 'Node_6bcb8a' && newData.child('role').val() == 'user') || (auth.uid != '0x208157b5ec396759e8754058108ecf53e32392ff' && auth.uid != '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501' && auth.uid != '0x875c5a7794b601f273da58e3c1d10671d16130ec' && auth.uid != '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a' && newData.child('role').val() == 'user' && newData.child('username').val().matches(/^Node_[a-f0-9]{4}$/) && auth.uid.endsWith(newData.child('username').val().replace('Node_', '')))))"
+        }
+      }
+    },
+    "status": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && ($id == auth.uid || $id == 'wallet_' + auth.uid)"
+      }
+    },
+    "walletRegistry": {
+      ".read": "auth != null",
+      "$wallet": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "muted": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && (auth.uid == '0x208157b5ec396759e8754058108ecf53e32392ff' || auth.uid == '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501' || auth.uid == '0x875c5a7794b601f273da58e3c1d10671d16130ec')"
+      }
+    },
+    "banned": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && (auth.uid == '0x208157b5ec396759e8754058108ecf53e32392ff' || auth.uid == '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501' || auth.uid == '0x875c5a7794b601f273da58e3c1d10671d16130ec')"
+      }
+    },
+    "fcmTokens": {
+      "$wallet": {
+        ".read": "auth != null && auth.uid == $wallet",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "notifyRate": {
+      ".read": false,
+      ".write": false
+    },
+    "loginNonces": {
+      ".read": false,
+      ".write": false
+    },
+    "loginIssued": {
+      ".read": false,
+      ".write": false
+    },
+    "sessionRate": {
+      ".read": false,
+      ".write": false
+    },
+    "translateRate": {
+      ".read": false,
+      ".write": false
+    },
+    "walletKeys": {
+      "$wallet": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $wallet"
+      }
+    },
+    "privateBlobs": {
+      ".read": false,
+      ".write": false
+    },
+    "photoMailbox": {
+      "$wallet": {
+        ".read": "auth != null && auth.uid == $wallet",
+        ".write": false
+      }
+    },
+    "privateSignal": {
+      "$to": {
+        "$from": {
+          ".read": "auth != null && (auth.uid == $to || auth.uid == $from) && $to.matches(/^0x[a-f0-9]{40}$/) && $from.matches(/^0x[a-f0-9]{40}$/) && $to != $from",
+          ".write": "auth != null && (auth.uid == $to || auth.uid == $from) && $to.matches(/^0x[a-f0-9]{40}$/) && $from.matches(/^0x[a-f0-9]{40}$/) && $to != $from"
+        }
+      }
+    },
+    "privateInbox": {
+      "$thread": {
+        ".read": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid))",
+        ".write": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid)) && newData.exists() && (!newData.hasChild('from') || newData.child('from').val() == auth.uid)",
+        "messages": {
+          "$msgId": {
+            ".validate": "(!newData.exists() && data.child('from').val() == auth.uid) || (newData.exists() && newData.child('from').val() == auth.uid && (!data.exists() || data.child('from').val() == auth.uid) && newData.hasChild('seal') && (newData.child('seal').hasChild('ct') || newData.child('seal').hasChild('id')) && (!newData.hasChild('text') || newData.child('text').val() == 'Encrypted message' || newData.child('text').val() == 'Photo') && !newData.hasChild('plaintext'))"
+          }
+        }
+      }
+    },
+    "privateIndex": {
+      "$owner": {
+        ".read": "auth != null && auth.uid == $owner",
+        "$peer": {
+          ".write": "auth != null && (auth.uid == $owner || auth.uid == $peer)",
+          ".validate": "!newData.exists() || !newData.hasChild('lastText') || newData.child('lastText').val() == 'Encrypted message' || newData.child('lastText').val() == 'Photo'"
+        }
+      }
+    }
+  }
+}

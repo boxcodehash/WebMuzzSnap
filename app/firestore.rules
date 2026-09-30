@@ -1,0 +1,250 @@
+rules_version = '2';
+// Acceso solo con custom claim muzzAccess y documento access/{wallet} vigente.
+// El texto de los mensajes no tiene sitio: el alta exige un conjunto cerrado de campos.
+// Lectura ≈ 24 h (ventana 23–25). No leído ≈ 72 h (ventana 70–74). Copia del emisor en el grupo ≈ 24 h (22–26).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAddr(a) {
+      return a is string && a.matches('^0x[0-9a-f]{40}$');
+    }
+
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.muzzAccess == true
+        && isAddr(request.auth.uid)
+        && request.auth.token.wallet == request.auth.uid;
+    }
+
+    function wallet() {
+      return request.auth.uid;
+    }
+
+    function accessOk() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/access/$(wallet()))
+        && get(/databases/$(database)/documents/access/$(wallet())).data.active == true
+        && get(/databases/$(database)/documents/access/$(wallet())).data.expiresAt > request.time;
+    }
+
+    function noPlaintext(data) {
+      return !data.keys().hasAny(['text', 'plaintext', 'content', 'body', 'message', 'msg']);
+    }
+
+    function nearNow(ts) {
+      return ts is timestamp
+        && ts > request.time - duration.value(15, 'm')
+        && ts < request.time + duration.value(15, 'm');
+    }
+
+    function unreadExpiry(ts) {
+      return ts is timestamp
+        && ts > request.time + duration.value(70, 'h')
+        && ts < request.time + duration.value(74, 'h');
+    }
+
+    function senderCopyExpiry(ts) {
+      return ts is timestamp
+        && ts > request.time + duration.value(22, 'h')
+        && ts < request.time + duration.value(26, 'h');
+    }
+
+    function attachmentOk(data) {
+      return !('attachmentPath' in data)
+        || (
+          data.attachmentPath is string
+          && data.attachmentPath.matches('^attachments/[0-9a-f-]{36}/[A-Za-z0-9._-]{1,80}$')
+          && data.attachmentPath.matches('^attachments/' + data.messageId + '/.*')
+        );
+    }
+
+    function messageShape(data) {
+      return data.keys().hasOnly([
+          'sender', 'recipient', 'conversationId', 'messageId', 'ciphertext', 'iv',
+          'senderEphPub', 'senderIdentityPub', 'recipientPrekeyId', 'serverFactorId',
+          'sentAt', 'readAt', 'expireAt'
+        ])
+        || data.keys().hasOnly([
+          'sender', 'recipient', 'conversationId', 'messageId', 'ciphertext', 'iv',
+          'senderEphPub', 'senderIdentityPub', 'recipientPrekeyId', 'serverFactorId',
+          'sentAt', 'readAt', 'expireAt', 'attachmentPath'
+        ]);
+    }
+
+    function cipherCore(data) {
+      return messageShape(data)
+        && noPlaintext(data)
+        && data.ciphertext is string
+        && data.ciphertext.size() > 0
+        && data.ciphertext.size() < 120000
+        && data.iv is string
+        && data.iv.size() < 80
+        && data.senderEphPub is string
+        && data.senderEphPub.size() > 32
+        && data.senderEphPub.size() < 2000
+        && data.senderIdentityPub is string
+        && data.senderIdentityPub.size() > 32
+        && data.senderIdentityPub.size() < 2000
+        && data.recipientPrekeyId is string
+        && data.recipientPrekeyId.size() > 8
+        && data.recipientPrekeyId.size() < 80
+        && data.messageId is string
+        && data.messageId.matches('^[0-9a-f-]{36}$')
+        && data.serverFactorId == data.messageId + '_' + data.recipient
+        && isAddr(data.sender)
+        && isAddr(data.recipient)
+        && data.sender != data.recipient
+        && nearNow(data.sentAt)
+        && data.readAt == null
+        && unreadExpiry(data.expireAt)
+        && attachmentOk(data);
+    }
+
+    function readUpdateOk() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt', 'expireAt'])
+        && resource.data.readAt == null
+        && nearNow(request.resource.data.readAt)
+        && request.resource.data.expireAt > request.resource.data.readAt + duration.value(23, 'h')
+        && request.resource.data.expireAt < request.resource.data.readAt + duration.value(25, 'h');
+    }
+
+    function sortedThread(a, b) {
+      return a < b ? a + '__' + b : b + '__' + a;
+    }
+
+    match /access/{w} {
+      allow read: if signedIn() && w == wallet();
+      allow write: if false;
+    }
+
+    match /nonces/{id} {
+      allow read, write: if false;
+    }
+
+    match /serverFactors/{id} {
+      allow read: if accessOk()
+        && (resource.data.sender == wallet() || resource.data.recipient == wallet());
+      allow write: if false;
+    }
+
+    match /users/{w} {
+      allow read: if accessOk();
+      allow create, update: if accessOk()
+        && w == wallet()
+        && isAddr(w)
+        && request.resource.data.keys().hasOnly(['wallet', 'identityPub', 'signingPub'])
+        && request.resource.data.wallet == wallet()
+        && request.resource.data.identityPub is string
+        && request.resource.data.identityPub.size() > 32
+        && request.resource.data.identityPub.size() < 2000
+        && request.resource.data.signingPub is string
+        && request.resource.data.signingPub.size() > 32
+        && request.resource.data.signingPub.size() < 2000;
+      allow delete: if false;
+
+      match /prekeys/{prekeyId} {
+        allow read: if accessOk();
+        allow create: if accessOk()
+          && w == wallet()
+          && prekeyId.matches('^[0-9a-f-]{36}$')
+          && request.resource.data.keys().hasOnly(['pub', 'sig', 'consumed', 'createdAt'])
+          && request.resource.data.pub is string
+          && request.resource.data.pub.size() > 32
+          && request.resource.data.pub.size() < 2000
+          && request.resource.data.sig is string
+          && request.resource.data.sig.size() > 16
+          && request.resource.data.sig.size() < 500
+          && request.resource.data.consumed == false
+          && nearNow(request.resource.data.createdAt);
+        allow update: if accessOk()
+          && resource.data.consumed == false
+          && request.resource.data.consumed == true
+          && request.resource.data.consumedBy == wallet()
+          && nearNow(request.resource.data.consumedAt)
+          && request.resource.data.pub == resource.data.pub
+          && request.resource.data.sig == resource.data.sig
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumed', 'consumedBy', 'consumedAt']);
+        allow delete: if accessOk() && w == wallet();
+      }
+
+      match /threads/{peer} {
+        allow read: if accessOk() && w == wallet();
+        allow create, update: if accessOk()
+          && isAddr(peer)
+          && peer != w
+          && request.resource.data.keys().hasOnly(['peer', 'sender', 'updatedAt'])
+          && request.resource.data.sender == wallet()
+          && request.resource.data.peer == peer
+          && nearNow(request.resource.data.updatedAt)
+          && (w == wallet() || peer == wallet());
+        allow delete: if false;
+      }
+    }
+
+    match /presence/{w} {
+      allow read: if accessOk();
+      allow create, update: if accessOk()
+        && w == wallet()
+        && request.resource.data.keys().hasOnly(['wallet', 'lastSeen'])
+        && request.resource.data.wallet == wallet()
+        && nearNow(request.resource.data.lastSeen);
+      allow delete: if accessOk() && w == wallet();
+    }
+
+    match /groups/general/members/{w} {
+      allow read: if accessOk();
+      allow create, update: if accessOk()
+        && w == wallet()
+        && request.resource.data.keys().hasOnly(['wallet', 'joinedAt'])
+        && request.resource.data.wallet == wallet()
+        && nearNow(request.resource.data.joinedAt);
+      allow delete: if accessOk() && w == wallet();
+    }
+
+    match /privateThreads/{threadId}/messages/{messageId} {
+      allow read: if accessOk()
+        && (resource.data.sender == wallet() || resource.data.recipient == wallet());
+      allow create: if accessOk()
+        && cipherCore(request.resource.data)
+        && request.resource.data.sender == wallet()
+        && request.resource.data.messageId == messageId
+        && request.resource.data.conversationId == threadId
+        && threadId == sortedThread(request.resource.data.sender, request.resource.data.recipient);
+      allow update: if accessOk()
+        && resource.data.recipient == wallet()
+        && readUpdateOk();
+      allow delete: if false;
+    }
+
+    match /groups/general/inbox/{w}/messages/{messageId} {
+      allow read: if accessOk() && w == wallet();
+      allow create: if accessOk()
+        && cipherCore(request.resource.data)
+        && request.resource.data.sender == wallet()
+        && request.resource.data.recipient == w
+        && request.resource.data.messageId == messageId
+        && request.resource.data.conversationId == 'general';
+      allow update: if accessOk()
+        && w == wallet()
+        && resource.data.recipient == wallet()
+        && readUpdateOk();
+      allow delete: if false;
+    }
+
+    match /groups/general/outbox/{w}/messages/{messageId} {
+      allow read: if accessOk() && w == wallet();
+      allow create: if accessOk()
+        && w == wallet()
+        && request.resource.data.keys().hasOnly(['sender', 'messageId', 'conversationId', 'sentAt', 'expireAt', 'recipients'])
+        && request.resource.data.sender == wallet()
+        && request.resource.data.messageId == messageId
+        && request.resource.data.conversationId == 'general'
+        && nearNow(request.resource.data.sentAt)
+        && senderCopyExpiry(request.resource.data.expireAt)
+        && request.resource.data.recipients is list
+        && request.resource.data.recipients.size() < 80
+        && noPlaintext(request.resource.data);
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://muzzsnap-app.vercel.app https://www.gstatic.com https://fonts.gstatic.com https://fonts.googleapis.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://ethereum.publicnode.com https://eth.drpc.org https://rpc.ankr.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://api.web3modal.org https://api.web3modal.com https://*.web3modal.org https://*.web3modal.com https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://rpc.walletconnect.org https://rpc.walletconnect.com wss://relay.walletconnect.org wss://relay.walletconnect.com https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://secure-mobile.walletconnect.com https://secure-mobile.walletconnect.org https://echo.walletconnect.com; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com https://secure.walletconnect.org https://secure.walletconnect.com https://*.walletconnect.com https://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://*.reown.com; object-src 'none'; base-uri 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070708">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MuzzSnap">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-320x568@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-375x667@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-375x812@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-390x844@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-393x852@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-402x874@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="splash/iphone-414x896@2.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-414x896@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-428x926@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-430x932@3.png">
+  <link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-440x956@3.png">
+  <link rel="stylesheet" href="css/ios-pwa.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="js/ios-pwa.js"></script>
+  <script src="js/android-back.js"></script>
+  <title>MuzzSnap Private</title>
+  <link rel="icon" href="muzzsnap.jpg">
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+  <script src="js/muzz-names.js"></script>
+  <script src="js/muzz-gate.js"></script>
+  <script src="js/private-notify.js"></script>
+  <script src="js/fcm-client.js"></script>
+  <script src="js/translate.js"></script>
+  <script src="js/stickers.js"></script>
+  <script src="js/private-e2ee.js"></script>
+  <script src="js/photo-transfer.js"></script>
+  <style>
+    :root{
+      --bg:#070708;
+      --soft:#16181d;
+      --line:rgba(255,255,255,.08);
+      --red:#ff2a2a;
+      --red-2:#9d0000;
+      --text:#f4f5f7;
+      --muted:#8e939e;
+      --green:#39ff14;
+      --blue:#8ec5ff;
+      --safe-top:env(safe-area-inset-top, 0px);
+      --safe-right:env(safe-area-inset-right, 0px);
+      --safe-bottom:env(safe-area-inset-bottom, 0px);
+      --safe-left:env(safe-area-inset-left, 0px);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;font-family:Outfit,Segoe UI,sans-serif;background:radial-gradient(ellipse 80% 42% at 50% -10%, rgba(255,42,42,.2), transparent 55%), #070708;color:var(--text);overscroll-behavior:none}
+    body{overflow:hidden;font-size:14px}
+    .app{position:relative;height:var(--app-h, 100dvh);margin-top:var(--app-top, 0px);display:grid;grid-template-columns:320px minmax(0,1fr)}
+    @media (min-width: 1024px), (orientation: landscape) and (max-height: 500px){ .app{padding-left:96px} }
+    .sidebar,.chat{min-height:0}
+    .sidebar{background:radial-gradient(circle at 16% 12%, rgba(255,255,255,.5) 0 1px, transparent 1.5px), radial-gradient(circle at 74% 42%, rgba(255,255,255,.3) 0 1px, transparent 1.5px), linear-gradient(180deg, rgba(16,12,18,.94), rgba(8,8,10,.96));backdrop-filter:blur(16px);border-right:1px solid rgba(255,42,42,.28);box-shadow:inset 0 0 0 1px rgba(255,42,42,.08);padding:18px;display:flex;flex-direction:column;gap:14px}
+    .brand{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,42,42,.22);border-radius:20px;background:linear-gradient(180deg,rgba(255,42,42,.08),rgba(255,42,42,.02))}
+    .logo{width:46px;height:46px;border-radius:14px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,42,42,.4), 0 8px 18px rgba(255,0,0,.18)}
+    .brand h1{margin:0;font-family:Orbitron,sans-serif;font-size:15px;letter-spacing:.08em;font-weight:800;font-style:normal}
+    .brand h1 span{color:var(--red)}
+    .card{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:22px;padding:14px}
+    .section-title{font-size:11px;letter-spacing:.28em;color:#8c95a3;text-transform:uppercase;font-weight:800;margin:0 0 12px}
+    .user-badge{display:flex;align-items:center;gap:10px;padding:12px;border-radius:18px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.16)}
+    .avatar{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#2a313b,#12171d);display:grid;place-items:center;color:#fff;font-weight:900;flex:0 0 auto}
+    .avatar.red{background:linear-gradient(145deg,var(--red),var(--red-2))}
+    .muted{color:var(--muted)}
+    .small{font-size:11px}
+    .contact-list{display:flex;flex-direction:column;gap:8px;overflow:auto;padding-right:4px}
+    .contact{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;border:1px solid transparent;background:rgba(255,255,255,.02);cursor:pointer;transition:.2s;width:100%;color:inherit;text-align:left}
+    .contact:hover{background:rgba(255,255,255,.04)}
+    .contact.active{background:rgba(255,42,42,.08);border-color:rgba(255,42,42,.18)}
+    .status{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:8px;flex:0 0 auto}
+    .side-actions{display:grid;gap:10px}
+    .btn{border:none;border-radius:18px;padding:14px 16px;font-weight:800;cursor:pointer;transition:.2s}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text)}
+    .chat{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;background:linear-gradient(180deg,rgba(16,16,18,.55),rgba(7,7,8,.92))}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .auto-delete-note{margin:0;flex:0 0 auto;text-align:center;font-size:11px;line-height:1.2;font-weight:600;color:#7d8b9c;padding:5px 12px 4px;pointer-events:none}
+    .topbar-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .topbar h2{margin:0;font-size:14px;letter-spacing:.16em;color:#ff6565;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pill{padding:7px 11px;border-radius:999px;background:rgba(255,42,42,.08);border:1px solid rgba(255,42,42,.18);font-size:11px;color:#ff9a9a;font-weight:700}
+    .messages{flex:1;min-height:0;overflow:auto;padding:22px 22px calc(22px + var(--safe-bottom));display:flex;flex-direction:column;gap:14px}
+    .msg-wrap{display:flex;gap:10px;align-items:flex-end;max-width:82%}
+    .msg-wrap.me{align-self:flex-end;flex-direction:row-reverse}
+    .bubble{padding:11px 13px;border-radius:18px;background:var(--soft);border:1px solid rgba(255,255,255,.06);line-height:1.45;box-shadow:0 8px 20px rgba(0,0,0,.18);word-break:break-word;font-size:15px}
+    .msg-wrap.me .bubble{background:linear-gradient(180deg,#ff3b3b,var(--red-2));border-color:transparent}
+    .bubble.muzz-sticker-only,.msg-wrap.me .bubble.muzz-sticker-only{background:transparent;border-color:transparent;box-shadow:none;padding:0}
+    .bubble img.muzz-sticker{width:168px;max-width:168px;height:auto;border-radius:22px;background:transparent}
+    body.shot-mode #muzzUpdateBar{display:none !important}
+    .meta{font-size:10px;color:var(--muted);margin:2px 6px}
+    .composer{padding:16px 18px calc(16px + var(--safe-bottom));border-top:1px solid var(--line);background:rgba(255,255,255,.02);flex:0 0 auto}
+    .composer-box{display:flex;gap:12px;align-items:flex-end;background:#0b1015;border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:10px 10px 10px 16px}
+    textarea{flex:1;resize:none;background:transparent;border:none;outline:none;color:var(--text);font-family:inherit;font-size:16px;line-height:1.4;min-height:24px;max-height:140px;padding:6px 0}
+    .send{width:50px;height:50px;border-radius:16px;border:none;background:linear-gradient(145deg,var(--red),var(--red-2));color:#fff;font-size:18px;cursor:pointer;flex:0 0 auto}
+    .photo-btn{width:44px;height:44px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex:0 0 auto}
+    .bubble img{display:block;max-width:220px;border-radius:12px}
+    .empty{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
+    .mobile-top{display:none;flex:0 0 auto}
+    @media (max-width: 1023px) and (orientation: portrait), (max-width: 1023px) and (min-height: 501px){
+      .app{grid-template-columns:1fr;height:var(--app-h, 100dvh);padding:0 0 calc(var(--muzz-nav-h, 54px) + var(--safe-bottom)) 0}
+      .sidebar{display:none}
+      .chat{height:100%;min-height:0;border:none}
+      .mobile-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));border-bottom:1px solid var(--line);background:rgba(0,0,0,.25)}
+      .messages{padding:14px}
+      .composer{padding:12px calc(12px + var(--safe-right)) 12px calc(12px + var(--safe-left))}
+      .msg-wrap{max-width:92%}
+    }
+    .people-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:14px;border:1px solid rgba(255,42,42,.28);background:rgba(255,42,42,.1);color:#ffd0d0;font-weight:800;font-size:12px;cursor:pointer;position:relative}
+    .people-btn .badge{display:none;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ff2a2a;color:#fff;font-size:10px;align-items:center;justify-content:center}
+    .people-btn .badge.show{display:inline-flex}
+    .unread-dot{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ff2a2a;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+    .app.picker-closed{grid-template-columns:minmax(0,1fr)}
+    .app.picker-closed .sidebar{display:none !important}
+    .app.picker-open .sidebar{display:flex !important}
+    @media (max-width: 1023px) and (orientation: portrait), (max-width: 1023px) and (min-height: 501px){
+      .app.picker-open .sidebar{position:fixed;left:0;right:auto;width:min(74vw, 280px);bottom:calc(var(--muzz-nav-h, 54px) + var(--safe-bottom));top:58px;z-index:40;overflow:auto}
+    }
+  </style>
+</head>
+<body>
+  <nav class="orbit-dock" data-place="private" aria-label="MuzzSnap">
+    <span class="orbit-indicator" aria-hidden="true"></span>
+    <a class="orbit-item" href="chat.html">
+      <svg class="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.4"></circle>
+        <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+      </svg>
+      <span>Chat</span>
+    </a>
+    <button type="button" class="orbit-core people-btn" aria-label="People" aria-expanded="true">
+      <span class="orbit-planet"><img src="muzzsnap.jpg" alt=""></span>
+      <span class="orbit-core-label">People</span>
+      <span class="badge"></span>
+    </button>
+    <button type="button" class="orbit-item is-on" aria-current="page">
+      <svg class="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+        <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+        <circle cx="16" cy="20" r="1.3" fill="currentColor"></circle>
+        <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor"></path>
+      </svg>
+      <span>Private</span>
+    </button>
+  </nav>
+  <nav class="muzz-nav" data-place="private" aria-label="MuzzSnap">
+    <a class="muzz-nav-item" href="chat.html">
+      <svg class="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>
+        <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.4"></circle>
+        <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+      </svg>
+      <span>Chat</span>
+    </a>
+    <button type="button" class="muzz-nav-item people-btn" aria-label="Menu" aria-expanded="true">
+      <svg class="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M7 10h18M7 16h18M7 22h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+      </svg>
+      <span>Menu</span>
+      <span class="badge"></span>
+    </button>
+    <button type="button" class="muzz-nav-item is-on" aria-current="page">
+      <svg class="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+        <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+        <circle cx="16" cy="20" r="1.3" fill="currentColor"></circle>
+        <path d="M24.2 6.2l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor"></path>
+      </svg>
+      <span>Private</span>
+    </button>
+  </nav>
+  <div class="app picker-open" id="appShell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="muzzsnap.jpg" alt="MuzzSnap" class="logo">
+        <div>
+          <h1>MUZZ<span>SNAP</span></h1>
+          <p class="build-tag">Version 1.0.31</p>
+        </div>
+      </div>
+      <div class="card">
+        <p class="section-title">Private Access</p>
+        <div class="user-badge">
+          <div class="avatar red" id="meAvatar">M</div>
+          <div>
+            <div style="font-weight:800" id="meName">Node_User</div>
+            <div class="muted small" id="meSubtext">10,000,000 MUZZ</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="min-height:0;display:flex;flex-direction:column;flex:1">
+        <p class="section-title">Conversations</p>
+        <label class="muted small" for="walletSearch">Search by wallet</label>
+        <input id="walletSearch" type="search" inputmode="text" autocomplete="off" spellcheck="false" placeholder="0x wallet address" aria-label="Search by wallet address" style="width:100%;margin:8px 0;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#0b1015;color:inherit;font:inherit;font-size:16px">
+        <p id="walletSearchHint" class="muted small" style="margin:0 0 8px"></p>
+        <div class="contact-list" id="contactList"></div>
+      </div>
+      <div class="side-actions">
+        <p id="muzzPushStatus" class="muted small" role="status">Notifications not granted · no token</p>
+        <button class="btn ghost" onclick="window.location.href='chat.html'">← Back to Chat</button>
+      </div>
+    </aside>
+    <section class="chat">
+      <div class="mobile-top">
+        <button type="button" class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="muzzPrivateBack()">Back</button>
+        <img src="muzzsnap.jpg" alt="MuzzSnap" style="width:36px;height:36px;border-radius:12px;object-fit:cover">
+        <span id="meNameBar" style="font-weight:800;font-size:13px;color:#ff6565;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Node_User</span>
+        <button type="button" class="people-btn" aria-label="People">People<span class="badge"></span></button>
+        <button type="button" class="muzz-fs" aria-label="Full screen">Full screen</button>
+      </div>
+      <div class="topbar" id="chatHeader"></div>
+      <p class="auto-delete-note">Auto delete 24hr</p>
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <div class="muzz-translate-picker" id="translatePicker" hidden>
+          <p class="muzz-translate-label">Translate to</p>
+          <button type="button" data-lang="en">English</button>
+          <button type="button" data-lang="es">Español</button>
+          <button type="button" data-lang="zh-CN">中文</button>
+          <button type="button" data-lang="ja">日本語</button>
+        </div>
+        <div id="emojiSheet" class="emoji-sheet" hidden>
+          <div class="emoji-tabs" id="emojiTabs" role="tablist"></div>
+          <div id="emojiGrid"></div>
+        </div>
+        <div class="composer-box">
+          <button type="button" id="emojiBtn" class="emoji-toggle" aria-label="Emoji" aria-pressed="false">😊</button>
+          <button type="button" id="translateBtn" class="muzz-translate-btn" aria-label="Translate"><span aria-hidden="true">文A</span></button>
+          <button type="button" id="photoBtn" class="photo-btn" aria-label="Photo">Photo</button>
+          <input id="photoInput" type="file" accept="image/*" hidden>
+          <textarea id="messageInput" placeholder="Write a private message..."></textarea>
+          <button type="button" id="translateUndo" class="muzz-translate-undo" hidden>Undo</button>
+          <button class="send" id="sendBtn">➤</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
+    const MUZZ_MIN_REQUIRED = 10000000;
+    const ONLINE_TTL_MS = 45000;
+    const ERC20_ABI = [
+      'function balanceOf(address) view returns (uint256)',
+      'function decimals() view returns (uint8)'
+    ];
+
+    const fbConfig = {
+      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+      projectId: atob('cHVsc2FyaQ=='),
+      storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
+      messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
+      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+    };
+
+    const nativeShot = window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform();
+    const localShot = new URLSearchParams(location.search).get('shot') === '1'
+      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || nativeShot);
+    if (localShot) document.body.classList.add('shot-mode');
+    if (!localShot && !firebase.apps.length) firebase.initializeApp(fbConfig);
+    const db = localShot ? null : firebase.database();
+
+    const meRaw = (window.muzzGate ? muzzGate.savedWallet() : '') || '';
+    const meWallet = String(meRaw || '').trim().toLowerCase();
+    const isGuest = !meWallet || meWallet.startsWith('guest_');
+    const isAdmin = window.MuzzNames ? MuzzNames.isAdmin(meWallet) : false;
+    const meRole = window.MuzzNames ? MuzzNames.roleOf(meWallet) : 'user';
+    const meName = isGuest ? String(meRaw).replace('guest_','') : (window.MuzzNames ? MuzzNames.displayName(meWallet) : `Node_${meWallet.slice(-4) || 'User'}`);
+    const meIdentity = isGuest ? `guest_${meName}` : `wallet_${meWallet}`;
+
+    const READ_TTL_MS = 24 * 60 * 60 * 1000;
+    const CONTACT_CACHE = 'muzz_private_contacts_v1';
+    let contacts = [];
+    let activeWallet = null;
+    let messages = [];
+    let inboxUnsub = null;
+    let pickerOpen = true;
+    let unreadMap = {};
+    let walletQuery = '';
+
+    function escapeHtml(str){
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
+    function initials(text){ return (text || 'M').replace(/[^a-zA-Z0-9]/g,'').slice(0,1).toUpperCase() || 'M'; }
+    function shortenWallet(wallet){ if(!wallet) return ''; return wallet.slice(0,6) + '...' + wallet.slice(-4); }
+    function threadId(a,b){ return [String(a).toLowerCase(), String(b).toLowerCase()].sort().join('_'); }
+    function isFresh(ts){ return Number(ts || 0) && (Date.now() - Number(ts) < ONLINE_TTL_MS); }
+    function formatTime(ts){
+      const d = new Date(Number(ts || Date.now()));
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    }
+
+    async function validatePrivateAccess(){
+      try {
+        if (sessionStorage.getItem('muzz_login_hold')) {
+          window.location.replace('login.html');
+          return false;
+        }
+      } catch (err) { /* private mode */ }
+      if(!/^0x[a-f0-9]{40}$/.test(meWallet)){
+        muzzGate.clearWallet();
+        window.location.href = 'login.html';
+        return false;
+      }
+      sessionStorage.setItem('muzz_wallet_address', meWallet);
+      return true;
+    }
+
+    async function confirmPrivateBalance(){
+      try{
+        const holding = await muzzGate.confirmServerBalance();
+        if(holding.ok) return true;
+        if(holding.code === 'balance'){
+          alert('Insufficient MUZZ balance. You have ' + (holding.formatted || '0') + ' MUZZ and the minimum is 10,000,000 MUZZ.');
+        }else{
+          alert('Your MUZZ balance could not be verified. Nothing was changed.');
+        }
+        window.location.href = 'login.html';
+        return false;
+      }catch(err){
+        console.error('Private validation failed:', err);
+        alert('Your MUZZ balance could not be verified. Nothing was changed.');
+        window.location.href = 'login.html';
+        return false;
+      }
+    }
+
+    function renderMe(){
+      const label = localShot ? 'Node_6bcb8a' : (meName || 'Node_User');
+      document.getElementById('meName').textContent = label;
+      const bar = document.getElementById('meNameBar');
+      if (bar) bar.textContent = label;
+      document.getElementById('meAvatar').textContent = initials(label);
+      document.getElementById('meSubtext').textContent = '10,000,000 MUZZ verified';
+    }
+
+    function unreadTotal(){
+      return Object.keys(unreadMap).reduce((sum, key) => sum + (unreadMap[key] || 0), 0);
+    }
+
+    function peopleButtonHtml(){
+      const n = unreadTotal();
+      const badge = n ? `<span class="badge show">${n > 9 ? '9+' : n}</span>` : '<span class="badge"></span>';
+      return `<button type="button" class="people-btn" aria-label="People">People${badge}</button>`;
+    }
+
+    function applyPicker(){
+      const shell = document.getElementById('appShell');
+      shell.classList.toggle('picker-open', pickerOpen);
+      shell.classList.toggle('picker-closed', !pickerOpen);
+      document.querySelectorAll('.people-btn .badge').forEach(el => {
+        const n = unreadTotal();
+        el.textContent = n ? (n > 9 ? '9+' : String(n)) : '';
+        el.classList.toggle('show', n > 0);
+      });
+      document.querySelectorAll('.muzz-nav .people-btn, .orbit-core.people-btn').forEach(el => {
+        el.setAttribute('aria-expanded', pickerOpen ? 'true' : 'false');
+        el.classList.toggle('is-open', pickerOpen);
+      });
+    }
+
+    function contactName(wallet, entry){
+      if (window.MuzzNames && (MuzzNames.isAdmin(wallet) || MuzzNames.isWhitelisted(wallet))) {
+        return MuzzNames.displayName(wallet);
+      }
+      if (entry && entry.username) return entry.username;
+      return 'Node_' + String(wallet).slice(-4);
+    }
+
+    function contactAvatar(wallet){
+      const role = window.MuzzNames ? MuzzNames.roleOf(wallet) : 'user';
+      if (role === 'ryachu') return '👑';
+      if (role === 'itsuki') return '💎';
+      if (role === 'esteban') return '🛡️';
+      return '👤';
+    }
+
+    function loadCachedContacts(){
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CONTACT_CACHE) || '[]');
+        if (!Array.isArray(parsed)) return;
+        contacts = parsed.filter(item => item && /^0x[a-f0-9]{40}$/.test(String(item.wallet || '')) && item.wallet !== meWallet).map(item => ({
+          wallet: String(item.wallet).toLowerCase(),
+          name: item.name || contactName(item.wallet),
+          avatar: item.avatar || contactAvatar(item.wallet),
+          subtitle: item.subtitle || shortenWallet(item.wallet),
+          lastText: item.lastText === 'Photo' ? 'Photo' : (item.lastText ? 'Encrypted message' : ''),
+          lastAt: Number(item.lastAt) || 0,
+          online: false
+        }));
+      } catch (err) { /* empty list until the registry answers */ }
+    }
+
+    function saveCachedContacts(){
+      try {
+        localStorage.setItem(CONTACT_CACHE, JSON.stringify(contacts.slice(0, 80).map(item => ({
+          wallet: item.wallet,
+          name: item.name,
+          avatar: item.avatar,
+          subtitle: item.subtitle,
+          lastText: item.lastText === 'Photo' ? 'Photo' : (item.lastText ? 'Encrypted message' : ''),
+          lastAt: item.lastAt || 0
+        }))));
+      } catch (err) { /* private mode */ }
+    }
+
+    function ensureContact(wallet){
+      const w = String(wallet || '').toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(w) || w === meWallet) return;
+      if (contacts.some(item => item.wallet === w)) return;
+      contacts.unshift({
+        wallet: w,
+        name: contactName(w),
+        avatar: contactAvatar(w),
+        subtitle: shortenWallet(w),
+        lastText: '',
+        lastAt: Date.now(),
+        online: false
+      });
+    }
+
+    function searchMatch(){
+      if (!window.MuzzE2EE || typeof MuzzE2EE.parseWalletSearch !== 'function') return { empty: true };
+      return MuzzE2EE.parseWalletSearch(walletQuery);
+    }
+
+    function renderContacts(){
+      const list = document.getElementById('contactList');
+      const hint = document.getElementById('walletSearchHint');
+      const parsed = searchMatch();
+      if (hint) {
+        if (parsed && parsed.error) hint.textContent = parsed.error;
+        else if (parsed && parsed.checksum) hint.textContent = parsed.checksum;
+        else hint.textContent = '';
+      }
+      list.innerHTML = '';
+      const rows = contacts.slice();
+      if (parsed && parsed.wallet && parsed.wallet !== meWallet && !rows.some(item => item.wallet === parsed.wallet)) {
+        rows.unshift({
+          wallet: parsed.wallet,
+          name: contactName(parsed.wallet),
+          avatar: contactAvatar(parsed.wallet),
+          subtitle: parsed.checksum || shortenWallet(parsed.wallet),
+          lastText: 'Start a private chat',
+          lastAt: Date.now(),
+          online: false
+        });
+      }
+      const visibleRows = (parsed && parsed.wallet)
+        ? rows.filter(item => item.wallet === parsed.wallet)
+        : rows;
+      if(!visibleRows.length){
+        list.innerHTML = '<div class="muted small">No wallet contacts yet.</div>';
+        return;
+      }
+      visibleRows.forEach(chat => {
+        const row = document.createElement('button');
+        row.className = 'contact' + (chat.wallet === activeWallet ? ' active' : '');
+        const unread = unreadMap[chat.wallet] || 0;
+        row.innerHTML = `
+          <div class="avatar">${escapeHtml(chat.avatar)}</div>
+          <div style="min-width:0;flex:1;text-align:left">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chat.name)}</div>
+              ${unread ? `<span class="unread-dot">${unread > 9 ? '9+' : unread}</span>` : `<div class="small muted">${chat.online ? 'online' : ''}</div>`}
+            </div>
+            <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(chat.lastText || chat.subtitle || '')}</div>
+          </div>
+        `;
+        row.onclick = () => openThread(chat.wallet);
+        list.appendChild(row);
+      });
+    }
+
+    function renderHeader(){
+      const el = document.getElementById('chatHeader');
+      const chat = contacts.find(c => c.wallet === activeWallet);
+      if(!chat){
+        el.innerHTML = `
+          <div class="topbar-left">
+            <div class="avatar">🛡️</div>
+            <div style="min-width:0">
+              <h2>PRIVATE</h2>
+              <div class="small muted">Select a wallet conversation.</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">${peopleButtonHtml()}<div class="pill">10,000,000 MUZZ</div></div>
+        `;
+        return;
+      }
+      el.innerHTML = `
+        <div class="topbar-left">
+          <button type="button" class="btn ghost thread-back" style="padding:8px 12px">Back</button>
+          <div class="avatar">${escapeHtml(chat.avatar)}</div>
+          <div style="min-width:0">
+            <h2>${escapeHtml(chat.name)}</h2>
+            <div class="small muted"><span class="status" style="background:${chat.online ? 'var(--green)' : '#5f6b7a'};box-shadow:${chat.online ? '0 0 10px var(--green)' : 'none'}"></span>${chat.online ? 'Online' : 'Offline'} · ${escapeHtml(chat.subtitle)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">${peopleButtonHtml()}<div class="pill">PRIVATE</div></div>
+      `;
+    }
+
+    let messageGen = 0;
+
+    function plainRow(msg, text, extra) {
+      const sent = Number(msg.timestamp || msg.sentAt) || Date.now();
+      const mine = String(msg.from || '').toLowerCase() === meWallet;
+      const readAt = mine ? (Number(msg.readAt) || sent) : (Number(extra && extra.readAt) || Number(msg.readAt) || 0);
+      const expireAt = Number(extra && extra.expireAt) || Number(msg.expireAt) || (readAt ? readAt + READ_TTL_MS : sent + READ_TTL_MS);
+      return {
+        id: msg.id,
+        thread: threadId(meWallet, activeWallet),
+        from: String(msg.from || '').toLowerCase(),
+        to: String(msg.to || activeWallet || '').toLowerCase(),
+        text: text,
+        timestamp: sent,
+        seq: Number(msg.seq) || 0,
+        kind: 'text',
+        readAt: readAt,
+        expireAt: expireAt,
+        local: true
+      };
+    }
+
+    async function materialize(remote) {
+      const rows = [];
+      const list = remote || [];
+      for (let i = 0; i < list.length; i += 1) {
+        const msg = list[i];
+        if (!msg) continue;
+        if (msg.outer && window.MuzzE2EE) {
+          const cached = await MuzzE2EE.cached(msg.id);
+          if (cached && (cached.text != null || cached.photoB64) && !MuzzE2EE.isDue(cached, Date.now())) {
+            rows.push(Object.assign({}, cached, { local: true }));
+            continue;
+          }
+          if (String(msg.from || '').toLowerCase() === meWallet) {
+            rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, kind: msg.kind || 'text', text: msg.kind === 'photo' ? 'Photo' : 'Encrypted message', local: true });
+            continue;
+          }
+          try {
+            const inner = await MuzzE2EE.unwrap(msg.id, activeWallet);
+            const opened = await MuzzE2EE.openMessage(meWallet, inner);
+            const photo = inner && inner.kind === 'photo';
+            const text = photo ? 'Photo' : opened;
+            let readAt = Number(msg.readAt) || 0;
+            let expireAt = Number(msg.expireAt) || 0;
+            const incoming = String(msg.to || '').toLowerCase() === meWallet;
+            if (incoming && !readAt) {
+              const marked = await MuzzE2EE.markRead(msg.id, activeWallet).catch(() => null);
+              readAt = marked && marked.readAt ? Number(marked.readAt) : Date.now();
+              expireAt = marked && marked.expireAt ? Number(marked.expireAt) : readAt + READ_TTL_MS;
+            }
+            const row = plainRow(Object.assign({}, msg, inner, { timestamp: msg.timestamp || inner.sentAt, seq: msg.seq != null ? msg.seq : inner.seq }), text, { readAt: readAt, expireAt: expireAt });
+            if (photo && opened instanceof Uint8Array) {
+              row.kind = 'photo';
+              row.photoB64 = MuzzE2EE.encodeBytes(opened);
+            }
+            await MuzzE2EE.rememberPlain(row);
+            rows.push(row);
+          } catch (err) {
+            const again = await MuzzE2EE.cached(msg.id);
+            if (again && again.text != null) rows.push(Object.assign({}, again, { local: true }));
+            else rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, text: 'Could not open this message.', local: true });
+          }
+          continue;
+        }
+        if (msg.local && msg.text != null) {
+          rows.push(msg);
+          continue;
+        }
+        rows.push(msg);
+      }
+      if (window.MuzzE2EE && activeWallet) {
+        const local = await MuzzE2EE.listPlain();
+        const seen = new Set(rows.map(item => item && item.id).filter(Boolean));
+        local.forEach((row) => {
+          if (!row || !row.id || seen.has(row.id) || MuzzE2EE.isDue(row, Date.now())) return;
+          const inThread = (row.from === meWallet && row.to === activeWallet) || (row.from === activeWallet && row.to === meWallet);
+          if (!inThread) return;
+          seen.add(row.id);
+          rows.push(Object.assign({}, row, { local: true }));
+        });
+      }
+      return window.MuzzE2EE ? MuzzE2EE.sortMessages(rows) : rows;
+    }
+
+    function applyMessages(remote) {
+      const gen = ++messageGen;
+      const basePromise = materialize(remote || []);
+      const finish = (base, rows) => {
+        if (gen !== messageGen) return;
+        const seen = new Set((base || []).map((item) => item.seal && item.seal.id).filter(Boolean));
+        const extra = [];
+        (rows || []).forEach((row) => {
+          if (!row || !row.id || !row.ct || seen.has(row.id)) return;
+          const from = String(row.from || '').toLowerCase();
+          const to = String(row.to || '').toLowerCase();
+          const inThread = (from === meWallet && to === activeWallet) || (from === activeWallet && to === meWallet);
+          if (!inThread) return;
+          seen.add(row.id);
+          extra.push({
+            id: 'local-' + row.id,
+            from,
+            to,
+            timestamp: Number(row.savedAt) || 0,
+            text: 'Photo',
+            seal: { v: 1, kind: 'photo', iv: row.iv, id: row.id, fromPub: row.fromPub, toPub: row.toPub }
+          });
+        });
+        const merged = (base || []).concat(extra);
+        messages = window.MuzzE2EE ? MuzzE2EE.sortMessages(merged) : merged.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+        render();
+      };
+      basePromise.then((base) => {
+        if (!activeWallet || !window.MuzzTransfer || typeof MuzzTransfer.listLocal !== 'function') {
+          finish(base, []);
+          return;
+        }
+        MuzzTransfer.listLocal().then((rows) => finish(base, rows)).catch(() => finish(base, []));
+      }).catch(() => finish([], []));
+    }
+
+    function leaveThread(){
+      activeWallet = null;
+      pickerOpen = true;
+      messages = [];
+      if (inboxUnsub) { try { inboxUnsub(); } catch (err) { /* already off */ } inboxUnsub = null; }
+      applyPicker();
+      render();
+    }
+
+    window.muzzPrivateBack = function () {
+      if (activeWallet) { leaveThread(); return; }
+      window.location.href = 'chat.html';
+    };
+
+    const previousHardwareBack = window.muzzConsumeBack;
+    window.muzzConsumeBack = function () {
+      try {
+        const shell = document.getElementById('appShell');
+        if (activeWallet && shell && shell.classList.contains('picker-open')) {
+          pickerOpen = false;
+          applyPicker();
+          return 'closed';
+        }
+        if (activeWallet) {
+          leaveThread();
+          return 'closed';
+        }
+      } catch (err) { /* fall through */ }
+      if (typeof previousHardwareBack === 'function') return previousHardwareBack();
+      return 'back';
+    };
+
+    async function rememberIncoming(inner) {
+      if (!inner || !inner.id || !window.MuzzE2EE) return;
+      const existing = await MuzzE2EE.cached(inner.id);
+      if (existing && existing.text != null) return existing;
+      const text = await MuzzE2EE.openMessage(meWallet, inner);
+      const sent = Number(inner.sentAt) || Date.now();
+      const viewing = activeWallet && (inner.from === activeWallet || inner.to === activeWallet);
+      const readAt = viewing && inner.to === meWallet ? Date.now() : 0;
+      const row = {
+        id: inner.id,
+        thread: threadId(inner.from, inner.to),
+        from: inner.from,
+        to: inner.to,
+        text: text,
+        timestamp: sent,
+        seq: Number(inner.seq) || 0,
+        kind: 'text',
+        readAt: readAt,
+        expireAt: readAt ? readAt + READ_TTL_MS : sent + READ_TTL_MS,
+        local: true
+      };
+      await MuzzE2EE.rememberPlain(row);
+      if (viewing && readAt) MuzzE2EE.markRead(inner.id, inner.from).catch(() => null);
+      if (viewing) applyMessages(messages.filter(item => !item.local && !item.outer));
+      return row;
+    }
+
+    async function sweepExpired(){
+      if (!window.MuzzE2EE) return;
+      const gone = await MuzzE2EE.sweepLocal(Date.now());
+      if (!db || !Array.isArray(gone)) return;
+      for (const row of gone) {
+        if (!row || !row.thread || !row.id) continue;
+        try { await db.ref('privateInbox/' + row.thread + '/messages/' + row.id).remove(); }
+        catch (err) { /* the daily expire job deletes it */ }
+      }
+    }
+
+    function paintPlainBodies(root){
+      const nodes = root.querySelectorAll('.plain-body');
+      const plains = messages.filter((msg) => !msg.seal && msg.kind !== 'photo' && !msg.photoB64);
+      nodes.forEach((node, index) => {
+        const text = plains[index] ? (plains[index].text || '') : '';
+        if (window.MuzzStickers) MuzzStickers.paint(node, text);
+        else node.textContent = text;
+        const bubble = node.closest('.bubble');
+        if (bubble) bubble.classList.toggle('muzz-sticker-only', !!(window.MuzzStickers && MuzzStickers.only(text)));
+      });
+    }
+
+    function renderMessages(){
+      const box = document.getElementById('messages');
+      if(!activeWallet){
+        box.innerHTML = pickerOpen
+          ? '<div class="empty">Choose a conversation.</div>'
+          : '<div class="empty">Tap People to choose a conversation.</div>';
+        return;
+      }
+      if(!messages.length){
+        box.innerHTML = '<div class="empty">No messages yet. Say hello.</div>';
+        return;
+      }
+      box.innerHTML = messages.map(msg => {
+        const mine = localShot ? msg.from === 'me' : String(msg.from || '').toLowerCase() === meWallet;
+        const name = mine ? (localShot ? 'Node_6bcb8a' : meName) : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
+        const body = (msg.kind === 'photo' || msg.photoB64)
+          ? `<span data-photo="${escapeHtml(msg.id)}">Photo</span>`
+          : msg.seal
+          ? `<span data-seal="${escapeHtml(msg.id)}">${escapeHtml(msg.seal.kind === 'photo' ? 'Photo' : 'Encrypted message')}</span>`
+          : '<span class="plain-body"></span>';
+        return `
+          <div class="msg-wrap ${mine ? 'me' : ''}">
+            <div class="avatar ${mine ? 'red' : ''}" style="width:36px;height:36px;border-radius:12px;font-size:14px">${escapeHtml(initials(name))}</div>
+            <div>
+              <div class="meta">${escapeHtml(name)} · ${escapeHtml(formatTime(msg.timestamp))}</div>
+              <div class="bubble">${body}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      paintPlainBodies(box);
+      box.scrollTop = box.scrollHeight;
+      decorateSeals();
+      decoratePhotos();
+    }
+
+    function decoratePhotos() {
+      const box = document.getElementById('messages');
+      box.querySelectorAll('[data-photo]').forEach((node) => {
+        if (node.dataset.opened === '1') return;
+        const msg = messages.find((item) => item.id === node.getAttribute('data-photo'));
+        if (!msg || !msg.photoB64 || !window.MuzzE2EE) return;
+        node.dataset.opened = '1';
+        try {
+          const blob = MuzzE2EE.photoBlob(msg.photoB64);
+          const img = document.createElement('img');
+          img.alt = 'Photo';
+          img.src = URL.createObjectURL(blob);
+          node.textContent = '';
+          node.appendChild(img);
+        } catch (err) {
+          node.textContent = 'Could not open this photo.';
+        }
+      });
+    }
+
+    function decorateSeals() {
+      if (!window.MuzzE2EE) return;
+      const box = document.getElementById('messages');
+      box.querySelectorAll('[data-seal]').forEach((node) => {
+        if (node.dataset.opened === '1') return;
+        const msg = messages.find((item) => item.id === node.getAttribute('data-seal'));
+        if (!msg || !msg.seal) return;
+        node.dataset.opened = '1';
+        const mine = String(msg.from || '').toLowerCase() === meWallet;
+        if (msg.seal.kind === 'text') {
+          MuzzE2EE.openText(meWallet, msg.from, msg.seal).then((text) => {
+            if (window.MuzzStickers) MuzzStickers.paint(node, text);
+            else node.textContent = text;
+            const bubble = node.closest('.bubble');
+            if (bubble && window.MuzzStickers) bubble.classList.toggle('muzz-sticker-only', MuzzStickers.only(text));
+          }).catch(() => {
+            node.textContent = 'Could not open this message.';
+          });
+          return;
+        }
+        node.textContent = 'Opening photo...';
+        MuzzE2EE.openPhoto(meWallet, msg.from, msg.seal).then((blob) => {
+          const img = document.createElement('img');
+          img.alt = 'Photo';
+          img.src = URL.createObjectURL(blob);
+          node.textContent = '';
+          node.appendChild(img);
+          /* The ciphertext is already on this phone. The server copy was deleted when it was saved. */
+        }).catch(() => {
+          node.textContent = 'Could not open this photo.';
+        });
+      });
+    }
+
+    function render(){
+      renderMe();
+      renderContacts();
+      renderHeader();
+      renderMessages();
+      applyPicker();
+    }
+
+    function openThread(wallet){
+      const next = String(wallet || '').toLowerCase();
+      const changed = next !== activeWallet;
+      activeWallet = next;
+      ensureContact(activeWallet);
+      pickerOpen = false;
+      applyPicker();
+      if (window.MuzzNotify) MuzzNotify.clear(activeWallet);
+      if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} inboxUnsub = null; }
+      if (!db) {
+        if (changed) messages = [];
+        render();
+        return;
+      }
+      const ref = db.ref('privateInbox/' + threadId(meWallet, activeWallet) + '/messages').limitToLast(100);
+      const handler = snap => {
+        const val = snap.val() || {};
+        const all = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
+        applyMessages(muzzGate.visible(all, Date.now()));
+      };
+      ref.on('value', handler);
+      inboxUnsub = () => ref.off('value', handler);
+      render();
+    }
+
+    function indexPreview(at){
+      const preview = { lastText: 'Encrypted message', lastAt: at };
+      return Promise.all([
+        db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview),
+        db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview)
+      ]);
+    }
+
+    async function sendMessage(){
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if(!text || !activeWallet || !window.MuzzE2EE) return;
+      const peerWallet = activeWallet;
+      let inner = null;
+      try{
+        const prekey = await MuzzE2EE.claimPrekey(peerWallet);
+        const seq = MuzzE2EE.nextSeq(meWallet, peerWallet);
+        const sentAt = Date.now();
+        inner = await MuzzE2EE.sealMessage(meWallet, peerWallet, text, { prekey: prekey, seq: seq, sentAt: sentAt });
+        const local = plainRow(inner, text, { readAt: sentAt, expireAt: sentAt + READ_TTL_MS });
+        local.from = meWallet;
+        local.to = peerWallet;
+        local.timestamp = sentAt;
+        await MuzzE2EE.rememberPlain(local);
+        ensureContact(peerWallet);
+        messages = MuzzE2EE.sortMessages(messages.concat([local]));
+        renderMessages();
+        input.value = '';
+        autoResizeInput();
+        if (window.MuzzTranslate) MuzzTranslate.forgetDraft();
+        const peer = contacts.find(item => item.wallet === peerWallet);
+        let directOk = false;
+        if (peer && peer.online && db && window.MuzzTransfer && typeof MuzzTransfer.directSendJson === 'function') {
+          try {
+            await MuzzTransfer.directSendJson(db, meWallet, peerWallet, inner, 2500);
+            directOk = true;
+          } catch (err) { directOk = false; }
+        }
+        let relayOk = false;
+        try {
+          await MuzzE2EE.relay(inner);
+          relayOk = true;
+        } catch (err) {
+          relayOk = false;
+          if (!directOk && err && err.code === 'server_key_missing') {
+            console.error(err);
+          }
+        }
+        const delivery = MuzzE2EE.resolveDelivery(directOk, relayOk);
+        if (delivery === 'failed') {
+          await MuzzE2EE.forgetPlain(inner.id);
+          messages = messages.filter(item => item.id !== inner.id);
+          renderMessages();
+          input.value = text;
+          alert('Could not send private message.');
+          return;
+        }
+        if (db) {
+          try { await indexPreview(sentAt); } catch (err) { console.error(err); }
+        }
+        if (window.MuzzPush) MuzzPush.notify(peerWallet);
+      }catch(err){
+        console.error(err);
+        if (inner && inner.id) {
+          await MuzzE2EE.forgetPlain(inner.id).catch(() => null);
+          messages = messages.filter(item => item.id !== inner.id);
+          renderMessages();
+        }
+        if (err && err.code === 'no_prekey') {
+          alert('This person has not opened MuzzSnap on their phone yet, so the message cannot be encrypted.');
+        } else {
+          alert('Could not send private message.');
+        }
+      }
+    }
+
+    function mergeContacts(registry, statusMap, indexMap){
+      const map = {};
+      Object.values(registry || {}).forEach(entry => {
+        const wallet = String(entry.wallet || '').toLowerCase();
+        if(!wallet || wallet === meWallet) return;
+        const identity = 'wallet_' + wallet;
+        const live = statusMap[identity] || {};
+        map[wallet] = {
+          wallet,
+          name: contactName(wallet, entry),
+          avatar: contactAvatar(wallet),
+          subtitle: shortenWallet(wallet),
+          lastText: '',
+          lastAt: Number(entry.lastSeen || 0),
+          online: isFresh(live.lastSeen || entry.lastSeen)
+        };
+      });
+      Object.keys(indexMap || {}).forEach(wallet => {
+        const w = String(wallet || '').toLowerCase();
+        if(!w || w === meWallet) return;
+        const idx = indexMap[wallet] || {};
+        if(!map[w]){
+          map[w] = {
+            wallet: w,
+            name: contactName(w),
+            avatar: contactAvatar(w),
+            subtitle: shortenWallet(w),
+            lastText: idx.lastText === 'Photo' ? 'Photo' : (idx.lastText ? 'Encrypted message' : ''),
+            lastAt: Number(idx.lastAt || 0),
+            online: false
+          };
+        } else {
+          map[w].lastText = idx.lastText === 'Photo' ? 'Photo' : (idx.lastText ? 'Encrypted message' : map[w].lastText);
+          map[w].lastAt = Number(idx.lastAt || map[w].lastAt || 0);
+        }
+      });
+      contacts = Object.values(map).sort((a,b) => {
+        if(a.online !== b.online) return a.online ? -1 : 1;
+        return Number(b.lastAt||0) - Number(a.lastAt||0);
+      });
+      if(activeWallet && !contacts.some(c => c.wallet === activeWallet)){
+        ensureContact(activeWallet);
+      }
+      saveCachedContacts();
+      render();
+    }
+
+    function startLiveData(){
+      let registry = {};
+      let statusMap = {};
+      let indexMap = {};
+      const refresh = () => mergeContacts(registry, statusMap, indexMap);
+
+      db.ref('walletRegistry').on('value', snap => { registry = snap.val() || {}; refresh(); });
+      db.ref('status').on('value', snap => { statusMap = snap.val() || {}; refresh(); });
+      db.ref('privateIndex/' + meWallet).on('value', snap => { indexMap = snap.val() || {}; refresh(); });
+      setInterval(refresh, 10000);
+    }
+
+    function markWalletPresence(){
+      const statusRef = db.ref('status/' + meIdentity);
+      const write = () => statusRef.set({
+        uid: (firebase.auth().currentUser || {}).uid || null,
+        username: meName,
+        role: meRole,
+        wallet: meWallet,
+        identityKey: meIdentity,
+        lastSeen: Date.now()
+      });
+      db.ref('.info/connected').on('value', snap => {
+        if(snap.val() !== true) return;
+        statusRef.onDisconnect().remove();
+        db.ref('walletRegistry/' + meWallet + '/active').onDisconnect().set(false);
+        write();
+      });
+      setInterval(write, 20000);
+      db.ref('walletRegistry/' + meWallet).update({
+        wallet: meWallet,
+        username: meName,
+        role: meRole,
+        isAdmin,
+        isWallet: true,
+        lastLogin: firebase.database.ServerValue.TIMESTAMP,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP,
+        active: true
+      });
+    }
+
+    const privateInput = document.getElementById('messageInput');
+    function autoResizeInput(){
+      privateInput.style.height = '26px';
+      privateInput.style.height = Math.min(privateInput.scrollHeight, 140) + 'px';
+    }
+    async function sendPhoto(file) {
+      if (!file || !activeWallet || !window.MuzzE2EE) return;
+      let inner = null;
+      try {
+        const image = await MuzzE2EE.compressImage(file);
+        if (!image) throw Object.assign(new Error('unsupported'), { code: 'unsupported' });
+        const bytes = new Uint8Array(await image.arrayBuffer());
+        const peer = contacts.find((item) => item.wallet === activeWallet);
+        const sentAt = Date.now();
+        const sent = window.MuzzTransfer
+          ? await MuzzTransfer.send({ me: meWallet, peer: activeWallet, bytes: bytes, online: !!(peer && peer.online), db: db })
+          : null;
+        inner = sent && sent.inner;
+        if (!inner) {
+          const prekey = await MuzzE2EE.claimPrekey(activeWallet);
+          inner = await MuzzE2EE.sealMessage(meWallet, activeWallet, bytes, {
+            prekey: prekey,
+            seq: MuzzE2EE.nextSeq(meWallet, activeWallet),
+            sentAt: sentAt,
+            kind: 'photo'
+          });
+          await MuzzE2EE.relay(inner);
+        }
+        const local = {
+          id: inner.id,
+          from: meWallet,
+          to: activeWallet,
+          text: 'Photo',
+          kind: 'photo',
+          photoB64: MuzzE2EE.encodeBytes(bytes),
+          timestamp: sentAt,
+          seq: inner.seq || 0,
+          readAt: sentAt,
+          expireAt: sentAt + READ_TTL_MS,
+          local: true
+        };
+        await MuzzE2EE.rememberPlain(local);
+        messages = MuzzE2EE.sortMessages(messages.concat([local]));
+        renderMessages();
+        if (db) {
+          const preview = { lastText: 'Photo', lastAt: sentAt };
+          await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
+          await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
+        }
+        if (window.MuzzPush) MuzzPush.notify(activeWallet);
+      } catch (err) {
+        console.error(err);
+        if (err && err.code === 'no_peer_key') {
+          alert('This person has not opened MuzzSnap on their phone yet, so the photo cannot be encrypted.');
+        } else if (err && err.code === 'unsupported') {
+          alert('This photo format is not supported. Try another image.');
+        } else {
+          alert('Could not send the photo.');
+        }
+      }
+    }
+
+    const EMOJI_TABS = {
+      Faces: ["😊","😂","😉","😍","😘","😛","😅","😢","😭","😠","😈","👻"],
+      Hands: ["👍","👎","👌","✌️","👏","👋","🙏","💪"],
+      Symbols: ["❤️","⭐","🔥","💎","🌙","🚀","👑","✨"]
+    };
+    let emojiOpen = false;
+    let emojiTabName = 'Stickers';
+
+    function insertComposer(text){
+      const input = document.getElementById('messageInput');
+      const start = input.selectionStart == null ? input.value.length : input.selectionStart;
+      const end = input.selectionEnd == null ? input.value.length : input.selectionEnd;
+      input.value = input.value.slice(0, start) + text + input.value.slice(end);
+      const pos = start + text.length;
+      input.selectionStart = input.selectionEnd = pos;
+      input.focus();
+      autoResizeInput();
+    }
+
+    function renderEmojiSheet(){
+      const sheet = document.getElementById('emojiSheet');
+      const tabs = document.getElementById('emojiTabs');
+      const grid = document.getElementById('emojiGrid');
+      const toggle = document.getElementById('emojiBtn');
+      if (!sheet || !tabs || !grid || !toggle) return;
+      sheet.hidden = !emojiOpen;
+      toggle.setAttribute('aria-pressed', emojiOpen ? 'true' : 'false');
+      if (!emojiOpen) {
+        grid.className = '';
+        grid.innerHTML = '';
+        return;
+      }
+      const names = ['Stickers'].concat(Object.keys(EMOJI_TABS));
+      tabs.innerHTML = names.map((name) => `<button type="button" class="emoji-tab${name === emojiTabName ? ' on' : ''}" data-tab="${name}" role="tab">${name}</button>`).join('');
+      if (emojiTabName === 'Stickers') {
+        grid.className = 'sticker-grid emoji-window';
+        const list = window.MuzzStickers ? MuzzStickers.list : [];
+        grid.innerHTML = list.map((sticker) => `<button type="button" class="sticker-tile" data-sticker="${sticker.id}"><img src="${sticker.src}" alt=""><span>${escapeHtml(sticker.label)}</span></button>`).join('');
+        return;
+      }
+      grid.className = 'emoji-window';
+      grid.innerHTML = (EMOJI_TABS[emojiTabName] || []).map((emoji) => `<button type="button" class="emoji-btn" data-emoji="${emoji}">${emoji}</button>`).join('');
+    }
+
+    document.getElementById('emojiBtn').addEventListener('click', () => {
+      emojiOpen = !emojiOpen;
+      const picker = document.getElementById('translatePicker');
+      if (emojiOpen && picker) picker.hidden = true;
+      renderEmojiSheet();
+    });
+    document.getElementById('translateBtn').addEventListener('click', () => {
+      if (!emojiOpen) return;
+      emojiOpen = false;
+      renderEmojiSheet();
+    });
+    document.getElementById('emojiSheet').addEventListener('click', (event) => {
+      const tab = event.target.closest && event.target.closest('[data-tab]');
+      if (tab) {
+        emojiTabName = tab.getAttribute('data-tab');
+        renderEmojiSheet();
+        return;
+      }
+      const sticker = event.target.closest && event.target.closest('[data-sticker]');
+      if (sticker && window.MuzzStickers) {
+        insertComposer(MuzzStickers.token(sticker.getAttribute('data-sticker')));
+        return;
+      }
+      const emoji = event.target.closest && event.target.closest('[data-emoji]');
+      if (emoji) insertComposer(emoji.getAttribute('data-emoji'));
+    });
+
+    document.getElementById('chatHeader').addEventListener('click', (event) => {
+      if (event.target.closest && event.target.closest('.thread-back')) {
+        event.preventDefault();
+        leaveThread();
+      }
+    });
+    const walletSearch = document.getElementById('walletSearch');
+    if (walletSearch) {
+      walletSearch.addEventListener('input', () => {
+        walletQuery = walletSearch.value;
+        renderContacts();
+      });
+    }
+    window.addEventListener('muzz-direct-text', (event) => {
+      const inner = event.detail;
+      if (!inner) return;
+      rememberIncoming(inner).catch((err) => console.error(err));
+    });
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('photoBtn').addEventListener('click', () => {
+      if (!activeWallet) return;
+      document.getElementById('photoInput').click();
+    });
+    document.getElementById('photoInput').addEventListener('change', (event) => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';
+      if (file) sendPhoto(file);
+    });
+    privateInput.addEventListener('input', autoResizeInput);
+    privateInput.addEventListener('keydown', e => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest && event.target.closest('.people-btn');
+      if (!btn) return;
+      event.preventDefault();
+      pickerOpen = !pickerOpen;
+      applyPicker();
+      if (window.MuzzNotify) MuzzNotify.requestPermission();
+    });
+    window.addEventListener('muzz-photo-sync', () => {
+      if (!activeWallet) return;
+      applyMessages(messages.filter((item) => !String(item.id || '').startsWith('local-')));
+    });
+    window.addEventListener('muzz-unread', (event) => {
+      unreadMap = (event.detail && event.detail.unread) || {};
+      renderContacts();
+      applyPicker();
+    });
+
+    (async function boot(){
+      if (localShot) {
+        contacts = [{
+          wallet: '0x208157b5ec396759e8754058108ecf53e32392ff',
+          name: 'RYASHU',
+          avatar: '👑',
+          subtitle: '0x2081...92ff',
+          lastText: 'Hello',
+          online: true
+        }];
+        activeWallet = contacts[0].wallet;
+        const shotQuery = new URLSearchParams(location.search);
+        pickerOpen = shotQuery.get('people') === '1';
+        messages = [
+          { from: contacts[0].wallet, text: 'The floor is quiet.', timestamp: Date.now() - 90000 },
+          { from: 'me', text: '[[sticker:muzz]]', timestamp: Date.now() - 60000 },
+          { from: contacts[0].wallet, text: '[[sticker:moon]]', timestamp: Date.now() - 40000 },
+          { from: 'me', text: '[[sticker:boss]]', timestamp: Date.now() - 20000 },
+          { from: contacts[0].wallet, text: '[[sticker:soy-verga]]', timestamp: Date.now() - 4000 }
+        ];
+        render();
+        document.getElementById('meName').textContent = 'Node_6bcb8a';
+        if (shotQuery.get('emoji') === '1') {
+          emojiOpen = true;
+          emojiTabName = 'Stickers';
+          renderEmojiSheet();
+        }
+        if (window.MuzzNotify) MuzzNotify.demo({ name: 'RYASHU', text: 'New private message', peer: contacts[0].wallet });
+        return;
+      }
+      loadCachedContacts();
+      const allowed = await validatePrivateAccess();
+      if(!allowed) return;
+      try {
+        if (!window.MuzzPush) {
+          window.location.replace('login.html');
+          return;
+        }
+        const signed = await MuzzPush.signInForChat(meWallet);
+        if (!signed || signed.needsSign) {
+          window.location.replace('login.html');
+          return;
+        }
+        const funded = await confirmPrivateBalance();
+        if (!funded) return;
+        if (window.MuzzE2EE) MuzzE2EE.publish(meWallet).catch((err) => console.error(err));
+        if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: meWallet });
+        sweepExpired();
+        setInterval(sweepExpired, 60000);
+      } catch (err) { console.error(err); }
+      autoResizeInput();
+      markWalletPresence();
+      startLiveData();
+      if (window.MuzzNotify) {
+        MuzzNotify.start({
+          db,
+          me: meWallet,
+          viewing: () => activeWallet || '',
+          open: (peer) => openThread(peer),
+          nameOf: (wallet) => contactName(wallet)
+        });
+      }
+      const peer = new URLSearchParams(location.search).get('peer');
+      if (peer && /^0x[a-f0-9]{40}$/i.test(peer)) openThread(peer);
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,703 @@
+/**
+ * Client gate for the real pulsari chat.
+ * Balance is read from a public Ethereum RPC until Cloud Functions are deployed.
+ * Server verification stays in app/functions (verifyAccess). Do not encrypt the
+ * live Realtime Database: chat.html and private.html store plaintext, and
+ * ciphertext would break the current website.
+ */
+(function (global) {
+  const TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
+  const MIN_WHOLE = '10000000';
+  const RPCS = ['https://ethereum.publicnode.com', 'https://eth.drpc.org', 'https://rpc.ankr.com/eth'];
+  const ABI = [
+    'function balanceOf(address) view returns (uint256)',
+    'function decimals() view returns (uint8)'
+  ];
+  const READ_MS = 24 * 60 * 60 * 1000;
+  const SEEN_KEY = 'muzz_seen_v1';
+  const DEFAULT_PUBLIC = 'https://muzzsnap-app.vercel.app';
+  const HANDOFF_MS = 10 * 60 * 1000;
+  const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+  const NONCE_KEY = 'muzz_used_nonces_v1';
+  const EXCHANGED_KEY = 'muzz_exchanged_nonces';
+
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), ms);
+      Promise.resolve(promise).then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      }, (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
+  function formatWhole(raw, decimals) {
+    const text = ethers.utils.formatUnits(raw, decimals);
+    const whole = text.split('.')[0] || '0';
+    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  const BALANCE_EXEMPT = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
+
+  function isBalanceExempt(address) {
+    const wallet = String(address || '').trim().toLowerCase();
+    if (global.MuzzNames && typeof global.MuzzNames.isWhitelisted === 'function') {
+      return global.MuzzNames.isWhitelisted(wallet);
+    }
+    return wallet === BALANCE_EXEMPT;
+  }
+
+  async function confirmServerBalance() {
+    const auth = firebase.auth && firebase.auth();
+    const user = auth && auth.currentUser;
+    if (!user || typeof user.getIdToken !== 'function') return { ok: false, code: 'unauthorized' };
+    const token = await user.getIdToken();
+    const res = await fetch('/api/session?op=balance', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 403) {
+      return { ok: false, code: 'balance', formatted: data.formatted || '0', minimum: data.minimum || '10,000,000' };
+    }
+    if (!res.ok || !data || data.ok !== true) {
+      return { ok: false, code: (data && data.error) || 'balance_unavailable' };
+    }
+    return { ok: true, exempt: data.exempt === true };
+  }
+
+  async function readMuzzBalance(address) {
+    if (typeof ethers === 'undefined') throw new Error('Wallet library failed to load.');
+    if (isBalanceExempt(address)) {
+      return { ok: true, formatted: 'exempt', minimum: '10,000,000', exempt: true };
+    }
+    const wallet = ethers.utils.getAddress(address);
+    for (const url of RPCS) {
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(url);
+        const token = new ethers.Contract(TOKEN, ABI, provider);
+        const [raw, decimals] = await withTimeout(Promise.all([token.balanceOf(wallet), token.decimals()]), 3000);
+        const min = ethers.utils.parseUnits(MIN_WHOLE, decimals);
+        return {
+          ok: raw.gte(min),
+          formatted: formatWhole(raw, decimals),
+          minimum: '10,000,000'
+        };
+      } catch (err) {
+        /* try the next public Ethereum RPC */
+      }
+    }
+    const unreachable = new Error('RPC unreachable. The Ethereum balance servers could not be reached.');
+    unreachable.code = 'rpc';
+    throw unreachable;
+  }
+
+  function readSeen() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function visible(list, now) {
+    const clock = Number(now) || Date.now();
+    const map = readSeen();
+    let changed = false;
+    (list || []).forEach((msg) => {
+      if (!msg || !msg.id || map[msg.id]) return;
+      map[msg.id] = clock;
+      changed = true;
+    });
+    const keys = Object.keys(map);
+    if (keys.length > 400) {
+      keys.sort((a, b) => map[a] - map[b]).slice(0, keys.length - 300).forEach((key) => {
+        delete map[key];
+        changed = true;
+      });
+    }
+    if (changed) localStorage.setItem(SEEN_KEY, JSON.stringify(map));
+    return (list || []).filter((msg) => msg && msg.id && clock - Number(map[msg.id] || clock) < READ_MS);
+  }
+
+  function chainNumber(value) {
+    if (value == null || value === '') return NaN;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof value === 'object') {
+      if (value.chainId != null) return chainNumber(value.chainId);
+      if (value.id != null) return chainNumber(value.id);
+      return NaN;
+    }
+    let text = String(value).trim().toLowerCase();
+    if (text.indexOf('eip155:') === 0) text = text.slice('eip155:'.length).split(':')[0];
+    if (text.indexOf('0x') === 0) {
+      const parsed = parseInt(text, 16);
+      return isFinite(parsed) ? parsed : NaN;
+    }
+    if (/^\d+$/.test(text)) return Number(text);
+    return NaN;
+  }
+
+  function isMainnet(value) {
+    return chainNumber(value) === 1;
+  }
+
+  function chainLabel(value) {
+    const n = chainNumber(value);
+    if (isFinite(n)) return String(n);
+    if (value == null || value === '') return 'unknown';
+    const text = String(value).replace(/\s+/g, ' ').trim();
+    return text ? text.slice(0, 48) : 'unknown';
+  }
+
+  function pushNamespaces(values, namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return;
+    Object.keys(namespaces).forEach((key) => {
+      const ns = namespaces[key] || {};
+      values.push(key);
+      (ns.accounts || []).forEach((item) => values.push(item));
+      (ns.chains || []).forEach((item) => values.push(item));
+    });
+  }
+
+  function sessionHasMainnet(provider, hint) {
+    const values = [];
+    pushNamespaces(values, provider && provider.session && provider.session.namespaces);
+    pushNamespaces(values, hint && hint.namespaces);
+    if (hint && hint.caipAddress) values.push(hint.caipAddress);
+    if (hint && hint.caipNetworkId) values.push(hint.caipNetworkId);
+    const network = hint && hint.caipNetwork;
+    if (network && network.caipNetworkId) values.push(network.caipNetworkId);
+    if (network && network.id != null) values.push('eip155:' + network.id);
+    return values.some((item) => {
+      const text = String(item || '').trim().toLowerCase();
+      return text === 'eip155:1' || text.indexOf('eip155:1:') === 0;
+    });
+  }
+
+  function appPublicUrl() {
+    const configured = global.MUZZ_PUBLIC && global.MUZZ_PUBLIC.appPublicUrl;
+    const value = String(configured || DEFAULT_PUBLIC).trim().replace(/\/$/, '');
+    if (!/^https:\/\/[^/]+/i.test(value)) return DEFAULT_PUBLIC;
+    return value;
+  }
+
+  function isEmbeddedOrigin() {
+    try {
+      const origin = String(location.origin || '');
+      const host = String(location.hostname || '');
+      if (!origin || origin === 'null') return true;
+      return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    } catch (err) {
+      return true;
+    }
+  }
+
+  function publicLoginUrl(returnToApk) {
+    return appPublicUrl() + '/login.html' + (returnToApk ? '#from=apk' : '');
+  }
+
+  function loginPageForWallets(returnToApk) {
+    if (returnToApk || isEmbeddedOrigin()) return publicLoginUrl(true);
+    try {
+      if (location.protocol === 'https:' && location.host) return location.origin + '/login.html';
+    } catch (err) {
+      /* configured public URL */
+    }
+    return publicLoginUrl(false);
+  }
+
+  function walletConnectProjectId() {
+    const pub = global.MUZZ_PUBLIC && global.MUZZ_PUBLIC.walletConnectProjectId;
+    const runtime = global.MUZZ_RUNTIME && global.MUZZ_RUNTIME.walletConnectProjectId;
+    const value = String(pub || runtime || '').trim();
+    return /^[a-f0-9]{32}$/i.test(value) ? value : '';
+  }
+
+  function walletConnectDeepLinks(uri) {
+    const enc = encodeURIComponent(String(uri || ''));
+    const back = encodeURIComponent('muzzsnap://wc');
+    return [
+      { name: 'MetaMask', href: 'metamask://wc?uri=' + enc },
+      { name: 'Trust Wallet', href: 'trust://wc?uri=' + enc },
+      { name: 'Coinbase Wallet', href: 'cbwallet://wc?uri=' + enc },
+      { name: 'Rainbow', href: 'rainbow://wc?uri=' + enc },
+      { name: 'OKX', href: 'okx://wc?uri=' + enc },
+      { name: 'Phantom', href: 'phantom://wc?uri=' + enc + '&redirect_link=' + back }
+    ];
+  }
+
+  function walletDeepLinks(pageUrl) {
+    const value = String(pageUrl || '');
+    if (value.indexOf('wc:') === 0) return walletConnectDeepLinks(value);
+    return [
+      { name: 'MetaMask', href: 'metamask://wc' },
+      { name: 'Trust Wallet', href: 'trust://wc' },
+      { name: 'Coinbase Wallet', href: 'cbwallet://wc' },
+      { name: 'Rainbow', href: 'rainbow://wc' },
+      { name: 'OKX', href: 'okx://wc' },
+      { name: 'Phantom', href: 'phantom://wc' }
+    ];
+  }
+
+  function randomNonce() {
+    const bytes = new Uint8Array(16);
+    if (global.crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function buildLoginMessage(address, opts) {
+    const options = opts || {};
+    const wallet = ethers.utils.getAddress(address);
+    const lines = [
+      'MuzzSnap Login',
+      '',
+      wallet + ' wants to sign in to MuzzSnap.',
+      'Sign this message to prove you control this wallet. It does not spend gas.',
+      '',
+      'Wallet: ' + wallet,
+      'Chain ID: 1',
+      'Nonce: ' + options.nonce,
+      'Expires: ' + options.exp,
+      'Token: ' + TOKEN,
+      'Minimum: 10000000 MUZZ'
+    ];
+    if (options.returnApk) lines.push('Return: apk');
+    return lines.join('\n');
+  }
+
+  function bytesToBase64Url(bytes) {
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function base64UrlToBytes(value) {
+    const text = String(value || '');
+    const pad = text.length % 4 === 0 ? '' : '='.repeat(4 - (text.length % 4));
+    const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function encodeHandoff(payload) {
+    const json = JSON.stringify({
+      v: 1,
+      a: String(payload.a).toLowerCase(),
+      n: String(payload.n).toLowerCase(),
+      e: Number(payload.e),
+      s: payload.s
+    });
+    return bytesToBase64Url(new TextEncoder().encode(json));
+  }
+
+  function decodeHandoff(token) {
+    let data;
+    try {
+      data = JSON.parse(new TextDecoder().decode(base64UrlToBytes(token)));
+    } catch (err) {
+      const bad = new Error('BAD_TOKEN');
+      bad.code = 'bad_token';
+      throw bad;
+    }
+    if (!data || data.v !== 1 || !/^0x[a-f0-9]{40}$/i.test(data.a || '')) {
+      const bad = new Error('BAD_TOKEN');
+      bad.code = 'bad_token';
+      throw bad;
+    }
+    if (!/^[a-f0-9]{32}$/i.test(data.n || '') || !/^0x[a-f0-9]+$/i.test(data.s || '')) {
+      const bad = new Error('BAD_TOKEN');
+      bad.code = 'bad_token';
+      throw bad;
+    }
+    const exp = Number(data.e);
+    if (!Number.isFinite(exp)) {
+      const bad = new Error('BAD_TOKEN');
+      bad.code = 'bad_token';
+      throw bad;
+    }
+    return { v: 1, a: String(data.a).toLowerCase(), n: String(data.n).toLowerCase(), e: exp, s: data.s };
+  }
+
+  function handoffUrl(token) {
+    return 'muzzsnap://auth?token=' + encodeURIComponent(token);
+  }
+
+  function tokenFromUrl(url) {
+    try {
+      const parsed = new URL(String(url || ''));
+      if (parsed.protocol !== 'muzzsnap:' || parsed.hostname !== 'auth') return '';
+      return parsed.searchParams.get('token') || '';
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function readNonces() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(NONCE_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function nonceUsed(nonce) {
+    return Boolean(readNonces()[String(nonce || '').toLowerCase()]);
+  }
+
+  function consumeNonce(nonce, exp) {
+    const map = readNonces();
+    const now = Date.now();
+    Object.keys(map).forEach((key) => {
+      if (Number(map[key]) < now) delete map[key];
+    });
+    const id = String(nonce || '').toLowerCase();
+    if (!id || map[id]) return false;
+    map[id] = Number(exp) || (now + HANDOFF_MS);
+    localStorage.setItem(NONCE_KEY, JSON.stringify(map));
+    return true;
+  }
+
+  function verifyHandoff(token, now) {
+    const data = decodeHandoff(token);
+    const clock = Number(now) || Date.now();
+    if (clock > data.e) {
+      const expired = new Error('EXPIRED');
+      expired.code = 'expired';
+      throw expired;
+    }
+    if (nonceUsed(data.n)) {
+      const used = new Error('ALREADY_USED');
+      used.code = 'used';
+      throw used;
+    }
+    const message = buildLoginMessage(data.a, { nonce: data.n, exp: data.e, returnApk: true });
+    let recovered = '';
+    try {
+      recovered = ethers.utils.verifyMessage(message, data.s);
+    } catch (err) {
+      const bad = new Error('BAD_SIGNATURE');
+      bad.code = 'bad_sig';
+      throw bad;
+    }
+    if (String(recovered).toLowerCase() !== data.a) {
+      const bad = new Error('BAD_SIGNATURE');
+      bad.code = 'bad_sig';
+      throw bad;
+    }
+    if (!consumeNonce(data.n, data.e)) {
+      const used = new Error('ALREADY_USED');
+      used.code = 'used';
+      throw used;
+    }
+    return { address: data.a, message, signature: data.s, exp: data.e };
+  }
+
+  function explainSignError(err, opts) {
+    const inWallet = Boolean(opts && opts.inWallet);
+    const msg = (err && (err.message || err.reason)) ? String(err.message || err.reason) : 'Connection rejected.';
+    const code = err && err.code;
+    if (code === 'expired' || msg === 'EXPIRED') {
+      return { title: 'Sign-in expired.', desc: 'That signature is older than 10 minutes. Go back to MuzzSnap and sign in again.' };
+    }
+    if (code === 'used' || msg === 'ALREADY_USED') {
+      return { title: 'Sign-in already used.', desc: 'This return link was already used on this device. Sign in again.' };
+    }
+    if (code === 'bad_sig' || code === 'bad_token' || /BAD_SIGNATURE|BAD_TOKEN|does not match/i.test(msg)) {
+      return { title: 'Could not sign in.', desc: 'The signature does not match this wallet. Sign the message again from MuzzSnap.' };
+    }
+    if (code === 'NO_PROJECT_ID' || msg === 'NO_PROJECT_ID') {
+      return { title: 'WalletConnect is not configured.', desc: 'Set WALLETCONNECT_PROJECT_ID and rebuild the app. Until then, choose a wallet below.' };
+    }
+    if (code === 'connect_timeout' || code === 'one_click_timeout') {
+      return { title: 'Could not connect the wallet.', desc: 'The wallet did not return a connection. Tap Retry and approve the connection in your wallet.' };
+    }
+    if (code === 'wc_load' || msg === 'wc_load') {
+      return { title: 'Could not connect the wallet.', desc: 'The wallet picker could not be opened. Check your connection and tap Retry.' };
+    }
+    if (msg === 'NO_WALLET' || code === 'NO_WALLET' || /no provider|sdk/i.test(msg)) {
+      return {
+        title: 'Wallet not installed.',
+        desc: inWallet
+          ? 'This wallet browser did not expose an Ethereum account. Connect the wallet and try again.'
+          : 'Install MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX or Phantom, or open this page inside the wallet.'
+      };
+    }
+    if (code === 'no_account' || /no account|no wallet account/i.test(msg)) {
+      return { title: 'No account returned.', desc: 'The wallet did not return an address. Connect it again and approve an account.' };
+    }
+    if (code === 'rpc' || /RPC unreachable|could not read the MUZZ balance/i.test(msg)) {
+      return { title: 'RPC unreachable.', desc: 'The Ethereum balance servers could not be reached. Try again.' };
+    }
+    if (code === 'balance' || /Insufficient MUZZ/i.test(msg)) {
+      return { title: 'Insufficient MUZZ balance.', desc: msg };
+    }
+    if (code === 'buffer' || /buffer is not defined/i.test(msg)) {
+      return {
+        title: 'Could not open the wallet list.',
+        desc: 'Buffer is not defined. The wallet list crashed before a wallet was chosen. Tap Retry.'
+      };
+    }
+    if (code === 'connect_failed') {
+      return {
+        title: 'Could not connect the wallet.',
+        desc: msg || 'The wallet list failed before a connection was made.'
+      };
+    }
+    if (code === 'rejected' || code === 4001 || /rejected|denied|cancel/i.test(msg)) {
+      const namespaces = opts && opts.namespaces;
+      const chain = opts && opts.chain;
+      const noNamespaces = !namespaces || typeof namespaces !== 'object' || Object.keys(namespaces).length === 0;
+      const noChain = chain == null || chain === '' || chain === 'unknown';
+      const noSession = Boolean(err && err.noSession) || (opts && Object.prototype.hasOwnProperty.call(opts, 'namespaces') && noNamespaces && noChain);
+      if (noSession && code !== 4001 && !(err && err.userCancel)) {
+        return {
+          title: 'Could not connect the wallet.',
+          desc: 'The wallet list closed before a connection was made. No wallet session was started.'
+        };
+      }
+      return { title: 'Signature rejected.', desc: 'The wallet cancelled the connection or the signature.' };
+    }
+    if (code === 'pending' || msg === 'pending') {
+      return { title: 'Could not sign in.', desc: 'A request is already open in the wallet. Finish it there and try again.' };
+    }
+    return { title: 'Could not sign in.', desc: msg };
+  }
+
+  function compactNamespaces(namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return 'none';
+    const bits = [];
+    Object.keys(namespaces).forEach((key) => {
+      const item = namespaces[key] || {};
+      const chains = (item.chains || []).map((chain) => String(chain)).filter(Boolean);
+      if (chains.length) bits.push(chains.join('+'));
+      else if ((item.accounts || []).length) {
+        bits.push((item.accounts || []).slice(0, 2).map((account) => {
+          const parts = String(account).split(':');
+          return parts.length >= 2 ? parts.slice(0, 2).join(':') : String(account);
+        }).join('+'));
+      } else bits.push(key);
+    });
+    const text = bits.join(' ') || 'none';
+    return text.length > 96 ? text.slice(0, 96) : text;
+  }
+
+  function chainFromNamespaces(namespaces) {
+    if (!namespaces || typeof namespaces !== 'object') return '';
+    const keys = Object.keys(namespaces);
+    for (let i = 0; i < keys.length; i += 1) {
+      const chains = (namespaces[keys[i]] && namespaces[keys[i]].chains) || [];
+      if (chains[0]) {
+        const parts = String(chains[0]).split(':');
+        return parts.length > 1 ? parts[1] : parts[0];
+      }
+    }
+    return '';
+  }
+
+  function debugLine(err, info) {
+    const code = err && err.code != null && err.code !== '' ? String(err.code) : 'error';
+    const source = info || {};
+    let chain = source.chain;
+    if (chain == null || chain === '') chain = chainFromNamespaces(source.namespaces);
+    if (chain == null || chain === '') chain = 'unknown';
+    let line = 'err: ' + code + ' chain:' + chain + ' ns:' + compactNamespaces(source.namespaces);
+    const msg = err && err.message ? String(err.message) : '';
+    if (msg && msg !== code) line += ' msg:' + (msg.length > 140 ? msg.slice(0, 140) : msg);
+    return line;
+  }
+
+  function rememberWallet(address) {
+    const wallet = String(address || '').toLowerCase();
+    sessionStorage.setItem('muzz_wallet_address', wallet);
+    localStorage.setItem('muzz_wallet_address', wallet);
+  }
+
+  function savedWallet() {
+    return sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address') || '';
+  }
+
+  function rememberSession(proof) {
+    const address = String((proof && proof.address) || '').toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(address)) return;
+    const record = {
+      address: address,
+      until: Date.now() + SESSION_MS,
+      signature: proof.signature || '',
+      message: proof.message || ''
+    };
+    try { localStorage.setItem('muzz_session', JSON.stringify(record)); } catch (err) { /* private mode */ }
+    rememberWallet(address);
+    try {
+      if (record.signature) sessionStorage.setItem('muzz_login_sig', record.signature);
+      if (record.message) sessionStorage.setItem('muzz_login_msg', record.message);
+    } catch (err) { /* private mode */ }
+  }
+
+  function durableSession() {
+    try {
+      const data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
+      if (!data) return null;
+      const until = Number(data.until);
+      if (!Number.isFinite(until) || until <= Date.now()) return null;
+      const address = String(data.address || '').toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(address)) return null;
+      return {
+        address: address,
+        until: until,
+        signature: data.signature || '',
+        message: data.message || ''
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function proofLine(message, prefix) {
+    const line = String(message || '').split('\n').find((item) => item.startsWith(prefix));
+    return line ? line.slice(prefix.length).trim() : '';
+  }
+
+  function proofExpiry(message) {
+    const iso = proofLine(message, 'Expiration Time: ');
+    if (iso) {
+      const parsed = Date.parse(iso);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  function proofNonce(message) {
+    return proofLine(message, 'Nonce: ').toLowerCase();
+  }
+
+  function exchangedMap() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(EXCHANGED_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function nonceExchanged(nonce) {
+    const id = String(nonce || '').toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(id)) return false;
+    return Boolean(exchangedMap()[id]);
+  }
+
+  function markNonceExchanged(nonce, exp) {
+    const id = String(nonce || '').toLowerCase();
+    if (!/^[a-f0-9]{32}$/.test(id)) return;
+    const map = exchangedMap();
+    const now = Date.now();
+    Object.keys(map).forEach((key) => {
+      if (Number(map[key]) < now) delete map[key];
+    });
+    map[id] = Number(exp) || (now + HANDOFF_MS);
+    try { localStorage.setItem(EXCHANGED_KEY, JSON.stringify(map)); } catch (err) { /* private mode */ }
+  }
+
+  function proofReusable(message, signature, now) {
+    if (!message || !signature) return false;
+    const clock = Number(now) || Date.now();
+    const exp = proofExpiry(message);
+    if (!exp || exp <= clock) return false;
+    if (nonceExchanged(proofNonce(message))) return false;
+    return true;
+  }
+
+  function clearLoginProof() {
+    try {
+      sessionStorage.removeItem('muzz_login_msg');
+      sessionStorage.removeItem('muzz_login_sig');
+      sessionStorage.removeItem('muzz_wc_proof');
+    } catch (err) { /* private mode */ }
+    try { localStorage.removeItem('muzz_session'); } catch (err) { /* private mode */ }
+  }
+
+  function consumeLoginProof(message) {
+    markNonceExchanged(proofNonce(message), proofExpiry(message));
+    try {
+      sessionStorage.removeItem('muzz_login_msg');
+      sessionStorage.removeItem('muzz_login_sig');
+      sessionStorage.removeItem('muzz_wc_proof');
+    } catch (err) { /* private mode */ }
+    try {
+      const data = JSON.parse(localStorage.getItem('muzz_session') || 'null');
+      if (data && typeof data === 'object') {
+        data.message = '';
+        data.signature = '';
+        localStorage.setItem('muzz_session', JSON.stringify(data));
+      }
+    } catch (err) { /* private mode */ }
+  }
+
+  function clearWallet() {
+    sessionStorage.removeItem('muzz_wallet_address');
+    localStorage.removeItem('muzz_wallet_address');
+    localStorage.removeItem('muzz_session');
+    sessionStorage.removeItem('muzz_login_sig');
+    sessionStorage.removeItem('muzz_login_msg');
+    sessionStorage.removeItem('muzz_user_role');
+    sessionStorage.removeItem('muzz_is_admin');
+    try {
+      if (global.firebase && firebase.auth && firebase.apps && firebase.apps.length) {
+        const auth = firebase.auth();
+        if (auth.currentUser && typeof auth.signOut === 'function') auth.signOut();
+      }
+    } catch (err) { /* this page may not load auth */ }
+  }
+
+  global.muzzGate = {
+    TOKEN,
+    MIN_WHOLE,
+    DEFAULT_PUBLIC,
+    HANDOFF_MS,
+    SESSION_MS,
+    isBalanceExempt,
+    readMuzzBalance,
+    confirmServerBalance,
+    visible,
+    isMainnet,
+    chainLabel,
+    sessionHasMainnet,
+    appPublicUrl,
+    isEmbeddedOrigin,
+    publicLoginUrl,
+    loginPageForWallets,
+    walletConnectProjectId,
+    walletDeepLinks,
+    walletConnectDeepLinks,
+    randomNonce,
+    buildLoginMessage,
+    encodeHandoff,
+    decodeHandoff,
+    handoffUrl,
+    tokenFromUrl,
+    nonceUsed,
+    consumeNonce,
+    verifyHandoff,
+    explainSignError,
+    debugLine,
+    rememberWallet,
+    rememberSession,
+    durableSession,
+    savedWallet,
+    proofExpiry,
+    proofNonce,
+    nonceExchanged,
+    markNonceExchanged,
+    proofReusable,
+    clearLoginProof,
+    consumeLoginProof,
+    clearWallet
+  };
+})(window);

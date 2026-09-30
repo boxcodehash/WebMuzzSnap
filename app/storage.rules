@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function holder() {
+      return request.auth != null
+        && request.auth.token.muzzAccess == true
+        && request.auth.uid == request.auth.token.wallet;
+    }
+
+    match /attachments/{messageId}/{fileName} {
+      allow read: if holder();
+      allow write: if holder()
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType == 'application/octet-stream'
+        && messageId.matches('^[0-9a-f-]{36}$')
+        && fileName.matches('^[A-Za-z0-9._-]{1,80}$');
+    }
+  }
+}

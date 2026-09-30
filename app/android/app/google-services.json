@@ -1,0 +1,20 @@
+{
+  "project_info": {
+    "project_number": "824306321233",
+    "firebase_url": "https://pulsari-default-rtdb.firebaseio.com",
+    "project_id": "pulsari",
+    "storage_bucket": "pulsari.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:824306321233:android:ad4f9716c07ef75f60b570",
+        "android_client_info": { "package_name": "app.muzzsnap.chat" }
+      },
+      "oauth_client": [],
+      "api_key": [ { "current_key": "AIzaSyD3fgJ1qJ5s3qOItx5Ykuk-XEutROtRX0w" } ],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}
