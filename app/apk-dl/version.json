@@ -1,7 +1,7 @@
 {
-  "versionCode": 20,
-  "versionName": "1.0.20",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120",
-  "notes": "A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.",
+  "versionCode": 22,
+  "versionName": "1.0.22",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=122",
+  "notes": "Public chat, private chats, the menu, and the sticker picker use the dark theme and red accent.",
   "force": false
 }

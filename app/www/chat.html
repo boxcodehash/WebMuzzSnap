@@ -22,6 +22,7 @@
   <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-430x932@3.png">
   <link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="splash/iphone-440x956@3.png">
   <link rel="stylesheet" href="css/ios-pwa.css">
+  <link rel="stylesheet" href="css/app.css">
   <script src="js/ios-pwa.js"></script>
   <script src="js/android-back.js"></script>
   <title>MuzzSnap | Chat</title>
@@ -41,11 +42,12 @@
   <script src="js/private-e2ee.js"></script>
   <script src="js/photo-transfer.js"></script>
   <script src="js/translate.js"></script>
+  <script src="js/stickers.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
@@ -53,7 +55,7 @@
         extend: {
           fontFamily: {
             orbitron: ['Orbitron', 'sans-serif'],
-            rajdhani: ['Rajdhani', 'sans-serif']
+            rajdhani: ['Outfit', 'sans-serif']
           }
         }
       }
@@ -76,7 +78,7 @@
     * { box-sizing: border-box; }
     html, body, #root { height: 100%; margin: 0; }
     html, body { overflow: hidden; background: var(--bg); overscroll-behavior: none; }
-    body { font-family: 'Rajdhani', sans-serif; color: #fff; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Outfit', 'Segoe UI', sans-serif; color: #f4f5f7; -webkit-tap-highlight-color: transparent; }
     button, a, input { touch-action: manipulation; }
 
     body.dark-theme {
@@ -139,11 +141,12 @@
 
     .brand-title {
       font-family: 'Orbitron', sans-serif;
-      font-weight: 900;
-      letter-spacing: 0.06em;
-      font-size: 1.05rem;
-      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 0.95rem;
+      line-height: 1.1;
     }
+    .brand-title span { color: var(--red); }
 
     .icon-btn {
       width: 40px; height: 40px; border-radius: 12px;
@@ -157,19 +160,21 @@
     .nav-btn {
       width: 100%;
       text-align: left;
-      padding: 11px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      padding: 12px 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
       margin-bottom: 4px;
       border: 0;
       cursor: pointer;
       background: transparent;
-      color: rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.62);
     }
     .light-theme .nav-btn { color: #6b6b6b; }
+    .light-theme .chat-title { color: #161616; }
+    .light-theme .chat-kicker { color: #6b6b6b; }
+    body.shot-mode #muzzUpdateBar { display: none !important; }
     .nav-btn.active {
       color: #fff;
       background: rgba(255, 20, 20, 0.14);
@@ -178,12 +183,18 @@
     .nav-btn:hover { color: #fff; background: rgba(255, 20, 20, 0.08); }
 
     .bubble-3d {
-      padding: 10px 14px;
-      border-radius: 16px;
-      font-size: 15px;
-      max-width: min(86%, 560px);
-      line-height: 1.4;
+      padding: 11px 14px;
+      border-radius: 18px;
+      font-size: 15.5px;
+      max-width: min(86%, 520px);
+      line-height: 1.45;
       word-break: break-word;
+    }
+    .bubble-3d.muzz-sticker-only,
+    .bubble-3d.me.muzz-sticker-only {
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
     }
     .bubble-3d.me {
       background: linear-gradient(180deg, #ff3a3a, #b40000);
@@ -211,7 +222,7 @@
       border: 0;
       outline: none;
       color: inherit;
-      font-family: 'Rajdhani', sans-serif;
+      font-family: 'Outfit', 'Segoe UI', sans-serif;
       font-size: 16px;
       font-weight: 600;
     }
@@ -226,8 +237,8 @@
     }
     .send-btn.pin { background: linear-gradient(180deg, #f0c000, #9a7400); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 0 #4a3800; }
 
-    .emoji-window { max-height: 160px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 12px; }
-    .emoji-btn { font-size: 1.4rem; cursor: pointer; display: flex; justify-content: center; min-height: 36px; align-items: center; }
+    .emoji-window { max-height: 232px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 6px 8px 10px; }
+    .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 300px; padding: 10px 12px 14px; }
 
     .custom-scroll { scrollbar-width: thin; scrollbar-color: var(--red) transparent; }
     .custom-scroll::-webkit-scrollbar { width: 4px; }
@@ -338,13 +349,14 @@
       }
       .sidebar.open { transform: translateX(0); }
       .chat-header {
-        min-height: 58px;
+        min-height: 64px;
         padding: calc(8px + var(--safe-t)) 12px 8px !important;
       }
       .header-logo { display: block; }
       .channel-strip { display: flex; }
       .bubble-3d { font-size: 16px; padding: 12px 15px; max-width: 88%; }
-      .emoji-window { grid-template-columns: repeat(6, 1fr); max-height: 180px; }
+      .emoji-window { grid-template-columns: repeat(6, 1fr); max-height: 220px; }
+      .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 280px; }
       .icon-btn { width: 44px; height: 44px; }
       .send-btn { width: 48px; height: 48px; border-radius: 16px; }
       .composer { padding: 8px 10px calc(8px + var(--safe-b)); }
@@ -408,6 +420,34 @@
       FOOD:["🍕","🍔","🌮","🍣","🍰","🍦","☕","🍺","🍷","🍸"],
       ACTIVITIES:["⚽","🏀","🎾","🎵","🎸","🎮","♟️","🎨","🎬"]
     };
+    const EMOJI_LABELS = { FACES: 'Faces', HANDS: 'Hands', OBJECTS: 'Objects', NATURE: 'Nature', FOOD: 'Food', ACTIVITIES: 'Activities', STICKERS: 'Stickers' };
+
+    function stickerById(id) {
+      const list = (window.MuzzStickers && window.MuzzStickers.list) || [];
+      return list.find((item) => item.id === id) || null;
+    }
+    function isStickerOnly(text) {
+      return window.MuzzStickers ? window.MuzzStickers.only(text) : false;
+    }
+    function renderRich(text) {
+      const raw = String(text || '');
+      const out = [];
+      const re = /\[\[sticker:([a-z0-9-]+)\]\]/g;
+      let last = 0;
+      let match;
+      let n = 0;
+      while ((match = re.exec(raw))) {
+        if (match.index > last) out.push(raw.slice(last, match.index));
+        const sticker = stickerById(match[1]);
+        if (sticker) out.push(<img key={'st-' + n} className="muzz-sticker" src={sticker.src} alt={sticker.label} />);
+        else out.push(match[0]);
+        last = match.index + match[0].length;
+        n += 1;
+      }
+      if (!out.length) return raw;
+      if (last < raw.length) out.push(raw.slice(last));
+      return out;
+    }
 
     const CHANNELS = [
       { id:"general", name:"GENERAL" }
@@ -439,10 +479,21 @@
 
     const pinPathForChannel = (channelId) => `settings/pinned/${channelId}`;
 
+    const shotParams = new URLSearchParams(location.search);
     const shotName = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-      ? (new URLSearchParams(location.search).get('shot') || '')
+      ? (shotParams.get('shot') || '')
       : '';
     const localShot = shotName === '1' || shotName === 'install' || shotName === 'min' || shotName === 'standalone';
+    if (localShot) document.body.classList.add('shot-mode');
+    const shotMenu = localShot && shotParams.get('menu') === '1';
+    const shotEmoji = localShot && shotParams.get('emoji') === '1';
+    const SHOT_MESSAGES = [
+      { id: 'shot1', userId: 'ry', username: 'RYASHU', role: 'ryachu', content: 'Welcome to General.', timestamp: Date.now() - 180000 },
+      { id: 'shot2', userId: 'shot', username: 'Node_6bcb8a', role: 'user', content: '[[sticker:muzz]]', timestamp: Date.now() - 120000 },
+      { id: 'shot3', userId: 'it', username: 'ITSUKI', role: 'itsuki', content: '[[sticker:moon]]', timestamp: Date.now() - 90000 },
+      { id: 'shot4', userId: 'shot', username: 'Node_6bcb8a', role: 'user', content: 'Holding the floor. [[sticker:boss]]', timestamp: Date.now() - 40000 },
+      { id: 'shot5', userId: 'es', username: 'ESTEBAN', role: 'esteban', content: '[[sticker:soy-verga]]', timestamp: Date.now() - 8000 }
+    ];
 
     function App(){
       const [me, setMe] = useState(localShot ? {
@@ -453,25 +504,23 @@
         wallet: '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a',
         identityKey: 'wallet_shot'
       } : null);
-      const [messages, setMessages] = useState(localShot ? [{
-        id: 'shot1',
-        username: 'RYASHU',
-        role: 'ryachu',
-        content: 'Hello from the group chat.',
-        timestamp: Date.now()
-      }] : []);
-      const [onlineUsers, setOnlineUsers] = useState([]);
+      const [messages, setMessages] = useState(localShot ? SHOT_MESSAGES : []);
+      const [onlineUsers, setOnlineUsers] = useState(localShot ? [
+        { uid: 'a', identityKey: 'a', username: 'RYASHU', role: 'ryachu' },
+        { uid: 'b', identityKey: 'b', username: 'ITSUKI', role: 'itsuki' },
+        { uid: 'c', identityKey: 'c', username: 'Node_6bcb8a', role: 'user' }
+      ] : []);
       const [mutedMap, setMutedMap] = useState({});
       const [pinnedMessage, setPinnedMessage] = useState("");
       const [messageText, setMessageText] = useState("");
       const [darkMode, setDarkMode] = useState(true);
-      const [showEmoji, setShowEmoji] = useState(false);
+      const [showEmoji, setShowEmoji] = useState(shotEmoji);
       const [showTranslate, setShowTranslate] = useState(false);
       const [undoText, setUndoText] = useState(null);
       const [translating, setTranslating] = useState(false);
-      const [emojiTab, setEmojiTab] = useState("FACES");
+      const [emojiTab, setEmojiTab] = useState(shotEmoji ? 'STICKERS' : 'FACES');
       const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
-      const [mobileMenu, setMobileMenu] = useState(false);
+      const [mobileMenu, setMobileMenu] = useState(shotMenu);
       const [pinMode, setPinMode] = useState(false);
       const [banPanel, setBanPanel] = useState(false);
       const [mutePanel, setMutePanel] = useState(false);
@@ -935,7 +984,7 @@
             <div className="flex items-center gap-3 mb-5">
               <img src="muzzsnap.jpg" alt="MuzzSnap" className="brand-logo" />
               <div className="min-w-0 flex-1">
-                <h1 className="brand-title">MUZZSNAP</h1>
+                <h1 className="brand-title">MUZZ<span>SNAP</span></h1>
                 <p className="text-[11px] uppercase tracking-widest text-red-500 truncate">{me.username}</p>
               </div>
               <button type="button" className="icon-btn lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
@@ -962,20 +1011,20 @@
               )}
 
               <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Channels</p>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Chat</p>
                 {CHANNELS.map((channel) => (
                   <button
                     key={channel.id}
                     onClick={() => { setActiveChannel(channel); setMobileMenu(false); }}
                     className={`nav-btn ${activeChannel.id === channel.id ? 'active' : ''}`}
                   >
-                    # {channel.name}
+                    General
                   </button>
                 ))}
               </div>
 
               <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Muzz</p>
+                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Menu</p>
                 <button onClick={goToPrivate} className="nav-btn">
                   <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'} mr-2`}></i>
                   Private
@@ -1009,6 +1058,7 @@
               Check for updates
             </button>
             {pushNote ? <p className="text-[11px] text-gray-500 px-1">{pushNote}</p> : null}
+            <p className="build-tag">Version 1.0.22</p>
             <button
               onClick={() => {
                 try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}
@@ -1035,14 +1085,15 @@
               </div>
             )}
 
-            <header className="chat-header h-14 md:h-16 flex items-center justify-between px-3 md:px-5 flex-shrink-0" style={{boxShadow:'inset 0 -1px 0 rgba(255,255,255,0.06)'}}>
+            <header className="chat-header min-h-16 flex items-center justify-between px-3 md:px-5 flex-shrink-0" style={{boxShadow:'inset 0 -1px 0 rgba(255,255,255,0.06)'}}>
               <div className="flex items-center gap-3 min-w-0">
                 <button type="button" onClick={() => setMobileMenu(true)} className="icon-btn lg:hidden" aria-label="Open menu">
                   <i className="fas fa-bars"></i>
                 </button>
                 <img src="muzzsnap.jpg" alt="" className="header-logo" />
                 <div className="min-w-0">
-                  <h2 className="text-xs md:text-sm font-black tracking-[0.18em] text-red-500 uppercase truncate">/ {activeChannel.name}</h2>
+                  <p className="chat-kicker">Public</p>
+                  <h2 className="chat-title truncate">{activeChannel.name === 'GENERAL' ? 'General' : activeChannel.name}</h2>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1054,7 +1105,19 @@
               </div>
             </header>
 
+            <div className="channel-strip" role="navigation" aria-label="Sections">
+              <button type="button" className="chip active">General</button>
+              <button type="button" className="chip" onClick={goToPrivate}>Private</button>
+            </div>
+
             <div className="msg-list flex-1 min-h-0 overflow-y-auto px-3 py-4 md:px-6 md:py-6 flex flex-col gap-4 custom-scroll">
+              {muzzGate.visible(messages, nowTick).length === 0 && (
+                <div className="empty-chat">
+                  <img src="muzzsnap.jpg" alt="" />
+                  <p>No messages yet</p>
+                  <span>Say hello in General.</span>
+                </div>
+              )}
               {muzzGate.visible(messages, nowTick).map((msg, index, shown) => {
                 const muted = !!(msg.identityKey && mutedMap[msg.identityKey] && mutedMap[msg.identityKey] > Date.now());
                 const date = new Date(msg.timestamp);
@@ -1085,8 +1148,8 @@
                       <span className={`text-[10px] font-black mb-1 uppercase px-1 ${roleClass(msg.role,'text-gray-500')}`}>
                         {roleBadge(msg.role)}{msg.username} {muted && '🔇'}
                       </span>
-                      <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''}`}>
-                        {msg.content}
+                      <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''} ${isStickerOnly(msg.content) ? 'muzz-sticker-only' : ''}`}>
+                        {renderRich(msg.content)}
                       </div>
                       <span className="msg-time">
                         {isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1182,19 +1245,30 @@
               )}
 
               {showEmoji && (
-                <div className="mb-3 rounded-xl overflow-hidden" style={{boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.2)'}}>
-                  <div className="flex overflow-x-auto custom-scroll">
-                    {Object.keys(EMOJIS).map((tab) => (
-                      <button key={tab} onClick={() => setEmojiTab(tab)} className={`px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap ${emojiTab === tab ? 'text-red-500' : 'text-gray-500'}`}>
-                        {tab}
+                <div className="emoji-sheet" role="dialog" aria-label="Emoji and stickers">
+                  <div className="emoji-tabs custom-scroll" role="tablist">
+                    {Object.keys(EMOJIS).concat(['STICKERS']).map((tab) => (
+                      <button key={tab} type="button" role="tab" aria-selected={emojiTab === tab} onClick={() => setEmojiTab(tab)} className={`emoji-tab ${emojiTab === tab ? 'on' : ''}`}>
+                        {EMOJI_LABELS[tab] || tab}
                       </button>
                     ))}
                   </div>
-                  <div className="emoji-window custom-scroll">
-                    {EMOJIS[emojiTab].map((emoji) => (
-                      <span key={emoji} onClick={() => setMessageText((prev) => prev + emoji)} className="emoji-btn">{emoji}</span>
-                    ))}
-                  </div>
+                  {emojiTab === 'STICKERS' ? (
+                    <div className="sticker-grid emoji-window custom-scroll">
+                      {((window.MuzzStickers && window.MuzzStickers.list) || []).map((sticker) => (
+                        <button key={sticker.id} type="button" className="sticker-tile" onClick={() => setMessageText((prev) => prev + window.MuzzStickers.token(sticker.id))}>
+                          <img src={sticker.src} alt="" />
+                          <span>{sticker.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="emoji-window custom-scroll">
+                      {(EMOJIS[emojiTab] || []).map((emoji) => (
+                        <button key={emoji} type="button" onClick={() => setMessageText((prev) => prev + emoji)} className="emoji-btn">{emoji}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
