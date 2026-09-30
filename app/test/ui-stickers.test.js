@@ -38,8 +38,8 @@ test('custom stickers are local assets and can be sent in chat and private', () 
   assert.match(priv, /MuzzStickers\.paint/);
   assert.match(priv, /MuzzStickers\.token/);
   assert.match(read('../www/css/app.css'), /\.muzz-sticker/);
-  assert.match(read('../android/app/build.gradle'), /versionName "1\.0\.22"/);
+  assert.match(read('../android/app/build.gradle'), /versionName "1\.0\.25"/);
   const manifest = JSON.parse(read('../apk-dl/version.json'));
-  assert.equal(manifest.versionName, '1.0.22');
-  assert.equal(manifest.versionCode, 22);
+  assert.equal(manifest.versionName, '1.0.25');
+  assert.equal(manifest.versionCode, 25);
 });

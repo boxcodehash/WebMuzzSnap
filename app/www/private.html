@@ -134,7 +134,7 @@
         <img src="muzzsnap.jpg" alt="MuzzSnap" class="logo">
         <div>
           <h1>MUZZ<span>SNAP</span></h1>
-          <p class="build-tag">Version 1.0.22</p>
+          <p class="build-tag">Version 1.0.25</p>
         </div>
       </div>
       <div class="card">
@@ -163,6 +163,7 @@
       <div class="mobile-top">
         <button type="button" class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="muzzPrivateBack()">Back</button>
         <img src="muzzsnap.jpg" alt="MuzzSnap" style="width:36px;height:36px;border-radius:12px;object-fit:cover">
+        <span id="meNameBar" style="font-weight:800;font-size:13px;color:#ff6565;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Node_User</span>
         <button type="button" class="people-btn" aria-label="People">People<span class="badge"></span></button>
         <button type="button" class="muzz-fs" aria-label="Full screen">Full screen</button>
       </div>
@@ -287,6 +288,8 @@
     function renderMe(){
       const label = localShot ? 'Node_6bcb8a' : (meName || 'Node_User');
       document.getElementById('meName').textContent = label;
+      const bar = document.getElementById('meNameBar');
+      if (bar) bar.textContent = label;
       document.getElementById('meAvatar').textContent = initials(label);
       document.getElementById('meSubtext').textContent = '10,000,000 MUZZ verified';
     }

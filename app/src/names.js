@@ -6,9 +6,9 @@ const KNOWN = {
 const WHITELIST = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
 
 export function displayName(wallet, me) {
-  const id = String(wallet || '').toLowerCase();
-  if (me && id === String(me).toLowerCase()) return 'You';
+  const id = String(wallet || '').trim().toLowerCase();
   if (KNOWN[id]) return KNOWN[id];
+  if (me && id === String(me).trim().toLowerCase()) return 'You';
   if (id === WHITELIST) return 'Node_' + id.slice(-6);
   if (id.length < 6) return 'Node';
   return `Node ${id.slice(-4)}`;

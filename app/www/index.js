@@ -147,11 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getMetaMaskDeepLink() {
-        const hostPath = `${window.location.host}${window.location.pathname}`;
-        if (isAndroid() || isIOS()) {
-            return `https://metamask.app.link/dapp/${hostPath}`;
-        }
-        return window.location.href;
+        return 'login.html';
     }
 
     function getMetaMaskInstallUrl() {
@@ -280,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!hasMetaMask) {
             const installUrl = getMetaMaskInstallUrl();
             messageTitle.textContent = "MetaMask Not Detected";
-            noWalletText.innerHTML = `Please install MetaMask. If you are on mobile, open this page inside the MetaMask app's browser.`;
+            noWalletText.innerHTML = `Please install MetaMask. On a phone, stay in MuzzSnap and connect with WalletConnect.`;
             installMetaMaskButton.href = installUrl;
             installMetaMaskButton.classList.remove('hidden');
             noWalletMessage.classList.remove('hidden');

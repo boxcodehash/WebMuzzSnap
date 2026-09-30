@@ -1,7 +1,7 @@
 {
-  "versionCode": 21,
-  "versionName": "1.0.21",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=121",
-  "notes": "Connect opens the wallet to approve and sign once, then returns to the app. Wallet browsers are not used.",
+  "versionCode": 25,
+  "versionName": "1.0.25",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=125",
+  "notes": "Connect opens the wallet to approve and sign once, then returns to the app. Chat, private, and stickers share one build. Private messages delete 24 hours after they are read.",
   "force": false
 }

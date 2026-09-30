@@ -324,7 +324,7 @@ async function mergeGroup(inbox, outbox) {
 async function mapPrivate(rows) {
   const views = [];
   for (const row of rows) {
-    const mine = row.sender === me;
+    const mine = String(row.sender || '').toLowerCase() === String(me || '').toLowerCase();
     const view = await materialize(row, { mine, kind: 'inbox' });
     if (view) views.push(view);
   }

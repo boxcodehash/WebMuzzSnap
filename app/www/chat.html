@@ -448,6 +448,11 @@
       if (last < raw.length) out.push(raw.slice(last));
       return out;
     }
+    function senderLabel(msg) {
+      const wallet = (msg && (msg.wallet || msg.userId)) || '';
+      if (window.MuzzNames && /^0x[a-fA-F0-9]{40}$/i.test(String(wallet))) return MuzzNames.displayName(wallet);
+      return (msg && msg.username) || '';
+    }
 
     const CHANNELS = [
       { id:"general", name:"GENERAL" }
@@ -973,7 +978,7 @@
               <img src="muzzsnap.jpg" alt="MuzzSnap" className="brand-logo" />
               <div className="min-w-0 flex-1">
                 <h1 className="brand-title">MUZZ<span>SNAP</span></h1>
-                <p className="text-[11px] uppercase tracking-widest text-red-500 truncate">{me.username}</p>
+                <p className="chat-me truncate">{me.username}</p>
               </div>
               <button type="button" className="icon-btn lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
                 <i className="fas fa-times"></i>
@@ -1039,7 +1044,7 @@
             </div>
 
             <p id="muzzPushStatus" data-react="1" role="status" className="text-[11px] text-gray-500 px-1 mt-4 leading-snug">{pushStatus}</p>
-            <p className="build-tag">Version 1.0.22</p>
+            <p className="build-tag">Version 1.0.25</p>
             <button
               onClick={() => {
                 try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}
@@ -1073,7 +1078,7 @@
                 </button>
                 <img src="muzzsnap.jpg" alt="" className="header-logo" />
                 <div className="min-w-0">
-                  <p className="chat-kicker">Public</p>
+                  <p className="chat-me">{me.username}</p>
                   <h2 className="chat-title truncate">{activeChannel.name === 'GENERAL' ? 'General' : activeChannel.name}</h2>
                 </div>
               </div>
@@ -1126,8 +1131,8 @@
                     )}
 
                     <div className={`flex flex-col ${msg.userId === me.uid ? 'items-end' : 'items-start'}`}>
-                      <span className={`text-[10px] font-black mb-1 uppercase px-1 ${roleClass(msg.role,'text-gray-500')}`}>
-                        {roleBadge(msg.role)}{msg.username} {muted && '🔇'}
+                      <span className={`text-[10px] font-black mb-1 px-1 ${roleClass(msg.role,'text-gray-500')}`}>
+                        {roleBadge(msg.role)}{senderLabel(msg)} {muted && '🔇'}
                       </span>
                       <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''} ${isStickerOnly(msg.content) ? 'muzz-sticker-only' : ''}`}>
                         {renderRich(msg.content)}

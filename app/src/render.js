@@ -77,7 +77,7 @@ function sheet(state) {
   if (state.panel === 'online') {
     const people = state.online.length
       ? state.online.map((person) => {
-        const mine = state.me && person.wallet === state.me.wallet;
+        const mine = state.me && String(person.wallet || '').toLowerCase() === String(state.me.wallet || '').toLowerCase();
         return `<button type="button" class="person" data-action="open-peer" data-peer="${esc(person.wallet)}" ${mine ? 'disabled' : ''}>
           <span class="avatar" style="background:${avatarColor(person.wallet)}">${esc(avatarText(person.wallet))}</span>
           <span><strong>${esc(displayName(person.wallet, state.me && state.me.wallet))}</strong><small>${esc(shortAddr(person.wallet))}</small></span>
@@ -245,7 +245,7 @@ export function messagesHtml(state) {
     const file = message.fileName
       ? `<button type="button" class="file-link" data-action="download" data-id="${esc(message.id)}" data-path="${esc(message.attachmentPath || '')}" ${message.canDownload ? '' : 'disabled'}>${esc(message.fileName)}</button>`
       : '';
-    const who = message.mine ? '' : `<span class="who">${esc(displayName(message.sender))}</span>`;
+    const who = `<span class="who">${esc(displayName(message.sender, message.mine ? message.sender : ''))}</span>`;
     return `${divider}<article class="row ${message.mine ? 'mine' : ''}">${who}<div class="bubble">${body}${file}</div><time>${esc(metaLine(message))}</time></article>`;
   }).join('');
 }

@@ -511,6 +511,13 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+.chat-me {
+  margin: 0;
+  color: #ff6565;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
 .chat-kicker {
   margin: 0;
   color: #8e939e;
