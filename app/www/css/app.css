@@ -592,15 +592,17 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
 .orbit-dock {
   position: fixed;
   z-index: 80;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  right: auto;
+  width: min(300px, calc(100vw - 48px));
+  transform: translateX(-50%);
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   display: grid;
-  grid-template-columns: 1fr 86px 1fr;
+  grid-template-columns: 1fr 58px 1fr;
   align-items: center;
-  min-height: 78px;
-  padding: 8px 8px 12px;
-  border-radius: 32px;
+  min-height: 0;
+  padding: 3px 4px 4px;
+  border-radius: 24px;
   color: #f4f5f7;
   background:
     radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.75) 0 1px, transparent 1.6px),
@@ -618,12 +620,12 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
 }
 .orbit-indicator {
   position: absolute;
-  width: 26px;
+  width: 18px;
   height: 3px;
   border-radius: 999px;
   background: #ff2a2a;
   box-shadow: 0 0 12px #ff2a2a;
-  bottom: 8px;
+  bottom: 3px;
   left: 20%;
   transform: translateX(-50%);
   transition: left 0.35s cubic-bezier(0.22, 1, 0.36, 1), top 0.35s cubic-bezier(0.22, 1, 0.36, 1);
@@ -638,19 +640,19 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  min-width: 64px;
-  min-height: 56px;
-  padding: 4px 6px;
+  gap: 1px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 2px 2px 1px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 16px;
   background: transparent;
   color: rgba(244, 245, 247, 0.62);
   text-decoration: none;
   font-family: Outfit, "Segoe UI", sans-serif;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -658,25 +660,25 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
 .orbit-item[aria-current="page"] { color: #fff; }
 .orbit-item:hover,
 .orbit-item:focus-visible { color: #fff; }
-.orbit-svg { width: 26px; height: 26px; display: block; }
+.orbit-svg { width: 18px; height: 18px; display: block; }
 .orbit-core {
-  width: 78px;
-  min-height: 70px;
+  width: 58px;
+  min-height: 50px;
   color: #fff;
   justify-self: center;
-  gap: 4px;
+  gap: 1px;
 }
 .orbit-planet {
-  width: 48px;
-  height: 48px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   position: relative;
 }
 .orbit-planet img {
-  width: 40px;
-  height: 40px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   object-fit: cover;
   position: relative;
@@ -686,7 +688,7 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
 .orbit-planet::before {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: -3px;
   border-radius: 50%;
   background: conic-gradient(from 20deg, transparent 0 58%, #ff2a2a 78%, transparent 100%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 100%);
@@ -699,14 +701,14 @@ textarea:focus { outline: 1px solid rgba(255, 45, 45, 0.7); }
 .orbit-dock .orbit-core.people-btn {
   position: relative;
   display: flex;
-  width: 78px;
+  width: 58px;
   height: auto;
-  padding: 4px 6px;
+  padding: 2px 2px 1px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 16px;
   background: transparent;
   color: #fff;
-  font-size: 11px;
+  font-size: 9px;
 }
 .orbit-dock .orbit-core .badge {
   position: absolute;
@@ -731,19 +733,20 @@ body.light-theme .orbit-core { color: #9d0000; }
 @keyframes orbit-spin { to { transform: rotate(360deg); } }
 @media (min-width: 1024px) {
   .orbit-dock {
-    top: 16px;
-    bottom: 16px;
-    left: 16px;
+    top: 12px;
+    bottom: 12px;
+    left: 12px;
     right: auto;
-    width: 96px;
+    width: 72px;
+    transform: none;
     min-height: 0;
     height: auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 8px;
-    padding: 16px 8px;
-    border-radius: 36px;
+    gap: 4px;
+    padding: 10px 4px;
+    border-radius: 28px;
   }
   .orbit-indicator {
     width: 3px;
