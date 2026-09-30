@@ -12,13 +12,22 @@ import {
   buildLoginMessage,
   clearStorageKeys,
   dappUrl,
+  discoverInjected,
   explainLoginError,
+  guardWalletReturn,
   installWalletReturnGuard,
+  isMobileBrowser,
+  isNativeApp,
   loginWithWallet,
+  openWalletForSignature,
+  pickInjected,
   readMuzzBalance,
   rememberWalletUri,
   restoredAddressFromStorage,
   shortAddress,
+  shouldShowQrModal,
+  useDeepLinks,
+  walletConnectPlan,
   walletRedirect
 } from '../src/login-client.js';
 
@@ -351,8 +360,9 @@ test('a stored WalletConnect account is shown data, not the cached address, and 
 
 test('the APK return is muzzsnap://wc and wallet browsers are not opened', () => {
   assert.deepEqual(walletRedirect(PUBLIC_APP, true), { native: 'muzzsnap://wc' });
-  assert.equal(walletRedirect(PUBLIC_APP, false).native, 'muzzsnap://wc');
-  assert.equal(walletRedirect(PUBLIC_APP, false).universal, PUBLIC_APP + '/login.html');
+  assert.equal(walletRedirect(PUBLIC_APP, true).universal, undefined);
+  assert.deepEqual(walletRedirect(PUBLIC_APP, false), { universal: PUBLIC_APP + '/login.html' });
+  assert.equal(walletRedirect(PUBLIC_APP, false).native, undefined);
   const opened = [];
   const root = {
     open(url) {
@@ -367,4 +377,113 @@ test('the APK return is muzzsnap://wc and wallet browsers are not opened', () =>
   root.open('https://metamask.app.link/wc?uri=' + encodeURIComponent('wc:abc'));
   const native = 'metamask://wc?uri=' + encodeURIComponent('wc:abc');
   assert.deepEqual(opened, [native, native, native]);
+});
+
+function desktopRoot() {
+  return { navigator: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0', platform: 'Win32', maxTouchPoints: 0 } };
+}
+
+function mobileRoot() {
+  return { navigator: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148', platform: 'iPhone', maxTouchPoints: 5 } };
+}
+
+function apkRoot() {
+  return {
+    Capacitor: { isNativePlatform() { return true; }, getPlatform() { return 'android'; } },
+    navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile', platform: 'Linux armv8l', maxTouchPoints: 5 }
+  };
+}
+
+test('desktop shows the QR, mobile browsers deep-link back to the site, and the APK keeps muzzsnap://wc', () => {
+  const desk = walletConnectPlan(desktopRoot());
+  assert.equal(isMobileBrowser(desktopRoot()), false);
+  assert.equal(isNativeApp(desktopRoot()), false);
+  assert.equal(useDeepLinks(desktopRoot()), false);
+  assert.equal(desk.deepLinks, false);
+  assert.equal(desk.guard, false);
+  assert.equal(desk.showQrModal, true);
+  assert.deepEqual(desk.redirect, { universal: PUBLIC_APP + '/login.html' });
+  assert.equal(desk.linkReturn, PUBLIC_APP + '/login.html');
+  assert.equal(shouldShowQrModal(desktopRoot()), true);
+
+  const phone = walletConnectPlan(mobileRoot());
+  assert.equal(isMobileBrowser(mobileRoot()), true);
+  assert.equal(phone.deepLinks, true);
+  assert.equal(phone.guard, false);
+  assert.equal(phone.showQrModal, false);
+  assert.deepEqual(phone.redirect, { universal: PUBLIC_APP + '/login.html' });
+  assert.equal(phone.linkReturn, PUBLIC_APP + '/login.html');
+  assert.equal(shouldShowQrModal({ ...mobileRoot(), showModal: true }), true);
+
+  const apk = walletConnectPlan(apkRoot());
+  assert.equal(isNativeApp(apkRoot()), true);
+  assert.equal(isMobileBrowser(apkRoot()), false);
+  assert.equal(apk.deepLinks, true);
+  assert.equal(apk.guard, true);
+  assert.equal(apk.showQrModal, false);
+  assert.deepEqual(apk.redirect, { native: 'muzzsnap://wc' });
+  assert.equal(apk.linkReturn, 'muzzsnap://wc');
+  assert.equal(guardWalletReturn(desktopRoot()), false);
+  assert.equal(guardWalletReturn(mobileRoot()), false);
+  const opened = [];
+  const native = apkRoot();
+  native.window = { open(url) { opened.push(url); return null; } };
+  assert.equal(guardWalletReturn(native), true);
+  rememberWalletUri('wc:abc');
+  native.window.open('https://metamask.app.link/dapp/muzzsnap-app.vercel.app/login.html');
+  assert.equal(opened[0], 'metamask://wc?uri=' + encodeURIComponent('wc:abc'));
+  rememberWalletUri('wc:sign');
+  const phoneHref = openWalletForSignature({ ...mobileRoot(), walletId: 'metamask' });
+  assert.match(phoneHref, /^metamask:\/\/wc\?uri=wc%3Asign/);
+  assert.doesNotMatch(phoneHref, /muzzsnap:\/\/wc/);
+  const apkHref = openWalletForSignature({ ...apkRoot(), walletId: 'phantom' });
+  assert.match(apkHref, /^phantom:\/\/wc\?uri=wc%3Asign/);
+  assert.match(apkHref, /redirect_link=muzzsnap%3A%2F%2Fwc/);
+});
+
+test('EIP-6963 prefers MetaMask over a hijacked window.ethereum', async () => {
+  const calls = [];
+  const address = '0x' + 'ab'.repeat(20);
+  const phantom = {
+    isMetaMask: true,
+    async request() { calls.push('phantom'); return [address]; }
+  };
+  const metamask = {
+    async request({ method }) {
+      calls.push('metamask:' + method);
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [address];
+      if (method === 'eth_chainId') return '0x1';
+      if (method === 'personal_sign') return '0x' + '11'.repeat(65);
+      throw new Error(method);
+    }
+  };
+  const root = new EventTarget();
+  root.navigator = desktopRoot().navigator;
+  root.ethereum = phantom;
+  root.addEventListener('eip6963:requestProvider', () => {
+    root.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: { info: { rdns: 'app.phantom', name: 'Phantom' }, provider: phantom }
+    }));
+    root.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: { info: { rdns: 'io.metamask', name: 'MetaMask' }, provider: metamask }
+    }));
+  });
+  const found = await discoverInjected(root, 0);
+  assert.equal(pickInjected(found, phantom), metamask);
+  const result = await loginWithWallet({
+    root,
+    discoverMs: 0,
+    walletId: 'metamask',
+    storage: { getItem: () => null, setItem() {}, removeItem() {} },
+    readBalance: async () => ({ ok: true, formatted: '10,000,000' }),
+    nonce: async () => ({ nonce: 'cd'.repeat(16), exp: Date.now() + 60_000 }),
+    exchange: async (message, signature) => {
+      assert.match(message, /Chain ID: 1/);
+      assert.equal(signature, '0x' + '11'.repeat(65));
+      return { customToken: 'custom' };
+    }
+  });
+  assert.equal(result.customToken, 'custom');
+  assert.equal(calls.filter((item) => item === 'phantom').length, 0);
+  assert.equal(calls.filter((item) => item === 'metamask:personal_sign').length, 1);
 });

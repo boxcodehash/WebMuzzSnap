@@ -39,8 +39,17 @@ test('login CSP lets the wallet list and WalletConnect hosts load', () => {
   assert.match(page, /data-wallet/);
   assert.match(page, /walletId: 'metamask'/);
   assert.match(page, /showModal: true/);
-  assert.match(client, /showQrModal: deps\.showModal === true/);
+  assert.match(client, /showQrModal: plan\.showQrModal/);
+  assert.match(client, /deps\.showModal === true \|\| !useDeepLinks/);
+  assert.match(policy, /script-src[^;]*https:\/\/apis\.google\.com/);
+  assert.match(policy, /frame-src[^;]*https:\/\/pulsari\.firebaseapp\.com/);
+  assert.match(policy, /frame-src[^;]*https:\/\/\*\.firebaseapp\.com/);
+  assert.match(policy, /font-src[^;]*https:\/\/fonts\.reown\.com/);
   assert.match(client, /wallet:open/);
+  const html = readFileSync(new URL('../www/login.html', import.meta.url), 'utf8');
+  assert.match(html, /\[hidden\] \{ display: none !important; \}/);
+  assert.match(html, /Open wallet to sign/);
+  assert.match(page, /walletLinks\.hidden = true/);
   assert.match(readFileSync(new URL('../src/walletLinks.js', import.meta.url), 'utf8'), /metamask:\/\/wc\?uri=/);
 });
 

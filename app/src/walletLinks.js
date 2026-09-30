@@ -22,11 +22,11 @@ export function isInAppBrowserLink(href) {
  * Native WalletConnect links. The wallet shows approve and one signature, then
  * returns with muzzsnap://wc. Page URLs are not embedded.
  */
-export function walletNativeLinks(wcUri) {
+export function walletNativeLinks(wcUri, returnTo = NATIVE_RETURN) {
   const uri = String(wcUri || '');
   const wc = uri.startsWith('wc:') ? uri : '';
   const enc = encodeURIComponent(wc);
-  const back = encodeURIComponent(NATIVE_RETURN);
+  const back = encodeURIComponent(returnTo || NATIVE_RETURN);
   const byId = {
     metamask: wc ? `metamask://wc?uri=${enc}` : NATIVE_WC.metamask,
     trust: wc ? `trust://wc?uri=${enc}` : NATIVE_WC.trust,

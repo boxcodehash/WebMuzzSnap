@@ -75,6 +75,9 @@ test('iPhone home screen tags, 16px inputs, and WalletConnect return links', () 
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /muzz-sw-update/);
   assert.match(ios, /New version, tap to reload/);
+  assert.match(ios, /controlledAtLoad/);
+  assert.match(ios, /if \(!controlledAtLoad\) return/);
+  assert.doesNotMatch(ios, /hadWorker = true/);
   assert.match(ios, /removeChild/);
   assert.match(ios, /nativeApp\(\)/);
   assert.match(readFileSync(new URL('../www/css/ios-pwa.css', import.meta.url), 'utf8'), /#muzzUpdateBar\[hidden\]/);

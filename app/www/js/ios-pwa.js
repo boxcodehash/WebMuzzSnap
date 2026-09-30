@@ -259,17 +259,14 @@
   }
 
   if ('serviceWorker' in navigator && !nativeApp()) {
-    var hadWorker = !!navigator.serviceWorker.controller;
+    var controlledAtLoad = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (!hadWorker) {
-        hadWorker = true;
-        return;
-      }
+      if (!controlledAtLoad) return;
       showWebUpdateBar();
     });
     navigator.serviceWorker.addEventListener('message', function (event) {
       var data = event.data || {};
-      if (data.type === 'muzz-sw-update' && hadWorker) showWebUpdateBar();
+      if (data.type === 'muzz-sw-update' && controlledAtLoad) showWebUpdateBar();
     });
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }

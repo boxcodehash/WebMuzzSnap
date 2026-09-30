@@ -135,22 +135,85 @@ export function explainLoginError(err) {
 }
 
 export function isNativeApp(root = globalThis) {
+  const seen = new Set();
+  const scopes = [];
+  const add = (scope) => {
+    if (!scope || (typeof scope !== 'object' && typeof scope !== 'function') || seen.has(scope)) return;
+    seen.add(scope);
+    scopes.push(scope);
+  };
+  add(root);
+  if (root && root.window) add(root.window);
+  try { add(globalThis); } catch { /* no global */ }
   try {
-    const cap = root.Capacitor || (root.window && root.window.Capacitor);
-    if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true;
-    const platform = cap && typeof cap.getPlatform === 'function' ? cap.getPlatform() : '';
-    if (platform === 'android' || platform === 'ios') return true;
+    for (const scope of scopes) {
+      const cap = scope.Capacitor;
+      if (!cap) continue;
+      if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true;
+      const platform = typeof cap.getPlatform === 'function' ? cap.getPlatform() : '';
+      if (platform === 'android' || platform === 'ios') return true;
+    }
   } catch {
     /* a normal browser has no Capacitor bridge */
   }
   return false;
 }
 
-/** Native return only inside the APK. A website universal link makes the wallet open its browser. */
+function navigatorOf(root) {
+  if (root && root.navigator) return root.navigator;
+  if (root && root.window && root.window.navigator) return root.window.navigator;
+  try { return typeof navigator !== 'undefined' ? navigator : null; } catch { return null; }
+}
+
+/** A phone or tablet browser. The APK WebView is not a mobile browser. */
+export function isMobileBrowser(root = globalThis) {
+  if (isNativeApp(root)) return false;
+  const nav = navigatorOf(root);
+  if (!nav) return false;
+  const ua = String(nav.userAgent || '');
+  if (/Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)) return true;
+  if (nav.platform === 'MacIntel' && Number(nav.maxTouchPoints) > 1) return true;
+  return false;
+}
+
+function nativeFlag(deps = {}) {
+  if (deps.nativeApp !== undefined) return Boolean(deps.nativeApp);
+  return isNativeApp(deps);
+}
+
+/** Deep links belong in the APK and in mobile browsers. Desktop stays on the QR. */
+export function useDeepLinks(deps = {}) {
+  if (deps.useDeepLinks != null) return Boolean(deps.useDeepLinks);
+  return nativeFlag(deps) || isMobileBrowser(deps);
+}
+
+export function shouldShowQrModal(deps = {}) {
+  return deps.showModal === true || !useDeepLinks(deps);
+}
+
+/**
+ * How this connect should talk to the wallet.
+ * Desktop browsers show the QR and never install the native-link guard.
+ */
+export function walletConnectPlan(deps = {}) {
+  const native = nativeFlag(deps);
+  const deep = useDeepLinks(deps);
+  const origin = dappUrl(deps.location || (typeof location !== 'undefined' ? location : { hostname: 'localhost', origin: '' }));
+  const browserReturn = String(origin || PUBLIC_APP).replace(/\/$/, '') + '/login.html';
+  return {
+    showQrModal: deps.showModal === true || !deep,
+    redirect: walletRedirect(origin, native),
+    deepLinks: deep,
+    guard: native,
+    linkReturn: native ? NATIVE_RETURN : browserReturn
+  };
+}
+
+/** APK returns with muzzsnap://wc. A browser returns to this site's login page. */
 export function walletRedirect(origin, nativeApp) {
-  const redirect = { native: NATIVE_RETURN };
-  if (!nativeApp) redirect.universal = String(origin || PUBLIC_APP).replace(/\/$/, '') + '/login.html';
-  return redirect;
+  const page = String(origin || PUBLIC_APP).replace(/\/$/, '') + '/login.html';
+  if (nativeApp) return { native: NATIVE_RETURN };
+  return { universal: page };
 }
 
 let pendingWcUri = '';
@@ -159,6 +222,13 @@ export function rememberWalletUri(uri) {
   const value = String(uri || '');
   if (value.startsWith('wc:')) pendingWcUri = value;
   return pendingWcUri;
+}
+
+/** Rewrite window.open only inside the APK. A desktop browser must keep https links. */
+export function guardWalletReturn(deps = {}) {
+  if (!walletConnectPlan(deps).guard) return false;
+  installWalletReturnGuard(deps.window || globalThis);
+  return true;
 }
 
 /** window.open must not load /dapp/ or another wallet browser. Native wc: links stay. */
@@ -272,11 +342,12 @@ function providerOptions(deps) {
     throw err;
   }
   const url = dappUrl(deps.location || globalThis.location || { hostname: 'localhost', origin: '' });
+  const plan = walletConnectPlan(deps);
   return {
     projectId: id,
     chains: [1],
-    /* The All Wallets grid calls api.web3modal.org. Named wallets skip it and open a native wc link. */
-    showQrModal: deps.showModal === true,
+    /* Desktop browsers always show the QR. Deep links are for the APK and mobile browsers. */
+    showQrModal: plan.showQrModal,
     methods: ['personal_sign', 'eth_requestAccounts', 'eth_accounts'],
     events: ['chainChanged', 'accountsChanged'],
     metadata: {
@@ -284,7 +355,7 @@ function providerOptions(deps) {
       description: 'Group chat and private messages for MUZZ holders',
       url,
       icons: [url + '/icons/icon-512.png'],
-      redirect: walletRedirect(url, deps.nativeApp === undefined ? isNativeApp(deps) : Boolean(deps.nativeApp))
+      redirect: plan.redirect
     },
     qrModalOptions: {
       themeMode: 'dark',
@@ -511,14 +582,16 @@ async function connectFreshWallet(deps) {
   }
   wcProvider = null;
   await disconnectWallet();
+  const plan = walletConnectPlan(deps);
+  if (typeof deps.log === 'function') deps.log('redirect:' + JSON.stringify(plan.redirect));
   const provider = await loadWalletConnect(deps);
-  installWalletReturnGuard(deps);
+  guardWalletReturn(deps);
   if (provider && typeof provider.on === 'function' && !provider.__muzzUriGuard) {
     provider.on('display_uri', (uri) => {
       rememberWalletUri(uri);
       if (typeof deps.log === 'function') deps.log('wallet:uri');
-      if (!deps.walletId) return;
-      const link = walletNativeLinks(uri).find((item) => item.id === deps.walletId);
+      if (!plan.deepLinks || !deps.walletId) return;
+      const link = walletNativeLinks(uri, plan.linkReturn).find((item) => item.id === deps.walletId);
       if (!link || !link.href) return;
       if (typeof deps.log === 'function') deps.log('wallet:open ' + deps.walletId);
       openWalletHref(link.href);
@@ -549,18 +622,84 @@ function storageOf(deps) {
   try { return globalThis.sessionStorage; } catch { return null; }
 }
 
+/** EIP-6963. MetaMask (io.metamask) wins, then the first announcement, then window.ethereum. */
+export function discoverInjected(root = globalThis, timeoutMs = 200) {
+  const wait = Number.isFinite(timeoutMs) ? timeoutMs : 200;
+  return new Promise((resolve) => {
+    const found = [];
+    const target = root && typeof root.addEventListener === 'function' ? root : globalThis;
+    const onAnnounce = (event) => {
+      const detail = event && event.detail;
+      const provider = detail && detail.provider;
+      if (!provider || typeof provider.request !== 'function') return;
+      const info = (detail && detail.info) || {};
+      found.push({
+        rdns: String(info.rdns || ''),
+        name: String(info.name || ''),
+        provider
+      });
+    };
+    if (typeof target.addEventListener === 'function') target.addEventListener('eip6963:announceProvider', onAnnounce);
+    try {
+      if (typeof Event === 'function') target.dispatchEvent(new Event('eip6963:requestProvider'));
+      else target.dispatchEvent({ type: 'eip6963:requestProvider' });
+    } catch {
+      try { target.dispatchEvent({ type: 'eip6963:requestProvider' }); } catch { /* no events */ }
+    }
+    setTimeout(() => {
+      if (typeof target.removeEventListener === 'function') target.removeEventListener('eip6963:announceProvider', onAnnounce);
+      resolve(found);
+    }, wait);
+  });
+}
+
+export function pickInjected(announced, ethereum) {
+  const list = Array.isArray(announced) ? announced.filter((item) => item && item.provider && typeof item.provider.request === 'function') : [];
+  const metamask = list.find((item) => item.rdns === 'io.metamask' || /metamask/i.test(item.rdns) || /metamask/i.test(item.name || ''));
+  if (metamask) return metamask.provider;
+  if (list[0]) return list[0].provider;
+  if (ethereum && typeof ethereum.request === 'function') return ethereum;
+  return null;
+}
+
+async function resolveInjected(deps) {
+  if (deps.ethereum !== undefined) return deps.ethereum;
+  if (deps.showModal) return null;
+  if (deps.walletId && deps.walletId !== 'metamask') return null;
+  const root = deps.root || globalThis;
+  const announced = await discoverInjected(root, deps.discoverMs == null ? 200 : deps.discoverMs);
+  const eth = (root.ethereum)
+    || (root.window && root.window.ethereum)
+    || (typeof globalThis !== 'undefined' && globalThis.window && globalThis.window.ethereum)
+    || null;
+  return pickInjected(announced, eth);
+}
+
+export function hasPendingWalletLink() {
+  return pendingWcUri.startsWith('wc:');
+}
+
+/** Foreground the wallet again so the user can sign, if the prompt did not come up. */
+export function openWalletForSignature(deps = {}) {
+  if (!hasPendingWalletLink()) return '';
+  const plan = walletConnectPlan(deps);
+  const id = deps.walletId || 'metamask';
+  const link = walletNativeLinks(pendingWcUri, plan.linkReturn).find((item) => item.id === id);
+  const href = link && link.href ? link.href : '';
+  if (href) openWalletHref(href);
+  return href;
+}
+
 /**
  * Connect, read the MUZZ balance from a public RPC, then one personal_sign.
- * Injected window.ethereum wins when it exists. Otherwise WalletConnect opens.
+ * EIP-6963 prefers MetaMask over a hijacked window.ethereum. Otherwise WalletConnect opens.
  */
 export async function loginWithWallet(deps = {}) {
   const log = typeof deps.log === 'function' ? deps.log : () => {};
   const fetchImpl = deps.fetchImpl || globalThis.fetch;
   const store = storageOf(deps);
   log('connect:start');
-  const injected = deps.ethereum !== undefined
-    ? deps.ethereum
-    : (globalThis.window && globalThis.window.ethereum);
+  const injected = await resolveInjected(deps);
   let provider;
   let address = '';
   let chainId = '';
