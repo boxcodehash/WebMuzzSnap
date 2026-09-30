@@ -1,11 +1,15 @@
 import { readRequest, sendResult } from '../server/http.js';
 import {
   handlePhotoMailbox,
+  handlePrekeyClaim,
   handlePrivateBlob,
   handlePrivateBlobAck,
   handlePrivateBlobDelete,
   handlePrivateBlobLink,
   handlePrivateBlobRead,
+  handlePrivateReceipt,
+  handlePrivateRelay,
+  handlePrivateUnwrap,
   handleWalletKey,
   handleWalletKeyRead
 } from '../server/blob.js';
@@ -18,7 +22,11 @@ const routes = {
   link: [handlePrivateBlobLink, 'storage_failed'],
   mailbox: [handlePhotoMailbox, 'storage_failed'],
   key: [handleWalletKey, 'storage_failed'],
-  'key-read': [handleWalletKeyRead, 'storage_failed']
+  'key-read': [handleWalletKeyRead, 'storage_failed'],
+  prekey: [handlePrekeyClaim, 'storage_failed'],
+  relay: [handlePrivateRelay, 'storage_failed'],
+  unwrap: [handlePrivateUnwrap, 'storage_failed'],
+  receipt: [handlePrivateReceipt, 'storage_failed']
 };
 
 export function privateOp(req) {

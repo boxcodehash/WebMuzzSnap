@@ -350,9 +350,9 @@ test('clients, rules, and the Android fallback do not ship the service account',
   const rootPrivate = readFileSync(new URL('../../private.html', import.meta.url), 'utf8');
   assert.match(appPrivate, /MuzzPush\.notify\(activeWallet\)/);
   assert.match(rootPrivate, /MuzzPush\.notify\(activeWallet\)/);
-  assert.match(appPrivate, /Send test notification/);
+  assert.doesNotMatch(appPrivate, /Send test notification/);
   assert.match(appPrivate, /id="muzzPushStatus"/);
-  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Send test notification/);
+  assert.doesNotMatch(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Send test notification/);
   const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
   assert.match(manifest, /POST_NOTIFICATIONS/);
   assert.match(manifest, /default_notification_icon/);

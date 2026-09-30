@@ -235,6 +235,15 @@
         if (typeof message.data === 'string') {
           var parsed = {};
           try { parsed = JSON.parse(message.data); } catch (err) { parsed = {}; }
+          if (parsed.kind === 'text' && parsed.inner && parsed.inner.id) {
+            try {
+              global.dispatchEvent(new CustomEvent('muzz-direct-text', { detail: parsed.inner }));
+            } catch (err) { /* no window */ }
+            try { dc.send(JSON.stringify({ ok: 1, id: parsed.inner.id })); } catch (err) { /* channel closed */ }
+            try { node.remove(); } catch (err) { /* the sender also removes it */ }
+            try { pc.close(); } catch (err) { /* already closed */ }
+            return;
+          }
           if (parsed.kind === 'photo') header = parsed;
           if (parsed.done && header) {
             var total = 0;
@@ -335,6 +344,82 @@
     return draining;
   }
 
+  function directSendJson(db, me, peer, inner, timeoutMs) {
+    var mine = walletOf(me);
+    var other = walletOf(peer);
+    if (!db || !mine || !other || !inner || typeof RTCPeerConnection !== 'function') {
+      return Promise.reject(Object.assign(new Error('timeout'), { code: 'timeout' }));
+    }
+    return new Promise(function (resolve, reject) {
+      var pc = new RTCPeerConnection(STUN);
+      var dc = pc.createDataChannel('muzz-text');
+      var pendingIce = [];
+      function addIce(candidate) {
+        if (!candidate) return;
+        if (!pc.remoteDescription) {
+          pendingIce.push(candidate);
+          return;
+        }
+        pc.addIceCandidate(candidate).catch(function () {});
+      }
+      function flushIce() {
+        var queued = pendingIce;
+        pendingIce = [];
+        queued.forEach(addIce);
+      }
+      var ref = db.ref('privateSignal/' + other + '/' + mine);
+      var done = false;
+      var timer = setTimeout(function () {
+        finish(Object.assign(new Error('timeout'), { code: 'timeout' }));
+      }, timeoutMs || DIRECT_MS);
+      function finish(err, value) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { ref.remove(); } catch (ignore) { /* already gone */ }
+        try { pc.close(); } catch (ignore) { /* already closed */ }
+        if (err) reject(err);
+        else resolve(value);
+      }
+      dc.onopen = function () {
+        try {
+          dc.send(JSON.stringify({ v: 2, kind: 'text', inner: inner }));
+        } catch (err) {
+          finish(err);
+        }
+      };
+      dc.onmessage = function (event) {
+        var msg = {};
+        try { msg = JSON.parse(event.data); } catch (err) { msg = {}; }
+        if (msg && msg.ok) finish(null, { via: 'direct', id: inner.id });
+      };
+      pc.onicecandidate = function (event) {
+        if (!event.candidate) return;
+        ref.child('ice').push({ from: mine, candidate: event.candidate.toJSON(), at: Date.now() });
+      };
+      pc.createOffer().then(function (offer) {
+        return pc.setLocalDescription(offer);
+      }).then(function () {
+        return ref.child('offer').set({
+          from: mine,
+          type: pc.localDescription.type,
+          sdp: pc.localDescription.sdp,
+          at: Date.now()
+        });
+      }).catch(function (err) { finish(err); });
+      ref.child('answer').on('value', function (snap) {
+        var ans = snap.val();
+        if (!ans || !ans.sdp || pc.currentRemoteDescription) return;
+        pc.setRemoteDescription({ type: ans.type || 'answer', sdp: ans.sdp }).then(flushIce).catch(function () {});
+      });
+      ref.child('ice').on('child_added', function (snap) {
+        var row = snap.val();
+        if (!row || row.from === mine || !row.candidate) return;
+        addIce(row.candidate);
+      });
+    });
+  }
+
   function send(opts) {
     var options = opts || {};
     var e2ee = global.MuzzE2EE;
@@ -402,6 +487,7 @@
     readLocal: readLocal,
     listLocal: listLocal,
     directSend: directSend,
+    directSendJson: directSendJson,
     drain: drain,
     send: send,
     start: start,

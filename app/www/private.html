@@ -149,19 +149,19 @@
       </div>
       <div class="card" style="min-height:0;display:flex;flex-direction:column;flex:1">
         <p class="section-title">Conversations</p>
+        <label class="muted small" for="walletSearch">Search by wallet</label>
+        <input id="walletSearch" type="search" inputmode="text" autocomplete="off" spellcheck="false" placeholder="0x wallet address" aria-label="Search by wallet address" style="width:100%;margin:8px 0;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#0b1015;color:inherit;font:inherit;font-size:16px">
+        <p id="walletSearchHint" class="muted small" style="margin:0 0 8px"></p>
         <div class="contact-list" id="contactList"></div>
       </div>
       <div class="side-actions">
         <p id="muzzPushStatus" class="muted small" role="status">Notifications not granted · no token</p>
-        <button type="button" id="muzzPushTest" class="btn ghost">Send test notification</button>
-        <button type="button" class="btn ghost" onclick="if (window.muzzCheckUpdates) window.muzzCheckUpdates()">Check for updates</button>
-        <p id="muzzPushTestResult" class="muted small" hidden></p>
         <button class="btn ghost" onclick="window.location.href='chat.html'">← Back to Chat</button>
       </div>
     </aside>
     <section class="chat">
       <div class="mobile-top">
-        <button class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="window.location.href='chat.html'">← Back</button>
+        <button type="button" class="btn ghost" style="padding:10px 12px;border-radius:14px" onclick="muzzPrivateBack()">Back</button>
         <img src="muzzsnap.jpg" alt="MuzzSnap" style="width:36px;height:36px;border-radius:12px;object-fit:cover">
         <button type="button" class="people-btn" aria-label="People">People<span class="badge"></span></button>
         <button type="button" class="muzz-fs" aria-label="Full screen">Full screen</button>
@@ -227,12 +227,15 @@
     const meName = isGuest ? String(meRaw).replace('guest_','') : (window.MuzzNames ? MuzzNames.displayName(meWallet) : `Node_${meWallet.slice(-4) || 'User'}`);
     const meIdentity = isGuest ? `guest_${meName}` : `wallet_${meWallet}`;
 
+    const READ_TTL_MS = 24 * 60 * 60 * 1000;
+    const CONTACT_CACHE = 'muzz_private_contacts_v1';
     let contacts = [];
     let activeWallet = null;
     let messages = [];
     let inboxUnsub = null;
     let pickerOpen = true;
     let unreadMap = {};
+    let walletQuery = '';
 
     function escapeHtml(str){
       return String(str)
@@ -325,14 +328,85 @@
       return '👤';
     }
 
+    function loadCachedContacts(){
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CONTACT_CACHE) || '[]');
+        if (!Array.isArray(parsed)) return;
+        contacts = parsed.filter(item => item && /^0x[a-f0-9]{40}$/.test(String(item.wallet || '')) && item.wallet !== meWallet).map(item => ({
+          wallet: String(item.wallet).toLowerCase(),
+          name: item.name || contactName(item.wallet),
+          avatar: item.avatar || contactAvatar(item.wallet),
+          subtitle: item.subtitle || shortenWallet(item.wallet),
+          lastText: item.lastText === 'Photo' ? 'Photo' : (item.lastText ? 'Encrypted message' : ''),
+          lastAt: Number(item.lastAt) || 0,
+          online: false
+        }));
+      } catch (err) { /* empty list until the registry answers */ }
+    }
+
+    function saveCachedContacts(){
+      try {
+        localStorage.setItem(CONTACT_CACHE, JSON.stringify(contacts.slice(0, 80).map(item => ({
+          wallet: item.wallet,
+          name: item.name,
+          avatar: item.avatar,
+          subtitle: item.subtitle,
+          lastText: item.lastText === 'Photo' ? 'Photo' : (item.lastText ? 'Encrypted message' : ''),
+          lastAt: item.lastAt || 0
+        }))));
+      } catch (err) { /* private mode */ }
+    }
+
+    function ensureContact(wallet){
+      const w = String(wallet || '').toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(w) || w === meWallet) return;
+      if (contacts.some(item => item.wallet === w)) return;
+      contacts.unshift({
+        wallet: w,
+        name: contactName(w),
+        avatar: contactAvatar(w),
+        subtitle: shortenWallet(w),
+        lastText: '',
+        lastAt: Date.now(),
+        online: false
+      });
+    }
+
+    function searchMatch(){
+      if (!window.MuzzE2EE || typeof MuzzE2EE.parseWalletSearch !== 'function') return { empty: true };
+      return MuzzE2EE.parseWalletSearch(walletQuery);
+    }
+
     function renderContacts(){
       const list = document.getElementById('contactList');
+      const hint = document.getElementById('walletSearchHint');
+      const parsed = searchMatch();
+      if (hint) {
+        if (parsed && parsed.error) hint.textContent = parsed.error;
+        else if (parsed && parsed.checksum) hint.textContent = parsed.checksum;
+        else hint.textContent = '';
+      }
       list.innerHTML = '';
-      if(!contacts.length){
+      const rows = contacts.slice();
+      if (parsed && parsed.wallet && parsed.wallet !== meWallet && !rows.some(item => item.wallet === parsed.wallet)) {
+        rows.unshift({
+          wallet: parsed.wallet,
+          name: contactName(parsed.wallet),
+          avatar: contactAvatar(parsed.wallet),
+          subtitle: parsed.checksum || shortenWallet(parsed.wallet),
+          lastText: 'Start a private chat',
+          lastAt: Date.now(),
+          online: false
+        });
+      }
+      const visibleRows = (parsed && parsed.wallet)
+        ? rows.filter(item => item.wallet === parsed.wallet)
+        : rows;
+      if(!visibleRows.length){
         list.innerHTML = '<div class="muted small">No wallet contacts yet.</div>';
         return;
       }
-      contacts.forEach(chat => {
+      visibleRows.forEach(chat => {
         const row = document.createElement('button');
         row.className = 'contact' + (chat.wallet === activeWallet ? ' active' : '');
         const unread = unreadMap[chat.wallet] || 0;
@@ -369,6 +443,7 @@
       }
       el.innerHTML = `
         <div class="topbar-left">
+          <button type="button" class="btn ghost thread-back" style="padding:8px 12px">Back</button>
           <div class="avatar">${escapeHtml(chat.avatar)}</div>
           <div style="min-width:0">
             <h2>${escapeHtml(chat.name)}</h2>
@@ -380,12 +455,90 @@
     }
 
     let messageGen = 0;
+
+    function plainRow(msg, text, extra) {
+      const sent = Number(msg.timestamp || msg.sentAt) || Date.now();
+      const mine = String(msg.from || '').toLowerCase() === meWallet;
+      const readAt = mine ? (Number(msg.readAt) || sent) : (Number(extra && extra.readAt) || Number(msg.readAt) || 0);
+      const expireAt = Number(extra && extra.expireAt) || Number(msg.expireAt) || (readAt ? readAt + READ_TTL_MS : sent + READ_TTL_MS);
+      return {
+        id: msg.id,
+        thread: threadId(meWallet, activeWallet),
+        from: String(msg.from || '').toLowerCase(),
+        to: String(msg.to || activeWallet || '').toLowerCase(),
+        text: text,
+        timestamp: sent,
+        seq: Number(msg.seq) || 0,
+        kind: 'text',
+        readAt: readAt,
+        expireAt: expireAt,
+        local: true
+      };
+    }
+
+    async function materialize(remote) {
+      const rows = [];
+      const list = remote || [];
+      for (let i = 0; i < list.length; i += 1) {
+        const msg = list[i];
+        if (!msg) continue;
+        if (msg.outer && window.MuzzE2EE) {
+          const cached = await MuzzE2EE.cached(msg.id);
+          if (cached && cached.text != null && !MuzzE2EE.isDue(cached, Date.now())) {
+            rows.push(Object.assign({}, cached, { local: true }));
+            continue;
+          }
+          if (String(msg.from || '').toLowerCase() === meWallet) {
+            rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, text: 'Encrypted message', local: true });
+            continue;
+          }
+          try {
+            const inner = await MuzzE2EE.unwrap(msg.id, activeWallet);
+            const text = await MuzzE2EE.openMessage(meWallet, inner);
+            let readAt = Number(msg.readAt) || 0;
+            let expireAt = Number(msg.expireAt) || 0;
+            const incoming = String(msg.to || '').toLowerCase() === meWallet;
+            if (incoming && !readAt) {
+              const marked = await MuzzE2EE.markRead(msg.id, activeWallet).catch(() => null);
+              readAt = marked && marked.readAt ? Number(marked.readAt) : Date.now();
+              expireAt = marked && marked.expireAt ? Number(marked.expireAt) : readAt + READ_TTL_MS;
+            }
+            const row = plainRow(Object.assign({}, msg, inner, { timestamp: msg.timestamp || inner.sentAt, seq: msg.seq != null ? msg.seq : inner.seq }), text, { readAt: readAt, expireAt: expireAt });
+            await MuzzE2EE.rememberPlain(row);
+            rows.push(row);
+          } catch (err) {
+            const again = await MuzzE2EE.cached(msg.id);
+            if (again && again.text != null) rows.push(Object.assign({}, again, { local: true }));
+            else rows.push({ id: msg.id, from: msg.from, to: msg.to, timestamp: msg.timestamp, seq: msg.seq, text: 'Could not open this message.', local: true });
+          }
+          continue;
+        }
+        if (msg.local && msg.text != null) {
+          rows.push(msg);
+          continue;
+        }
+        rows.push(msg);
+      }
+      if (window.MuzzE2EE && activeWallet) {
+        const local = await MuzzE2EE.listPlain();
+        const seen = new Set(rows.map(item => item && item.id).filter(Boolean));
+        local.forEach((row) => {
+          if (!row || !row.id || seen.has(row.id) || MuzzE2EE.isDue(row, Date.now())) return;
+          const inThread = (row.from === meWallet && row.to === activeWallet) || (row.from === activeWallet && row.to === meWallet);
+          if (!inThread) return;
+          seen.add(row.id);
+          rows.push(Object.assign({}, row, { local: true }));
+        });
+      }
+      return window.MuzzE2EE ? MuzzE2EE.sortMessages(rows) : rows;
+    }
+
     function applyMessages(remote) {
       const gen = ++messageGen;
-      const base = remote || [];
-      const finish = (rows) => {
+      const basePromise = materialize(remote || []);
+      const finish = (base, rows) => {
         if (gen !== messageGen) return;
-        const seen = new Set(base.map((item) => item.seal && item.seal.id).filter(Boolean));
+        const seen = new Set((base || []).map((item) => item.seal && item.seal.id).filter(Boolean));
         const extra = [];
         (rows || []).forEach((row) => {
           if (!row || !row.id || !row.ct || seen.has(row.id)) return;
@@ -403,14 +556,87 @@
             seal: { v: 1, kind: 'photo', iv: row.iv, id: row.id, fromPub: row.fromPub, toPub: row.toPub }
           });
         });
-        messages = base.concat(extra).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+        const merged = (base || []).concat(extra);
+        messages = window.MuzzE2EE ? MuzzE2EE.sortMessages(merged) : merged.sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
         render();
       };
-      if (!activeWallet || !window.MuzzTransfer || typeof MuzzTransfer.listLocal !== 'function') {
-        finish([]);
-        return;
+      basePromise.then((base) => {
+        if (!activeWallet || !window.MuzzTransfer || typeof MuzzTransfer.listLocal !== 'function') {
+          finish(base, []);
+          return;
+        }
+        MuzzTransfer.listLocal().then((rows) => finish(base, rows)).catch(() => finish(base, []));
+      }).catch(() => finish([], []));
+    }
+
+    function leaveThread(){
+      activeWallet = null;
+      pickerOpen = true;
+      messages = [];
+      if (inboxUnsub) { try { inboxUnsub(); } catch (err) { /* already off */ } inboxUnsub = null; }
+      applyPicker();
+      render();
+    }
+
+    window.muzzPrivateBack = function () {
+      if (activeWallet) { leaveThread(); return; }
+      window.location.href = 'chat.html';
+    };
+
+    const previousHardwareBack = window.muzzConsumeBack;
+    window.muzzConsumeBack = function () {
+      try {
+        const shell = document.getElementById('appShell');
+        if (activeWallet && shell && shell.classList.contains('picker-open')) {
+          pickerOpen = false;
+          applyPicker();
+          return 'closed';
+        }
+        if (activeWallet) {
+          leaveThread();
+          return 'closed';
+        }
+      } catch (err) { /* fall through */ }
+      if (typeof previousHardwareBack === 'function') return previousHardwareBack();
+      return 'back';
+    };
+
+    async function rememberIncoming(inner) {
+      if (!inner || !inner.id || !window.MuzzE2EE) return;
+      const existing = await MuzzE2EE.cached(inner.id);
+      if (existing && existing.text != null) return existing;
+      const text = await MuzzE2EE.openMessage(meWallet, inner);
+      const sent = Number(inner.sentAt) || Date.now();
+      const viewing = activeWallet && (inner.from === activeWallet || inner.to === activeWallet);
+      const readAt = viewing && inner.to === meWallet ? Date.now() : 0;
+      const row = {
+        id: inner.id,
+        thread: threadId(inner.from, inner.to),
+        from: inner.from,
+        to: inner.to,
+        text: text,
+        timestamp: sent,
+        seq: Number(inner.seq) || 0,
+        kind: 'text',
+        readAt: readAt,
+        expireAt: readAt ? readAt + READ_TTL_MS : sent + READ_TTL_MS,
+        local: true
+      };
+      await MuzzE2EE.rememberPlain(row);
+      if (viewing && readAt) MuzzE2EE.markRead(inner.id, inner.from).catch(() => null);
+      if (viewing) applyMessages(messages.filter(item => !item.local && !item.outer));
+      return row;
+    }
+
+    async function sweepExpired(){
+      if (!window.MuzzE2EE) return;
+      const gone = await MuzzE2EE.sweepLocal(Date.now());
+      if (!db || !Array.isArray(gone)) return;
+      for (const row of gone) {
+        if (!row || !row.thread || !row.id) continue;
+        try { await db.ref('privateInbox/' + row.thread + '/messages/' + row.id).remove(); }
+        catch (err) { /* the daily expire job deletes it */ }
       }
-      MuzzTransfer.listLocal().then(finish).catch(() => finish([]));
     }
 
     function paintPlainBodies(root){
@@ -501,12 +727,20 @@
     }
 
     function openThread(wallet){
-      activeWallet = String(wallet || '').toLowerCase();
+      const next = String(wallet || '').toLowerCase();
+      const changed = next !== activeWallet;
+      activeWallet = next;
+      ensureContact(activeWallet);
       pickerOpen = false;
       applyPicker();
       if (window.MuzzNotify) MuzzNotify.clear(activeWallet);
-      if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} }
-      const ref = db.ref('privateInbox/' + threadId(meWallet, wallet) + '/messages').limitToLast(100);
+      if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} inboxUnsub = null; }
+      if (!db) {
+        if (changed) messages = [];
+        render();
+        return;
+      }
+      const ref = db.ref('privateInbox/' + threadId(meWallet, activeWallet) + '/messages').limitToLast(100);
       const handler = snap => {
         const val = snap.val() || {};
         const all = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
@@ -517,37 +751,79 @@
       render();
     }
 
+    function indexPreview(at){
+      const preview = { lastText: 'Encrypted message', lastAt: at };
+      return Promise.all([
+        db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview),
+        db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview)
+      ]);
+    }
+
     async function sendMessage(){
       const input = document.getElementById('messageInput');
       const text = input.value.trim();
-      if(!text || !activeWallet) return;
+      if(!text || !activeWallet || !window.MuzzE2EE) return;
+      const peerWallet = activeWallet;
+      let inner = null;
       try{
-        const tid = threadId(meWallet, activeWallet);
-        let seal = null;
-        if (window.MuzzE2EE) {
-          try { seal = await MuzzE2EE.sealText(meWallet, activeWallet, text); }
-          catch (err) { console.error(err); }
-        }
-        const stored = seal ? 'Encrypted message' : text;
-        const payload = {
-          from: meWallet,
-          to: activeWallet,
-          username: meName,
-          text: stored,
-          timestamp: Date.now()
-        };
-        if (seal) payload.seal = seal;
-        await db.ref('privateInbox/' + tid + '/messages').push(payload);
-        const preview = { lastText: stored, lastAt: Date.now() };
-        await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
-        await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
-        if (window.MuzzPush) MuzzPush.notify(activeWallet);
+        const prekey = await MuzzE2EE.claimPrekey(peerWallet);
+        const seq = MuzzE2EE.nextSeq(meWallet, peerWallet);
+        const sentAt = Date.now();
+        inner = await MuzzE2EE.sealMessage(meWallet, peerWallet, text, { prekey: prekey, seq: seq, sentAt: sentAt });
+        const local = plainRow(inner, text, { readAt: sentAt, expireAt: sentAt + READ_TTL_MS });
+        local.from = meWallet;
+        local.to = peerWallet;
+        local.timestamp = sentAt;
+        await MuzzE2EE.rememberPlain(local);
+        ensureContact(peerWallet);
+        messages = MuzzE2EE.sortMessages(messages.concat([local]));
+        renderMessages();
         input.value = '';
         autoResizeInput();
         if (window.MuzzTranslate) MuzzTranslate.forgetDraft();
+        const peer = contacts.find(item => item.wallet === peerWallet);
+        let directOk = false;
+        if (peer && peer.online && db && window.MuzzTransfer && typeof MuzzTransfer.directSendJson === 'function') {
+          try {
+            await MuzzTransfer.directSendJson(db, meWallet, peerWallet, inner, 2500);
+            directOk = true;
+          } catch (err) { directOk = false; }
+        }
+        let relayOk = false;
+        try {
+          await MuzzE2EE.relay(inner);
+          relayOk = true;
+        } catch (err) {
+          relayOk = false;
+          if (!directOk && err && err.code === 'server_key_missing') {
+            console.error(err);
+          }
+        }
+        const delivery = MuzzE2EE.resolveDelivery(directOk, relayOk);
+        if (delivery === 'failed') {
+          await MuzzE2EE.forgetPlain(inner.id);
+          messages = messages.filter(item => item.id !== inner.id);
+          renderMessages();
+          input.value = text;
+          alert('Could not send private message.');
+          return;
+        }
+        if (db) {
+          try { await indexPreview(sentAt); } catch (err) { console.error(err); }
+        }
+        if (window.MuzzPush) MuzzPush.notify(peerWallet);
       }catch(err){
         console.error(err);
-        alert('Could not send private message.');
+        if (inner && inner.id) {
+          await MuzzE2EE.forgetPlain(inner.id).catch(() => null);
+          messages = messages.filter(item => item.id !== inner.id);
+          renderMessages();
+        }
+        if (err && err.code === 'no_prekey') {
+          alert('This person has not opened MuzzSnap on their phone yet, so the message cannot be encrypted.');
+        } else {
+          alert('Could not send private message.');
+        }
       }
     }
 
@@ -578,12 +854,12 @@
             name: contactName(w),
             avatar: contactAvatar(w),
             subtitle: shortenWallet(w),
-            lastText: idx.lastText || '',
+            lastText: idx.lastText === 'Photo' ? 'Photo' : (idx.lastText ? 'Encrypted message' : ''),
             lastAt: Number(idx.lastAt || 0),
             online: false
           };
         } else {
-          map[w].lastText = idx.lastText || map[w].lastText;
+          map[w].lastText = idx.lastText === 'Photo' ? 'Photo' : (idx.lastText ? 'Encrypted message' : map[w].lastText);
           map[w].lastAt = Number(idx.lastAt || map[w].lastAt || 0);
         }
       });
@@ -592,8 +868,9 @@
         return Number(b.lastAt||0) - Number(a.lastAt||0);
       });
       if(activeWallet && !contacts.some(c => c.wallet === activeWallet)){
-        activeWallet = null;
+        ensureContact(activeWallet);
       }
+      saveCachedContacts();
       render();
     }
 
@@ -764,6 +1041,24 @@
       if (emoji) insertComposer(emoji.getAttribute('data-emoji'));
     });
 
+    document.getElementById('chatHeader').addEventListener('click', (event) => {
+      if (event.target.closest && event.target.closest('.thread-back')) {
+        event.preventDefault();
+        leaveThread();
+      }
+    });
+    const walletSearch = document.getElementById('walletSearch');
+    if (walletSearch) {
+      walletSearch.addEventListener('input', () => {
+        walletQuery = walletSearch.value;
+        renderContacts();
+      });
+    }
+    window.addEventListener('muzz-direct-text', (event) => {
+      const inner = event.detail;
+      if (!inner) return;
+      rememberIncoming(inner).catch((err) => console.error(err));
+    });
     document.getElementById('sendBtn').addEventListener('click', sendMessage);
     document.getElementById('photoBtn').addEventListener('click', () => {
       if (!activeWallet) return;
@@ -830,6 +1125,7 @@
         if (window.MuzzNotify) MuzzNotify.demo({ name: 'RYASHU', text: 'New private message', peer: contacts[0].wallet });
         return;
       }
+      loadCachedContacts();
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
       try {
@@ -840,8 +1136,10 @@
             return;
           }
         } else await firebase.auth().signInAnonymously();
-        if (window.MuzzE2EE) MuzzE2EE.publish().catch((err) => console.error(err));
+        if (window.MuzzE2EE) MuzzE2EE.publish(meWallet).catch((err) => console.error(err));
         if (window.MuzzTransfer) MuzzTransfer.start({ db: db, me: meWallet });
+        sweepExpired();
+        setInterval(sweepExpired, 60000);
       } catch (err) { console.error(err); }
       autoResizeInput();
       markWalletPresence();

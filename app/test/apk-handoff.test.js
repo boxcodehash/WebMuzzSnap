@@ -187,8 +187,8 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(update, /update manual/);
   assert.match(readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8'), /checkUpdate/);
   assert.match(readFileSync(new URL('../www/js/android-back.js', import.meta.url), 'utf8'), /muzzCheckUpdates/);
-  assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates/);
-  assert.match(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates/);
+  assert.doesNotMatch(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates/);
+  assert.doesNotMatch(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates/);
   const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
   assert.equal(manifestJson.versionCode, 21);
   assert.equal(manifestJson.versionName, '1.0.21');

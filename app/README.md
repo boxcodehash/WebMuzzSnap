@@ -6,7 +6,7 @@ Group chat and private messages for MUZZ holders. This folder is the whole app. 
 
 The interface is English. Sign in with MetaMask, Trust Wallet, Coinbase Wallet, Rainbow, OKX, Phantom (Ethereum mode), or any WalletConnect v2 wallet. You sign a nonce and the server checks that you hold at least 10,000,000 MUZZ (`0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0` on Ethereum). Change the minimum with `MIN_MUZZ`. The WalletConnect project id belongs in `WALLETCONNECT_PROJECT_ID`, not in the repo.
 
-Each message is encrypted with an ephemeral key, a one-time prekey, and a server factor. Firebase cannot open it alone. After it is read, it is deleted 24 hours later. Limits: [SECURITY.md](SECURITY.md).
+Each private message is encrypted with a fresh sender key, a one-time receiver prekey, and a random content key. Vercel then wraps that ciphertext with `PRIVATE_SERVER_KEY` (32 bytes, hex or base64, Vercel env only). The server can unwrap the outer layer and still cannot read the message. Create the variable before relay will store anything; if it is missing, send fails and plaintext is not written. After the recipient reads a message it is deleted 24 hours later, on the phone and in Realtime Database. Unread private messages are deleted 24 hours after they are sent. Limits: [SECURITY.md](SECURITY.md).
 
 PWA (`www/`) and a Capacitor Android project. Deploy without touching production from here: [DEPLOY.md](DEPLOY.md).
 

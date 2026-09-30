@@ -316,7 +316,6 @@
   function start(wallet) {
     var next = walletOf(wallet);
     if (next) me = next;
-    bindTest();
     watchAuth();
     return enable();
   }
@@ -356,30 +355,11 @@
     }).catch(function () { return false; });
   }
 
-  function bindTest() {
-    var btn = global.document && document.getElementById('muzzPushTest');
-    if (!btn || btn.getAttribute('data-react') === '1' || btn.getAttribute('data-bound') === '1') return;
-    btn.setAttribute('data-bound', '1');
-    btn.addEventListener('click', function () {
-      notifySelf().then(function (ok) {
-        var note = document.getElementById('muzzPushTestResult');
-        if (!note) return;
-        note.hidden = false;
-        note.textContent = ok ? 'Test notification sent.' : "Couldn't send the test notification.";
-      });
-    });
-  }
-
   global.addEventListener('muzz-fcm-token', function () {
     applyNativePermission();
     if (global.__muzzNativeFcmToken) rememberToken(global.__muzzNativeFcmToken, 'android');
     else paintStatus();
   });
-
-  if (global.document) {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindTest);
-    else bindTest();
-  }
 
   global.MuzzPush = {
     signInForChat: signInForChat,
