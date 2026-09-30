@@ -90,7 +90,7 @@ test('live pages and the app drop the old Itsuki wallet and add the private pick
   assert.match(appPrivate, /confirmPrivateBalance/);
   assert.match(readFileSync(new URL('../../login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
   assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /Ryashu &amp; Itzuki/);
-  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.27/);
+  assert.match(readFileSync(new URL('../www/login.html', import.meta.url), 'utf8'), /v1\.0\.28/);
   const liveChat = readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8');
   const livePrivate = readFileSync(new URL('../www/private.html', import.meta.url), 'utf8');
   assert.match(liveChat, /className="chat-me">\{me\.username\}/);
@@ -103,8 +103,8 @@ test('live pages and the app drop the old Itsuki wallet and add the private pick
   assert.match(readFileSync(new URL('../../chat.html', import.meta.url), 'utf8'), /MuzzNames\.isWhitelisted\(me\.wallet\)/);
   assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /confirmServerBalance/);
   const gradle = readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8');
-  assert.match(gradle, /versionCode 27/);
-  assert.match(gradle, /versionName "1\.0\.27"/);
+  assert.match(gradle, /versionCode 28/);
+  assert.match(gradle, /versionName "1\.0\.28"/);
   const notifySrc = readFileSync(new URL('../www/js/private-notify.js', import.meta.url), 'utf8');
   assert.doesNotMatch(notifySrc, /muzz-pm-toast|muzzPmToast|showToast/);
   assert.match(readFileSync(new URL('../www/css/ios-pwa.css', import.meta.url), 'utf8'), /#muzzPmToast/);

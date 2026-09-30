@@ -107,7 +107,7 @@
       margin-top: var(--app-top, 0px);
       display: flex;
       gap: 14px;
-      padding: 12px 12px 12px 96px;
+      padding: 12px 12px 12px calc(var(--muzz-nav-w, 64px) + var(--safe-l));
       max-width: 1600px;
       margin-left: auto;
       margin-right: auto;
@@ -134,8 +134,8 @@
       z-index: 60;
       top: 16px;
       bottom: 16px;
-      left: 96px;
-      width: min(280px, calc(100vw - 124px));
+      left: calc(var(--muzz-nav-w, 64px) + var(--safe-l));
+      width: min(280px, calc(100vw - 96px));
       padding: 16px 14px;
       border-radius: 24px;
       overflow: hidden;
@@ -366,17 +366,17 @@
       box-shadow: 0 18px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(180, 20, 20, 0.2);
     }
 
-    /* Portrait phones, and landscape windows taller than a phone, keep the bottom dock. */
+    /* Portrait phones, and landscape windows taller than a phone, keep the bottom bar. */
     @media (max-width: 1023px) and (orientation: portrait),
            (max-width: 1023px) and (min-height: 501px) {
-      .app-shell { padding: 0 0 calc(76px + var(--safe-b)) 0; gap: 0; }
+      .app-shell { padding: 0 0 calc(var(--muzz-nav-h, 54px) + var(--safe-b)) 0; gap: 0; }
       .panel-3d { border-radius: 0; box-shadow: none; }
       .sidebar {
         top: 0;
         bottom: 0;
         left: 0;
         width: min(74vw, 280px);
-        padding: calc(16px + var(--safe-t)) 14px calc(84px + var(--safe-b)) calc(14px + var(--safe-l));
+        padding: calc(16px + var(--safe-t)) 14px calc(var(--muzz-nav-h, 54px) + 12px + var(--safe-b)) calc(14px + var(--safe-l));
         border-radius: 0 24px 24px 0;
         transform: translateX(-110%);
       }
@@ -391,7 +391,7 @@
       .sticker-grid.emoji-window { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 280px; }
       .icon-btn { width: 44px; height: 44px; }
       .send-btn { width: 48px; height: 48px; border-radius: 16px; }
-      .composer { padding: 8px 10px calc(8px + var(--safe-b)); }
+      .composer { padding: 8px 10px 8px; }
       .drawer-backdrop {
         display: block;
         position: fixed;
@@ -1083,7 +1083,7 @@
             </div>
 
             <p id="muzzPushStatus" data-react="1" role="status" className="text-[11px] text-gray-500 px-1 mt-4 leading-snug">{pushStatus}</p>
-            <p className="build-tag">Version 1.0.27</p>
+            <p className="build-tag">Version 1.0.28</p>
             <button
               onClick={() => {
                 try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}
@@ -1314,10 +1314,9 @@
             </div>
           </main>
 
-          <nav className="orbit-dock" data-place="chat" aria-label="MuzzSnap">
-            <span className="orbit-indicator" aria-hidden="true"></span>
-            <button type="button" className="orbit-item is-on" aria-current="page">
-              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+          <nav className="muzz-nav" data-place="chat" aria-label="MuzzSnap">
+            <button type="button" className="muzz-nav-item is-on" aria-current="page">
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
                 <path d="M6 9h13a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-6l-4 3.5V21H6a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
                 <circle cx="23.5" cy="9" r="4" fill="none" stroke="currentColor" strokeWidth="1.4" />
                 <path d="M23.5 6.6v4.8M21.1 9h4.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -1326,17 +1325,19 @@
             </button>
             <button
               type="button"
-              className={`orbit-core ${mobileMenu ? 'is-open' : ''}`}
+              className={`muzz-nav-item ${mobileMenu ? 'is-open' : ''}`}
               aria-label="Menu"
               aria-expanded={mobileMenu}
               aria-controls="muzzMenu"
               onClick={() => setMobileMenu((open) => !open)}
             >
-              <span className="orbit-planet"><img src="muzzsnap.jpg" alt="" /></span>
-              <span className="orbit-core-label">Menu</span>
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M7 10h18M7 16h18M7 22h18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <span>Menu</span>
             </button>
-            <button type="button" className="orbit-item" onClick={goToPrivate}>
-              <svg className="orbit-svg" viewBox="0 0 32 32" aria-hidden="true">
+            <button type="button" className="muzz-nav-item" onClick={goToPrivate}>
+              <svg className="muzz-nav-svg" viewBox="0 0 32 32" aria-hidden="true">
                 <rect x="8" y="14" width="16" height="12" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M12 14v-2.2a4 4 0 0 1 8 0V14" fill="none" stroke="currentColor" strokeWidth="1.6" />
                 <circle cx="16" cy="20" r="1.3" fill="currentColor" />
