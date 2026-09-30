@@ -2,6 +2,7 @@ import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { getAddress } from 'ethers';
 import { SUPPORTED_WALLETS, NATIVE_RETURN } from './walletCatalog.js';
 import { rewriteWalletOpen, walletNativeLinks } from './walletLinks.js';
+import { buildSignDeepLink, noteWalletChoice } from './wc-auth.js';
 
 export { walletNativeLinks };
 
@@ -610,6 +611,9 @@ async function connectFreshWallet(deps) {
     wrapped.code = /user rejected|user denied/i.test(wrapped.message) ? 'sign' : 'connect';
     throw wrapped;
   }
+  wcProvider = provider;
+  noteWalletChoice(walletChoiceFor(deps.walletId));
+  attachRelayLogs(provider, deps.log);
   return provider;
 }
 
@@ -679,19 +683,284 @@ export function hasPendingWalletLink() {
   return pendingWcUri.startsWith('wc:');
 }
 
-/** Foreground the wallet again so the user can sign, if the prompt did not come up. */
+const WALLET_CHOICE = {
+  metamask: { id: 'metamask', href: 'metamask://', name: 'MetaMask' },
+  trust: { id: 'trust', href: 'trust://', name: 'Trust Wallet' },
+  coinbase: { id: 'coinbase', href: 'cbwallet://', name: 'Coinbase Wallet' },
+  rainbow: { id: 'rainbow', href: 'rainbow://', name: 'Rainbow' },
+  okx: { id: 'okx', href: 'okx://', name: 'OKX Wallet' },
+  phantom: { id: 'phantom', href: 'phantom://', name: 'Phantom' }
+};
+
+function walletChoiceFor(walletId) {
+  return WALLET_CHOICE[walletId] || WALLET_CHOICE.metamask;
+}
+
+/** Restart the relay this long after the app returns, then again if the signature is still open. */
+export const SIGN_NUDGE_MS = 8000;
+/** Replace the spinner when a signature has been waiting this long after sign:start. */
+export const SIGN_STUCK_MS = 45000;
+
+export function shouldShowSignRecovery(elapsedMs, deep) {
+  return Boolean(deep) && Number(elapsedMs) >= SIGN_STUCK_MS;
+}
+
+export function applySignRecovery(els, elapsedMs, deep) {
+  const show = shouldShowSignRecovery(elapsedMs, deep);
+  const nodes = els || {};
+  if (nodes.stuck) nodes.stuck.hidden = !show;
+  if (nodes.spinner) nodes.spinner.hidden = show;
+  return show;
+}
+
+/**
+ * Sign prompt for the wallet that was chosen. A live request uses requestId and
+ * sessionTopic. Without those, open the wallet itself — never the pairing URI.
+ */
+export function signPromptHref({ walletId, requestId, topic, userAgent } = {}) {
+  const choice = walletChoiceFor(walletId);
+  if (requestId && topic) {
+    return buildSignDeepLink({
+      href: choice.href,
+      name: choice.name,
+      id: choice.id,
+      topic: String(topic),
+      requestId: String(requestId),
+      userAgent: userAgent || ''
+    });
+  }
+  return choice.href;
+}
+
+let pendingSign = null;
+let pendingSignWait = null;
+
+function relayerOf(provider) {
+  const target = provider || wcProvider;
+  if (!target) return null;
+  return (target.signer && target.signer.client && target.signer.client.core && target.signer.client.core.relayer)
+    || (target.signer && target.signer.client && target.signer.client.relayer)
+    || (target.client && target.client.core && target.client.core.relayer)
+    || null;
+}
+
+function historyOf(provider) {
+  const target = provider || wcProvider;
+  if (!target) return null;
+  return (target.signer && target.signer.client && target.signer.client.core && target.signer.client.core.history)
+    || (target.client && target.client.core && target.client.core.history)
+    || null;
+}
+
+function attachRelayLogs(provider, log) {
+  const relayer = relayerOf(provider);
+  const write = typeof log === 'function' ? log : () => {};
+  if (!relayer || typeof relayer.on !== 'function' || relayer.__muzzRelayWatch) return;
+  relayer.__muzzRelayWatch = true;
+  relayer.on('relayer_connect', () => write('relayer_connect'));
+  relayer.on('relayer_disconnect', () => write('relayer_disconnect'));
+}
+
+function listHistory(history) {
+  const rows = [];
+  if (!history) return rows;
+  if (history.records && typeof history.records.values === 'function') {
+    for (const item of history.records.values()) rows.push(item);
+  }
+  if (typeof history.values === 'function') {
+    try {
+      const values = history.values();
+      const list = Array.isArray(values) ? values : Array.from(values || []);
+      rows.push(...list);
+    } catch {
+      /* history store is not iterable */
+    }
+  }
+  return rows;
+}
+
+function armSignature(provider, walletId) {
+  const session = provider && provider.session;
+  pendingSign = {
+    id: '',
+    topic: session && session.topic ? String(session.topic) : '',
+    walletId: walletId || 'metamask'
+  };
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  pendingSignWait = { promise, resolve, reject, settled: false };
+  const history = historyOf(provider);
+  if (history && typeof history.on === 'function' && !history.__muzzSignWatch) {
+    history.__muzzSignWatch = true;
+    history.on('history_created', (record) => {
+      if (!record || !pendingSign) return;
+      const method = record.request && record.request.method;
+      if (method && method !== 'personal_sign') return;
+      if (record.id != null) pendingSign.id = record.id;
+      if (record.topic) pendingSign.topic = String(record.topic);
+    });
+  }
+}
+
+function captureSignRecord(provider) {
+  if (!pendingSign) return;
+  const rows = listHistory(historyOf(provider));
+  const match = rows.find((item) => item && item.request && item.request.method === 'personal_sign');
+  if (!match) return;
+  if (match.id != null) pendingSign.id = match.id;
+  if (match.topic) pendingSign.topic = String(match.topic);
+}
+
+function settleSign(ok, value) {
+  const wait = pendingSignWait;
+  if (!wait || wait.settled) return;
+  wait.settled = true;
+  if (ok) {
+    wait.resolve(value);
+    pendingSign = null;
+  } else {
+    wait.reject(value);
+  }
+}
+
+function historyRecord() {
+  const history = historyOf(wcProvider);
+  if (!history || !pendingSign) return null;
+  const id = pendingSign.id;
+  const topic = pendingSign.topic;
+  if (id !== '' && id != null && typeof history.get === 'function') {
+    try {
+      const found = history.get(topic, id);
+      if (found) return found;
+    } catch {
+      /* store miss */
+    }
+  }
+  const rows = listHistory(history);
+  if (id !== '' && id != null) {
+    const match = rows.find((item) => item && String(item.id) === String(id));
+    if (match) return match;
+  }
+  return rows.find((item) => item && item.request && item.request.method === 'personal_sign' && item.response) || null;
+}
+
+function settleFromHistory() {
+  const record = historyRecord();
+  const response = record && record.response;
+  if (!response || !pendingSignWait || pendingSignWait.settled) return '';
+  if (response.error) {
+    const err = new Error((response.error && response.error.message) || 'The wallet did not sign.');
+    err.code = 'sign';
+    settleSign(false, err);
+    return '';
+  }
+  if (typeof response.result === 'string' && response.result) {
+    const signature = response.result;
+    settleSign(true, signature);
+    return signature;
+  }
+  return '';
+}
+
+/**
+ * The relay WebSocket dies while the APK is frozen, and the browser ping watchdog
+ * never runs. restartTransport resubscribes so a signature parked on the relay arrives.
+ */
+export async function resumeRelay(log) {
+  const write = typeof log === 'function' ? log : () => {};
+  const relayer = wcProvider?.signer?.client?.core?.relayer
+    || wcProvider?.signer?.client?.relayer
+    || wcProvider?.client?.core?.relayer;
+  try {
+    if (!relayer || typeof relayer.restartTransport !== 'function') throw new Error('no relayer');
+    await relayer.restartTransport();
+    write('relay:restart ok');
+  } catch {
+    write('relay:restart fail');
+  }
+  return settleFromHistory();
+}
+
+export function createResumeBinder({ resume, debounceMs = 1000, schedule, clear, phase } = {}) {
+  const set = schedule || ((fn, ms) => setTimeout(fn, ms));
+  const unset = clear || ((id) => clearTimeout(id));
+  let timer = 0;
+  let nudge = 0;
+
+  function kick(reason) {
+    Promise.resolve(typeof resume === 'function' ? resume(reason) : undefined).catch(() => {});
+  }
+
+  function scheduleRelay(reason) {
+    if (timer) unset(timer);
+    timer = set(() => {
+      timer = 0;
+      kick(reason);
+    }, debounceMs);
+    if (typeof phase === 'function' && phase() === 'sign') {
+      if (nudge) unset(nudge);
+      nudge = set(() => {
+        nudge = 0;
+        if (phase() === 'sign') kick('sign-nudge');
+      }, SIGN_NUDGE_MS);
+    }
+  }
+
+  return {
+    onReturn() { scheduleRelay('return'); },
+    onVisible(state) {
+      if (state !== 'visible') return;
+      scheduleRelay('visible');
+    },
+    onAppState(state) {
+      const active = state === true || Boolean(state && state.isActive);
+      if (!active) return;
+      scheduleRelay('app');
+    },
+    onResume() { scheduleRelay('resume'); },
+    scheduleRelay,
+    cancel() {
+      if (timer) unset(timer);
+      if (nudge) unset(nudge);
+      timer = 0;
+      nudge = 0;
+    }
+  };
+}
+
+/** Foreground the wallet for the pending personal_sign, not for a new pairing. */
 export function openWalletForSignature(deps = {}) {
-  if (!hasPendingWalletLink()) return '';
-  const plan = walletConnectPlan(deps);
-  const id = deps.walletId || 'metamask';
-  const link = walletNativeLinks(pendingWcUri, plan.linkReturn).find((item) => item.id === id);
-  const href = link && link.href ? link.href : '';
+  const walletId = deps.walletId || (pendingSign && pendingSign.walletId) || 'metamask';
+  const requestId = pendingSign && pendingSign.id != null && pendingSign.id !== '' ? pendingSign.id : '';
+  const topic = pendingSign && pendingSign.topic ? pendingSign.topic : '';
+  const nav = navigatorOf(deps);
+  const href = signPromptHref({
+    walletId,
+    requestId,
+    topic,
+    userAgent: (nav && nav.userAgent) || ''
+  });
   if (href) openWalletHref(href);
   return href;
 }
 
+function cancelled(deps) {
+  return typeof deps.alive === 'function' && deps.alive() === false;
+}
+
+function cancelledError() {
+  const err = new Error('cancelled');
+  err.code = 'cancelled';
+  return err;
+}
+
 /**
- * Connect, read the MUZZ balance from a public RPC, then one personal_sign.
+ * Connect, then one personal_sign. The nonce overlaps the connect. The client
+ * balance read must not delay the signature; the server still requires 10M MUZZ.
  * EIP-6963 prefers MetaMask over a hijacked window.ethereum. Otherwise WalletConnect opens.
  */
 export async function loginWithWallet(deps = {}) {
@@ -699,6 +968,8 @@ export async function loginWithWallet(deps = {}) {
   const fetchImpl = deps.fetchImpl || globalThis.fetch;
   const store = storageOf(deps);
   log('connect:start');
+  log('nonce:start');
+  const noncePromise = deps.nonce ? deps.nonce() : fetchNonce(fetchImpl);
   const injected = await resolveInjected(deps);
   let provider;
   let address = '';
@@ -723,6 +994,9 @@ export async function loginWithWallet(deps = {}) {
     log('connect:walletconnect');
     log('pairings:clear');
     provider = deps.connectWc ? await deps.connectWc() : await connectFreshWallet(deps);
+    wcProvider = provider;
+    noteWalletChoice(walletChoiceFor(deps.walletId));
+    attachRelayLogs(provider, log);
     const info = accountFromProvider(provider);
     address = info.address;
     chainId = info.chainId;
@@ -741,17 +1015,23 @@ export async function loginWithWallet(deps = {}) {
   log('chainId:' + (chainId || 'unknown'));
   log('accounts:' + accountCount);
   log('balance:start ' + address);
-  const holding = deps.readBalance
-    ? await deps.readBalance(address)
-    : await readMuzzBalance(address, fetchImpl);
-  log('balance:result ' + holding.formatted + ' raw=' + (holding.raw || '') + ' ok=' + holding.ok);
-  if (!holding.ok) {
-    const err = new Error('Wallet ' + shortAddress(address) + ' has ' + holding.formatted + ' MUZZ; minimum is 10,000,000.');
-    err.code = 'balance';
+  let balanceState = { settled: false, holding: null };
+  const balancePromise = Promise.resolve().then(() => (
+    deps.readBalance ? deps.readBalance(address) : readMuzzBalance(address, fetchImpl)
+  )).then((holding) => {
+    balanceState = { settled: true, holding };
+    return holding;
+  }, () => {
+    balanceState = { settled: true, holding: null };
+    return null;
+  });
+  void balancePromise;
+  const issued = await noncePromise;
+  if (!issued || !issued.nonce) {
+    const err = new Error('The server did not issue a nonce.');
+    err.code = 'server';
     throw err;
   }
-  log('nonce:start');
-  const issued = deps.nonce ? await deps.nonce() : await fetchNonce(fetchImpl);
   const message = buildLoginMessage(address, issued.nonce, issued.exp);
   const signKey = address.toLowerCase() + ':' + issued.nonce;
   if (store && store.getItem(SIGN_KEY) === signKey) {
@@ -759,16 +1039,50 @@ export async function loginWithWallet(deps = {}) {
     err.code = 'sign_pending';
     throw err;
   }
+  if (cancelled(deps)) throw cancelledError();
   log('sign:start');
   if (store) store.setItem(SIGN_KEY, signKey);
+  armSignature(provider, deps.walletId || 'metamask');
+  const wait = pendingSignWait;
   let signature;
   try {
-    signature = await provider.request({ method: 'personal_sign', params: [message, address] });
+    const rpc = provider.request({ method: 'personal_sign', params: [message, address] });
+    captureSignRecord(provider);
+    Promise.resolve(rpc).then((value) => {
+      if (!wait || wait.settled) return;
+      wait.settled = true;
+      wait.resolve(value);
+      if (pendingSignWait === wait) pendingSign = null;
+    }, (err) => {
+      if (!wait || wait.settled) return;
+      wait.settled = true;
+      const wrapped = new Error(err && err.message ? String(err.message) : 'The wallet did not sign.');
+      wrapped.code = 'sign';
+      wait.reject(wrapped);
+    });
+    signature = await wait.promise;
   } catch (err) {
-    if (store) store.removeItem(SIGN_KEY);
+    if (store && store.getItem(SIGN_KEY) === signKey) store.removeItem(SIGN_KEY);
+    if (err && err.code === 'sign') throw err;
     const wrapped = new Error(err && err.message ? String(err.message) : 'The wallet did not sign.');
-    wrapped.code = (err && (err.code === 4001 || err.code === 'ACTION_REJECTED')) ? 'sign' : 'sign';
+    wrapped.code = 'sign';
     throw wrapped;
+  }
+  if (cancelled(deps)) {
+    if (store && store.getItem(SIGN_KEY) === signKey) store.removeItem(SIGN_KEY);
+    throw cancelledError();
+  }
+  if (!balanceState.settled) await Promise.race([balancePromise, Promise.resolve()]);
+  if (!balanceState.settled) await Promise.race([balancePromise, Promise.resolve()]);
+  if (balanceState.settled && balanceState.holding) {
+    const holding = balanceState.holding;
+    log('balance:result ' + holding.formatted + ' raw=' + (holding.raw || '') + ' ok=' + holding.ok);
+    if (holding.ok === false) {
+      if (store && store.getItem(SIGN_KEY) === signKey) store.removeItem(SIGN_KEY);
+      const err = new Error('Wallet ' + shortAddress(address) + ' has ' + holding.formatted + ' MUZZ; minimum is 10,000,000.');
+      err.code = 'balance';
+      throw err;
+    }
   }
   log('server:start');
   const session = deps.exchange

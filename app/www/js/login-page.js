@@ -1,4 +1,4 @@
-import { clearSignLock, disconnectWallet, explainLoginError, hasPendingWalletLink, isMobileBrowser, isNativeApp, loginWithWallet, openWalletForSignature, readRestoredAddress, shortAddress } from './login.js';
+import { applySignRecovery, clearSignLock, createResumeBinder, disconnectWallet, explainLoginError, isMobileBrowser, isNativeApp, loginWithWallet, openWalletForSignature, readRestoredAddress, resumeRelay, shortAddress, SIGN_STUCK_MS } from './login.js';
 
 const statusText = document.getElementById('statusText');
 const signOverlay = document.getElementById('signOverlay');
@@ -8,8 +8,25 @@ const debugBox = document.getElementById('muzzDebug');
 const copyLogBtn = document.getElementById('copyLog');
 const DEBUG_LOG_KEY = 'muzz_debug_log';
 let running = false;
+let loginGen = 0;
 let connectTimer = 0;
 let connectWatch = 0;
+let signStuckTimer = 0;
+let activeBinder = null;
+
+function installCapacitorResume() {
+  const Cap = window.Capacitor;
+  const App = Cap && Cap.Plugins && Cap.Plugins.App;
+  if (!App || typeof App.addListener !== 'function' || App.__muzzResume) return;
+  App.__muzzResume = true;
+  App.addListener('appStateChange', (state) => {
+    if (state && state.isActive && activeBinder) activeBinder.onAppState(state);
+  });
+  App.addListener('resume', () => {
+    if (activeBinder) activeBinder.onResume();
+  });
+}
+installCapacitorResume();
 
 function debugOn() {
   try { return localStorage.getItem('muzz_debug') === '1'; } catch { return false; }
@@ -191,6 +208,8 @@ async function resumeIfSignedIn() {
 function stopConnectWatch() {
   clearTimeout(connectTimer);
   clearTimeout(connectWatch);
+  clearTimeout(signStuckTimer);
+  if (activeBinder) activeBinder.cancel();
 }
 
 async function forgetWallet() {
@@ -219,17 +238,29 @@ async function forgetWallet() {
 
 async function startLogin(mode, options = {}) {
   if (running) return;
+  const gen = ++loginGen;
   running = true;
   let gaveUp = false;
   let phase = 'connect';
   hideError();
   if (mode !== 'restored') hideSaved();
   clearSignLock();
+  const stuck = document.getElementById('signStuck');
+  const spinner = document.getElementById('signSpinner');
+  const openSign = document.getElementById('openWalletSign');
+  if (stuck) stuck.hidden = true;
+  if (spinner) spinner.hidden = false;
+  if (openSign) openSign.hidden = true;
   const qrDesktop = mode !== 'restored' && !deepLinks();
   setStep('Connecting…', { leaveOpen: qrDesktop });
   window.__muzzWalletId = options.walletId || 'metamask';
+  const binder = createResumeBinder({
+    resume: () => resumeRelay(log),
+    phase: () => phase
+  });
+  activeBinder = binder;
   const failConnect = () => {
-    if (!running || gaveUp || phase !== 'connect') return;
+    if (gen !== loginGen || !running || gaveUp || phase !== 'connect') return;
     if (document.visibilityState === 'hidden') return;
     const modal = document.querySelector('w3m-modal, wcm-modal');
     if (modal && modal.open) return;
@@ -239,6 +270,7 @@ async function startLogin(mode, options = {}) {
   };
   const onVisible = () => {
     if (document.visibilityState !== 'visible') return;
+    binder.onVisible('visible');
     clearTimeout(connectWatch);
     connectWatch = setTimeout(failConnect, 30000);
   };
@@ -246,7 +278,7 @@ async function startLogin(mode, options = {}) {
   document.addEventListener('visibilitychange', onVisible);
   const onReturn = () => {
     log('return:native');
-    if (!running || phase !== 'connect') return;
+    binder.onReturn();
     clearTimeout(connectWatch);
     connectWatch = setTimeout(failConnect, 30000);
   };
@@ -257,26 +289,34 @@ async function startLogin(mode, options = {}) {
       restored: mode === 'restored',
       walletId: options.walletId || '',
       showModal: options.showModal === true,
+      alive: () => gen === loginGen,
       ethereum: mode === 'restored' || namedOther || options.showModal ? null : undefined,
       log: (label) => {
         log(label);
-        if (String(label).startsWith('address:') || String(label).startsWith('balance:')) phase = 'wallet';
+        if (phase !== 'sign' && (String(label).startsWith('address:') || String(label).startsWith('balance:'))) phase = 'wallet';
         if (String(label).startsWith('address:')) {
           const shown = shortAddress(String(label).slice('address:'.length));
           if (shown) setStep('Wallet ' + shown);
         }
         if (String(label).startsWith('balance:start')) setStep('Checking MUZZ balance');
         if (label === 'sign:start') {
+          phase = 'sign';
           setStep('Check your wallet to sign');
-          const openSign = document.getElementById('openWalletSign');
-          if (openSign && isMobileBrowser() && !isNativeApp() && hasPendingWalletLink()) openSign.hidden = false;
+          if (openSign && deepLinks()) openSign.hidden = false;
+          clearTimeout(signStuckTimer);
+          signStuckTimer = setTimeout(() => {
+            if (gen !== loginGen || phase !== 'sign') return;
+            const show = applySignRecovery({
+              stuck: document.getElementById('signStuck'),
+              spinner: document.getElementById('signSpinner')
+            }, SIGN_STUCK_MS, deepLinks());
+            if (show && openSign) openSign.hidden = true;
+          }, SIGN_STUCK_MS);
         }
         if (label === 'server:start') setStep('Verifying…');
       }
     });
-    stopConnectWatch();
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('muzz-wc-return', onReturn);
+    if (gen !== loginGen) return;
     const session = auth();
     if (!session) throw Object.assign(new Error('Firebase auth did not load.'), { code: 'server' });
     await session.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
@@ -285,12 +325,14 @@ async function startLogin(mode, options = {}) {
     log('session:saved ' + result.address);
     window.location.href = 'chat.html';
   } catch (err) {
-    stopConnectWatch();
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('muzz-wc-return', onReturn);
+    if (gen !== loginGen) return;
     if (gaveUp) return;
     running = false;
     showError(explainLoginError(err));
+  } finally {
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('muzz-wc-return', onReturn);
+    if (gen === loginGen) stopConnectWatch();
   }
 }
 
@@ -313,10 +355,24 @@ document.querySelectorAll('[data-wallet]').forEach((button) => {
     startLogin('fresh', { walletId: button.getAttribute('data-wallet') || '' });
   });
 });
+function openChosenWallet() {
+  openWalletForSignature({ walletId: window.__muzzWalletId || 'metamask' });
+}
 const openSignBtn = document.getElementById('openWalletSign');
-if (openSignBtn) {
-  openSignBtn.addEventListener('click', () => {
-    openWalletForSignature({ walletId: window.__muzzWalletId || 'metamask' });
+if (openSignBtn) openSignBtn.addEventListener('click', openChosenWallet);
+const openMetaMaskBtn = document.getElementById('openMetaMask');
+if (openMetaMaskBtn) openMetaMaskBtn.addEventListener('click', openChosenWallet);
+const signRetryBtn = document.getElementById('signRetry');
+if (signRetryBtn) {
+  signRetryBtn.addEventListener('click', () => {
+    if (activeBinder) activeBinder.cancel();
+    clearTimeout(connectTimer);
+    clearTimeout(connectWatch);
+    clearTimeout(signStuckTimer);
+    loginGen += 1;
+    running = false;
+    clearSignLock();
+    startLogin('fresh', { walletId: window.__muzzWalletId || 'metamask' });
   });
 }
 document.getElementById('btnWc').addEventListener('click', () => { startLogin('fresh', { showModal: true }); });

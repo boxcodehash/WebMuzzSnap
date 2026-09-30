@@ -577,6 +577,13 @@
             line-height: 1.45;
         }
 
+        .sign-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.45; transform: scale(0.82); }
@@ -658,14 +665,18 @@
 
     <div id="signOverlay" class="sign-overlay hidden">
         <div class="sign-card">
-            <div class="spinner"></div>
+            <div class="spinner" id="signSpinner"></div>
             <h2 id="signStep">Connecting wallet</h2>
             <p id="signHint">Approve once in your wallet. It does not spend gas. WalletConnect brings you back to this app.</p>
             <button type="button" id="openWalletSign" class="btn btn-primary" hidden>Open wallet to sign</button>
+            <div id="signStuck" class="sign-actions" hidden>
+                <button type="button" id="openMetaMask" class="btn btn-primary">Open MetaMask</button>
+                <button type="button" id="signRetry" class="btn btn-ghost">Retry</button>
+            </div>
         </div>
     </div>
 
-    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.30</small></footer>
+    <footer>Powered by: <span>Ryashu &amp; Itzuki</span><small class="build" id="buildTag">v1.0.31</small></footer>
     <button type="button" id="copyLog" class="btn btn-ghost" hidden>Copy log</button>
     <pre id="muzzDebug" class="muzz-debug" hidden></pre>
 

@@ -168,7 +168,7 @@ test('wallet login checks balance before the single personal_sign', async () => 
     }),
     (err) => err && err.code === 'balance' && err.message === 'Wallet ' + shortAddress(address) + ' has 3,470,436 MUZZ; minimum is 10,000,000.'
   );
-  assert.deepEqual(order, ['eth_requestAccounts', 'eth_chainId', 'balance']);
+  assert.deepEqual(order, ['nonce', 'eth_requestAccounts', 'eth_chainId', 'balance', 'personal_sign']);
 
   order.length = 0;
   const result = await loginWithWallet({
@@ -196,7 +196,34 @@ test('wallet login checks balance before the single personal_sign', async () => 
     }
   });
   assert.equal(result.customToken, 'custom');
-  assert.deepEqual(order, ['wc', 'balance', 'nonce', 'personal_sign', 'exchange']);
+  assert.deepEqual(order, ['nonce', 'wc', 'balance', 'personal_sign', 'exchange']);
+
+  order.length = 0;
+  const slow = await loginWithWallet({
+    ethereum: null,
+    storage: { getItem: () => null, setItem() {}, removeItem() {} },
+    connectWc: async () => {
+      order.push('wc');
+      return {
+        accounts: [address],
+        request: async ({ method }) => {
+          order.push(method);
+          return '0x' + '33'.repeat(65);
+        }
+      };
+    },
+    readBalance: () => {
+      order.push('balance');
+      return new Promise(() => {});
+    },
+    nonce: async () => { order.push('nonce'); return { nonce: 'ef'.repeat(16), exp: Date.now() + 60_000 }; },
+    exchange: async () => {
+      order.push('exchange');
+      return { customToken: 'custom' };
+    }
+  });
+  assert.equal(slow.customToken, 'custom');
+  assert.deepEqual(order, ['nonce', 'wc', 'balance', 'personal_sign', 'exchange']);
 });
 
 test('the server nonce, short signature, balance, and exempt wallet', async () => {
@@ -434,11 +461,11 @@ test('desktop shows the QR, mobile browsers deep-link back to the site, and the 
   assert.equal(opened[0], 'metamask://wc?uri=' + encodeURIComponent('wc:abc'));
   rememberWalletUri('wc:sign');
   const phoneHref = openWalletForSignature({ ...mobileRoot(), walletId: 'metamask' });
-  assert.match(phoneHref, /^metamask:\/\/wc\?uri=wc%3Asign/);
-  assert.doesNotMatch(phoneHref, /muzzsnap:\/\/wc/);
+  assert.equal(phoneHref, 'metamask://');
+  assert.doesNotMatch(phoneHref, /uri=/);
   const apkHref = openWalletForSignature({ ...apkRoot(), walletId: 'phantom' });
-  assert.match(apkHref, /^phantom:\/\/wc\?uri=wc%3Asign/);
-  assert.match(apkHref, /redirect_link=muzzsnap%3A%2F%2Fwc/);
+  assert.equal(apkHref, 'phantom://');
+  assert.doesNotMatch(apkHref, /uri=/);
 });
 
 test('EIP-6963 prefers MetaMask over a hijacked window.ethereum', async () => {
