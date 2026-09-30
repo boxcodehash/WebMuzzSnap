@@ -59,9 +59,11 @@ page.on('pageerror', (err) => pageErrors.push(String(err && err.stack || err)));
 const stale = '0x' + 'b'.repeat(40);
 const other = '0x' + 'a'.repeat(40);
 const rpcHits = [];
+const browserLinks = [];
 page.on('request', (req) => {
   const url = req.url();
   if (/publicnode|drpc|ankr|eth_call/i.test(url)) rpcHits.push(url);
+  if (/\/dapp\/|\/browse|open_url|dappUrl/i.test(url)) browserLinks.push(url);
 });
 await page.addInitScript(({ staleAddress, otherAddress }) => {
   localStorage.setItem('muzz_wallet_address', otherAddress);
@@ -105,11 +107,17 @@ if (rpcHits.length) {
 await page.screenshot({ path: join(outDir, 'login-stale-session-android.png'), fullPage: true });
 await page.locator('#btnDisconnect').click();
 await page.locator('#savedWallet').waitFor({ state: 'hidden', timeout: 10000 });
-const after = await page.evaluate(async () => {
-  const keys = Object.keys(localStorage);
-  const dbs = indexedDB.databases ? (await indexedDB.databases()).map((row) => row.name) : [];
-  return { keys, dbs };
-});
+let after = { keys: [], dbs: [] };
+for (let attempt = 0; attempt < 10; attempt += 1) {
+  after = await page.evaluate(async () => {
+    const keys = Object.keys(localStorage);
+    const dbs = indexedDB.databases ? (await indexedDB.databases()).map((row) => row.name) : [];
+    return { keys, dbs };
+  });
+  const keptNow = after.keys.filter((key) => key === 'muzz_wallet_address' || key.startsWith('wc@2') || /w3m|appkit|walletconnect/i.test(key));
+  if (!keptNow.length && !after.dbs.includes('WALLET_CONNECT_V2_INDEXED_DB')) break;
+  await page.waitForTimeout(300);
+}
 const kept = after.keys.filter((key) => key === 'muzz_wallet_address' || key.startsWith('wc@2') || /w3m|appkit|walletconnect/i.test(key));
 if (kept.length || after.dbs.includes('WALLET_CONNECT_V2_INDEXED_DB')) {
   console.error('STILL_STORED', JSON.stringify(after));
@@ -137,12 +145,19 @@ try {
 
 await page.screenshot({ path: join(outDir, 'login-wallet-modal-android.png'), fullPage: true });
 const bufferErrors = [...consoleErrors, ...pageErrors].filter((line) => /buffer is not defined/i.test(line));
+const hrefs = await page.locator('a').evaluateAll((nodes) => nodes.map((node) => node.href));
+const badHref = hrefs.find((href) => /\/dapp\/|\/browse|open_url|dappUrl/i.test(href));
+if (badHref || browserLinks.length) {
+  console.error('WALLET_BROWSER', badHref || '', JSON.stringify(browserLinks));
+  process.exit(9);
+}
 const report = {
   url: pageUrl,
   metamaskVisible: true,
   consoleErrors,
   pageErrors,
-  bufferErrors
+  bufferErrors,
+  browserLinks
 };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();

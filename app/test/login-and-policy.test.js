@@ -99,7 +99,8 @@ test('la pantalla de acceso muestra el mínimo y las wallets', () => {
   assert.match(html, /OKX Wallet/);
   assert.match(html, /Phantom/);
   assert.match(html, /WalletConnect/);
-  assert.match(html, /metamask\.app\.link/);
+  assert.match(html, /metamask:\/\/wc/);
+  assert.doesNotMatch(html, /\/dapp\/|metamask\.app\.link\/dapp/);
   assert.equal(formatMuzz(10000000), '10,000,000');
   assert.match(html, /10,000,000 MUZZ/);
   assert.doesNotMatch(html, /<script/i);

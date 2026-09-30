@@ -23,6 +23,12 @@ public class WalletWebViewClient extends WebViewClient {
 
     private boolean handoff(WebView view, Uri url) {
         if (view == null || url == null) return false;
+        if (WalletLinks.isInAppBrowserLink(url)) {
+            android.util.Log.i(WalletLinks.TAG, "blocked in-app browser " + url);
+            WalletLinks.start(view.getContext(), url);
+            view.stopLoading();
+            return true;
+        }
         if (!WalletLinks.shouldLeaveWebView(url) && !WalletLinks.isAppReturn(url)) return false;
         android.util.Log.i(WalletLinks.TAG, "webview-handoff " + url);
         WalletLinks.start(view.getContext(), url);

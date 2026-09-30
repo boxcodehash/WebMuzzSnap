@@ -140,7 +140,7 @@ function loginButtons(state) {
   }
   if (state.mobile) {
     const links = walletDeepLinks(state.pageUrl || '').map((item) => `<a href="${esc(item.href)}">${esc(item.name)}</a>`).join('');
-    parts.push(`<details class="deeplinks"><summary>Open in wallet</summary><p class="fine">If this browser has no wallet, open it here. The page loads inside the wallet so you can sign.</p><div class="link-row">${links}</div></details>`);
+    parts.push(`<details class="deeplinks"><summary>Open in wallet</summary><p class="fine">Opens the wallet to approve the connection. The page stays in MuzzSnap.</p><div class="link-row">${links}</div></details>`);
   }
   return parts.join('');
 }

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { ethers } from 'ethers';
 import { SUPPORTED_WALLETS } from '../src/walletCatalog.js';
 import { mapWalletError, walletMessage } from '../src/walletErrors.js';
-import { inAppWalletId, walletDeepLinks } from '../src/walletLinks.js';
+import { inAppWalletId, isInAppBrowserLink, rewriteWalletOpen, walletDeepLinks } from '../src/walletLinks.js';
 import { discoverInjected, firstEvmAddress, ignoreChainSwitch, isMainnet, normalizeChainId, openSession, signLogin } from '../src/walletSession.js';
 
 function mockProvider(wallet, options = {}) {
@@ -169,16 +169,30 @@ test('wallet_switchEthereumChain no se reenvía y la firma rechazada se explica'
   assert.equal(pending.code, 'pending');
 });
 
-test('los deep links de móvil apuntan a la página y el APK vuelve por muzzsnap', () => {
+test('los deep links de móvil son wc nativos y el APK vuelve por muzzsnap', () => {
   const page = 'http://127.0.0.1:4173/?view=login';
   const links = walletDeepLinks(page);
   assert.equal(links.length, 6);
-  const metamask = links.find((item) => item.id === 'metamask');
-  assert.match(metamask.href, /^https:\/\/metamask\.app\.link\/dapp\/127\.0\.0\.1:4173\//);
   for (const item of links) {
-    if (item.id === 'metamask') continue;
-    assert.match(item.href, /127\.0\.0\.1/);
+    assert.doesNotMatch(item.href, /127\.0\.0\.1/);
+    assert.doesNotMatch(item.href, /\/dapp\/|\/browse|open_url|dappUrl/);
+    assert.match(item.href, /:\/\/wc$/);
   }
+  const uri = 'wc:abc@2?relay-protocol=irn&symKey=aa';
+  const native = walletDeepLinks(uri);
+  const metamask = native.find((item) => item.id === 'metamask');
+  assert.match(metamask.href, /^metamask:\/\/wc\?uri=wc%3Aabc%402/);
+  assert.match(native.find((item) => item.id === 'phantom').href, /redirect_link=muzzsnap%3A%2F%2Fwc/);
+  assert.equal(isInAppBrowserLink('https://metamask.app.link/dapp/muzzsnap-app.vercel.app/login.html'), true);
+  assert.equal(isInAppBrowserLink('https://phantom.app/ul/browse/https%3A%2F%2Fexample'), true);
+  assert.equal(isInAppBrowserLink('https://link.trustwallet.com/open_url?coin_id=60&url=https%3A%2F%2Fexample'), true);
+  assert.equal(isInAppBrowserLink('metamask://wc?uri=wc%3Aabc'), false);
+  assert.equal(rewriteWalletOpen('https://metamask.app.link/dapp/muzzsnap-app.vercel.app/login.html', uri), metamask.href);
+  assert.equal(rewriteWalletOpen('https://metamask.app.link/dapp/muzzsnap-app.vercel.app/login.html', ''), '');
+  assert.equal(
+    rewriteWalletOpen('https://metamask.app.link/wc?uri=' + encodeURIComponent(uri), ''),
+    metamask.href
+  );
   assert.equal(inAppWalletId('Mozilla Trust/1.0'), 'trust');
   assert.equal(inAppWalletId('Mozilla CoinbaseWallet'), 'coinbase');
   const manifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');

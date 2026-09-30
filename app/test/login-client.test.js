@@ -13,10 +13,13 @@ import {
   clearStorageKeys,
   dappUrl,
   explainLoginError,
+  installWalletReturnGuard,
   loginWithWallet,
   readMuzzBalance,
+  rememberWalletUri,
   restoredAddressFromStorage,
-  shortAddress
+  shortAddress,
+  walletRedirect
 } from '../src/login-client.js';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -335,4 +338,24 @@ test('a stored WalletConnect account is shown data, not the cached address, and 
   assert.equal(logs.includes('chainId:1'), true);
   assert.equal(logs.includes('accounts:2'), true);
   assert.match(logs.find((line) => line.startsWith('balance:result')), /100,000,000/);
+});
+
+test('the APK return is muzzsnap://wc and wallet browsers are not opened', () => {
+  assert.deepEqual(walletRedirect(PUBLIC_APP, true), { native: 'muzzsnap://wc' });
+  assert.equal(walletRedirect(PUBLIC_APP, false).native, 'muzzsnap://wc');
+  assert.equal(walletRedirect(PUBLIC_APP, false).universal, PUBLIC_APP + '/login.html');
+  const opened = [];
+  const root = {
+    open(url) {
+      opened.push(url);
+      return null;
+    }
+  };
+  installWalletReturnGuard(root);
+  rememberWalletUri('wc:abc');
+  root.open('https://metamask.app.link/dapp/muzzsnap-app.vercel.app/login.html');
+  root.open('https://phantom.app/ul/browse/https%3A%2F%2Fexample');
+  root.open('https://metamask.app.link/wc?uri=' + encodeURIComponent('wc:abc'));
+  const native = 'metamask://wc?uri=' + encodeURIComponent('wc:abc');
+  assert.deepEqual(opened, [native, native, native]);
 });

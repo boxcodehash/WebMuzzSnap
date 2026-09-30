@@ -203,12 +203,13 @@ async function startLogin(mode) {
   if (running) return;
   running = true;
   let gaveUp = false;
+  let phase = 'connect';
   hideError();
   if (mode !== 'restored') hideSaved();
   clearSignLock();
   setStep('Connecting…');
   const failConnect = () => {
-    if (!running || gaveUp) return;
+    if (!running || gaveUp || phase !== 'connect') return;
     if (document.visibilityState === 'hidden') return;
     const modal = document.querySelector('w3m-modal, wcm-modal');
     if (modal && modal.open) return;
@@ -219,16 +220,24 @@ async function startLogin(mode) {
   const onVisible = () => {
     if (document.visibilityState !== 'visible') return;
     clearTimeout(connectWatch);
-    connectWatch = setTimeout(failConnect, 15000);
+    connectWatch = setTimeout(failConnect, 30000);
   };
-  connectTimer = setTimeout(failConnect, 45000);
+  connectTimer = setTimeout(failConnect, 90000);
   document.addEventListener('visibilitychange', onVisible);
+  const onReturn = () => {
+    log('return:native');
+    if (!running || phase !== 'connect') return;
+    clearTimeout(connectWatch);
+    connectWatch = setTimeout(failConnect, 30000);
+  };
+  window.addEventListener('muzz-wc-return', onReturn);
   try {
     const result = await loginWithWallet({
       restored: mode === 'restored',
       ethereum: mode === 'restored' ? null : undefined,
       log: (label) => {
         log(label);
+        if (String(label).startsWith('address:') || String(label).startsWith('balance:')) phase = 'wallet';
         if (String(label).startsWith('address:')) {
           const shown = shortAddress(String(label).slice('address:'.length));
           if (shown) setStep('Wallet ' + shown);
@@ -240,6 +249,7 @@ async function startLogin(mode) {
     });
     stopConnectWatch();
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('muzz-wc-return', onReturn);
     const session = auth();
     if (!session) throw Object.assign(new Error('Firebase auth did not load.'), { code: 'server' });
     await session.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
@@ -250,6 +260,7 @@ async function startLogin(mode) {
   } catch (err) {
     stopConnectWatch();
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('muzz-wc-return', onReturn);
     if (gaveUp) return;
     running = false;
     showError(explainLoginError(err));

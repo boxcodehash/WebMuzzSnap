@@ -42,7 +42,31 @@ public final class WalletLinks {
         + "return scheme.length>0;"
         + "}catch(e){return false;}"
         + "}"
+        + "function browserLink(url){"
+        + "try{var u=new URL(String(url),location.href);"
+        + "var path=(u.pathname||'').toLowerCase();"
+        + "var q=(u.search||'').toLowerCase();"
+        + "if(path.indexOf('/dapp')>=0||path.indexOf('/browse')>=0||path.indexOf('/open_url')>=0)return true;"
+        + "if(q.indexOf('open_url=')>=0||q.indexOf('cb_url=')>=0||q.indexOf('dappurl=')>=0)return true;"
+        + "return false;}catch(e){return false;}"
+        + "}"
+        + "function nativeWc(url){"
+        + "try{var u=new URL(String(url),location.href);"
+        + "var uri=u.searchParams.get('uri')||'';"
+        + "if(uri.indexOf('wc:')!==0)return String(url);"
+        + "var host=(u.hostname||'').toLowerCase();"
+        + "var enc=encodeURIComponent(uri);"
+        + "if(host==='metamask.app.link')return 'metamask://wc?uri='+enc;"
+        + "if(host==='link.trustwallet.com')return 'trust://wc?uri='+enc;"
+        + "if(host==='go.cb-w.com')return 'cbwallet://wc?uri='+enc;"
+        + "if(host==='rnbwapp.com')return 'rainbow://wc?uri='+enc;"
+        + "if(host==='phantom.app')return 'phantom://wc?uri='+enc;"
+        + "}catch(e){}"
+        + "return String(url);"
+        + "}"
         + "function wrapped(url){"
+        + "if(browserLink(url))return null;"
+        + "url=nativeWc(url);"
         + "if(external(url)){"
         + "var href=String(url);"
         + "try{var Cap=window.Capacitor;"
@@ -91,8 +115,49 @@ public final class WalletLinks {
         return intent;
     }
 
+    /** Wallet in-app browsers (/dapp/, /browse, open_url). These must never load. */
+    public static boolean isInAppBrowserLink(Uri url) {
+        if (url == null) return false;
+        String path = url.getPath() == null ? "" : url.getPath().toLowerCase(Locale.US);
+        String query = url.getQuery() == null ? "" : url.getQuery().toLowerCase(Locale.US);
+        if (path.contains("/dapp") || path.contains("/browse") || path.contains("/open_url")) return true;
+        if (query.contains("open_url=") || query.contains("cb_url=") || query.contains("dappurl=")) return true;
+        return false;
+    }
+
+    /**
+     * Universal /wc links become wallet-native schemes. A browser link without a
+     * wc: URI is dropped so the WebView stays on the APK.
+     */
+    public static Uri preferNativeWallet(Uri url) {
+        if (url == null) return null;
+        if (isInAppBrowserLink(url)) {
+            String buried = url.getQueryParameter("uri");
+            if (buried == null || !buried.startsWith("wc:")) return null;
+            return Uri.parse("metamask://wc?uri=" + Uri.encode(buried));
+        }
+        String scheme = scheme(url);
+        if (!"http".equals(scheme) && !"https".equals(scheme)) return url;
+        String uri = url.getQueryParameter("uri");
+        if (uri == null || !uri.startsWith("wc:")) return url;
+        String enc = Uri.encode(uri);
+        String host = host(url);
+        if ("metamask.app.link".equals(host)) return Uri.parse("metamask://wc?uri=" + enc);
+        if ("link.trustwallet.com".equals(host)) return Uri.parse("trust://wc?uri=" + enc);
+        if ("go.cb-w.com".equals(host)) return Uri.parse("cbwallet://wc?uri=" + enc);
+        if ("rnbwapp.com".equals(host)) return Uri.parse("rainbow://wc?uri=" + enc);
+        if ("phantom.app".equals(host)) return Uri.parse("phantom://wc?uri=" + enc);
+        return url;
+    }
+
     public static boolean start(Context context, Uri url) {
         if (context == null || url == null) return false;
+        Uri target = preferNativeWallet(url);
+        if (target == null) {
+            Log.i(TAG, "blocked in-app browser " + url);
+            return false;
+        }
+        url = target;
         String key = url.toString();
         long now = SystemClock.uptimeMillis();
         if (key.equals(lastStarted) && now - lastStartedAt < 800) return true;

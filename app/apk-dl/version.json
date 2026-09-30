@@ -1,7 +1,7 @@
 {
-  "versionCode": 20,
-  "versionName": "1.0.20",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120",
-  "notes": "A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.",
+  "versionCode": 21,
+  "versionName": "1.0.21",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=121",
+  "notes": "Connect opens the wallet to approve and sign once, then returns to the app. Wallet browsers are not used.",
   "force": false
 }

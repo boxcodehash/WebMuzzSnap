@@ -1,5 +1,6 @@
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { SUPPORTED_WALLETS, NATIVE_RETURN } from './walletCatalog.js';
+import { rewriteWalletOpen } from './walletLinks.js';
 
 export const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
 export const MIN_WHOLE = 10_000_000n;
@@ -108,6 +109,46 @@ export function explainLoginError(err) {
   return { title: 'Could not connect the wallet.', desc: msg };
 }
 
+export function isNativeApp(root = globalThis) {
+  try {
+    const cap = root.Capacitor || (root.window && root.window.Capacitor);
+    if (cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) return true;
+    const platform = cap && typeof cap.getPlatform === 'function' ? cap.getPlatform() : '';
+    if (platform === 'android' || platform === 'ios') return true;
+  } catch {
+    /* a normal browser has no Capacitor bridge */
+  }
+  return false;
+}
+
+/** Native return only inside the APK. A website universal link makes the wallet open its browser. */
+export function walletRedirect(origin, nativeApp) {
+  const redirect = { native: NATIVE_RETURN };
+  if (!nativeApp) redirect.universal = String(origin || PUBLIC_APP).replace(/\/$/, '') + '/login.html';
+  return redirect;
+}
+
+let pendingWcUri = '';
+
+export function rememberWalletUri(uri) {
+  const value = String(uri || '');
+  if (value.startsWith('wc:')) pendingWcUri = value;
+  return pendingWcUri;
+}
+
+/** window.open must not load /dapp/ or another wallet browser. Native wc: links stay. */
+export function installWalletReturnGuard(root = globalThis) {
+  const win = root.window || root;
+  if (!win || win.__muzzWalletGuard) return;
+  const original = typeof win.open === 'function' ? win.open.bind(win) : null;
+  win.open = (url, target, features) => {
+    const next = rewriteWalletOpen(String(url || ''), pendingWcUri);
+    if (!next) return null;
+    return original ? original(next, target, features) : null;
+  };
+  win.__muzzWalletGuard = true;
+}
+
 export function dappUrl(loc) {
   try {
     const host = loc.hostname;
@@ -132,7 +173,8 @@ async function ethCall(fetchImpl, to, data) {
       const res = await fetchImpl(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] })
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] }),
+        signal: AbortSignal.timeout(8000)
       });
       const json = await res.json();
       if (json && typeof json.result === 'string' && /^0x[0-9a-fA-F]+$/.test(json.result)) return json.result;
@@ -217,10 +259,7 @@ function providerOptions(deps) {
       description: 'Group chat and private messages for MUZZ holders',
       url,
       icons: [url + '/icons/icon-512.png'],
-      redirect: {
-        native: NATIVE_RETURN,
-        universal: url + '/login.html'
-      }
+      redirect: walletRedirect(url, deps.nativeApp === undefined ? isNativeApp(deps) : Boolean(deps.nativeApp))
     },
     qrModalOptions: {
       themeMode: 'dark',
@@ -438,6 +477,14 @@ async function connectFreshWallet(deps) {
   wcProvider = null;
   await disconnectWallet();
   const provider = await loadWalletConnect(deps);
+  installWalletReturnGuard(deps);
+  if (provider && typeof provider.on === 'function' && !provider.__muzzUriGuard) {
+    provider.on('display_uri', (uri) => {
+      rememberWalletUri(uri);
+      if (typeof deps.log === 'function') deps.log('wallet:uri');
+    });
+    provider.__muzzUriGuard = true;
+  }
   ignorePrematureModalClose(provider);
   try { await dropPairings(provider); } catch { /* no leftover pairing */ }
   if (provider.session) {

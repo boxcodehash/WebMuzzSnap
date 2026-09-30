@@ -53,16 +53,15 @@ test('los deep links del APK abren la URL pública, no localhost', () => {
   assert.deepEqual(names, ['Coinbase Wallet', 'MetaMask', 'OKX', 'Phantom', 'Rainbow', 'Trust Wallet']);
   for (const item of links) {
     const href = String(item.href);
-    assert.match(href, /muzzsnap-app\.vercel\.app/);
     assert.doesNotMatch(href, /localhost/);
-    if (item.name === 'MetaMask') {
-      assert.match(href, /^https:\/\/metamask\.app\.link\/dapp\/muzzsnap-app\.vercel\.app\/login\.html%23from=apk$/);
-      continue;
-    }
-    const once = decodeURIComponent(href);
-    const twice = decodeURIComponent(once);
-    assert.ok(once.includes(page) || twice.includes(page), item.name);
+    assert.doesNotMatch(href, /\/dapp\/|\/browse|open_url|dappUrl/);
+    assert.match(href, /:\/\/wc$/);
   }
+  const wc = gate.walletConnectDeepLinks('wc:abc');
+  const byName = Object.fromEntries(wc.map((item) => [item.name, item.href]));
+  assert.match(byName.MetaMask, /^metamask:\/\/wc\?uri=wc%3Aabc$/);
+  assert.match(byName.Phantom, /redirect_link=muzzsnap%3A%2F%2Fwc/);
+  assert.doesNotMatch(byName.MetaMask, /metamask\.app\.link\/dapp/);
 });
 
 test('el token de vuelta se verifica una sola vez y caduca', async () => {
@@ -127,7 +126,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.20/);
+  assert.match(login, /v1\.0\.21/);
   assert.match(login, /Disconnect \/ Change wallet/);
   assert.match(login, /id="btnContinue"/);
   assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Connecting…/);
@@ -137,7 +136,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(wallet, /eip155:56/);
   assert.match(wallet, /ignoreChainSwitch/);
   assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.20"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.21"/);
   const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(capacitor.server.url, undefined);
   assert.equal(capacitor.server.androidScheme, 'https');
@@ -191,10 +190,10 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates/);
   assert.match(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates/);
   const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
-  assert.equal(manifestJson.versionCode, 20);
-  assert.equal(manifestJson.versionName, '1.0.20');
-  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120');
-  assert.equal(manifestJson.notes, 'A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.');
+  assert.equal(manifestJson.versionCode, 21);
+  assert.equal(manifestJson.versionName, '1.0.21');
+  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=121');
+  assert.equal(manifestJson.notes, 'Connect opens the wallet to approve and sign once, then returns to the app. Wallet browsers are not used.');
   assert.equal(manifestJson.force, false);
   const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
   assert.match(JSON.stringify(dlHeaders), /Access-Control-Allow-Origin/);
@@ -222,6 +221,10 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   const plugin = readFileSync(new URL('../android/app/src/main/java/app/muzzsnap/chat/WalletLinkPlugin.java', import.meta.url), 'utf8');
   assert.match(links, /Intent\.ACTION_VIEW/);
   assert.match(links, /metamask\.app\.link/);
+  assert.match(links, /blocked in-app browser/);
+  assert.match(links, /preferNativeWallet/);
+  assert.match(links, /indexOf\('\/dapp'\)/);
+  assert.doesNotMatch(links, /metamask\.app\.link\/dapp/);
   assert.match(links, /link\.trustwallet\.com/);
   assert.match(links, /Intent\.parseUri/);
   assert.match(links, /window\.open/);

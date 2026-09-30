@@ -202,28 +202,27 @@
 
   function walletConnectDeepLinks(uri) {
     const enc = encodeURIComponent(String(uri || ''));
-    const back = encodeURIComponent(appPublicUrl() + '/login.html');
+    const back = encodeURIComponent('muzzsnap://wc');
     return [
-      { name: 'MetaMask', href: 'https://metamask.app.link/wc?uri=' + enc },
-      { name: 'Trust Wallet', href: 'https://link.trustwallet.com/wc?uri=' + enc },
-      { name: 'Coinbase Wallet', href: 'https://go.cb-w.com/wc?uri=' + enc },
-      { name: 'Rainbow', href: 'https://rnbwapp.com/wc?uri=' + enc },
-      { name: 'OKX', href: 'https://www.okx.com/download?deeplink=' + encodeURIComponent('okx://wc?uri=' + enc) },
-      { name: 'Phantom', href: 'https://phantom.app/ul/v1/connect?uri=' + enc + '&redirect_link=' + back }
+      { name: 'MetaMask', href: 'metamask://wc?uri=' + enc },
+      { name: 'Trust Wallet', href: 'trust://wc?uri=' + enc },
+      { name: 'Coinbase Wallet', href: 'cbwallet://wc?uri=' + enc },
+      { name: 'Rainbow', href: 'rainbow://wc?uri=' + enc },
+      { name: 'OKX', href: 'okx://wc?uri=' + enc },
+      { name: 'Phantom', href: 'phantom://wc?uri=' + enc + '&redirect_link=' + back }
     ];
   }
 
   function walletDeepLinks(pageUrl) {
-    const page = String(pageUrl || '');
-    const bare = page.replace(/^https?:\/\//, '').replace(/#/g, '%23');
-    const enc = encodeURIComponent(page);
+    const value = String(pageUrl || '');
+    if (value.indexOf('wc:') === 0) return walletConnectDeepLinks(value);
     return [
-      { name: 'MetaMask', href: 'https://metamask.app.link/dapp/' + bare },
-      { name: 'Trust Wallet', href: 'https://link.trustwallet.com/open_url?coin_id=60&url=' + enc },
-      { name: 'Coinbase Wallet', href: 'https://go.cb-w.com/dapp?cb_url=' + enc },
-      { name: 'Rainbow', href: 'https://rnbwapp.com/dapp?url=' + enc },
-      { name: 'OKX', href: 'https://www.okx.com/download?deeplink=' + encodeURIComponent('okx://wallet/dapp/url?dappUrl=' + enc) },
-      { name: 'Phantom', href: 'https://phantom.app/ul/browse/' + enc + '?ref=' + enc }
+      { name: 'MetaMask', href: 'metamask://wc' },
+      { name: 'Trust Wallet', href: 'trust://wc' },
+      { name: 'Coinbase Wallet', href: 'cbwallet://wc' },
+      { name: 'Rainbow', href: 'rainbow://wc' },
+      { name: 'OKX', href: 'okx://wc' },
+      { name: 'Phantom', href: 'phantom://wc' }
     ];
   }
 
