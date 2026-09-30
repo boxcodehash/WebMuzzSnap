@@ -70,14 +70,20 @@
     "privateInbox": {
       "$thread": {
         ".read": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid))",
-        ".write": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid)) && (!newData.exists() || !newData.hasChild('from') || newData.child('from').val() == auth.uid)"
+        ".write": "auth != null && $thread.length === 85 && $thread != auth.uid + '_' + auth.uid && ($thread.beginsWith(auth.uid + '_') || $thread.endsWith('_' + auth.uid)) && (!newData.exists() || !newData.hasChild('from') || newData.child('from').val() == auth.uid)",
+        "messages": {
+          "$msgId": {
+            ".validate": "!newData.exists() || (newData.child('from').val() == auth.uid && newData.hasChild('seal') && (newData.child('seal').hasChild('ct') || newData.child('seal').hasChild('id')) && (!newData.hasChild('text') || newData.child('text').val() == 'Encrypted message' || newData.child('text').val() == 'Photo') && !newData.hasChild('plaintext'))"
+          }
+        }
       }
     },
     "privateIndex": {
       "$owner": {
         ".read": "auth != null && auth.uid == $owner",
         "$peer": {
-          ".write": "auth != null && (auth.uid == $owner || auth.uid == $peer)"
+          ".write": "auth != null && (auth.uid == $owner || auth.uid == $peer)",
+          ".validate": "!newData.exists() || !newData.hasChild('lastText') || newData.child('lastText').val() == 'Encrypted message' || newData.child('lastText').val() == 'Photo'"
         }
       }
     }

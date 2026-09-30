@@ -127,7 +127,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.doesNotMatch(login, /Hold at least 10,000,000 MUZZ/);
   assert.doesNotMatch(login, /WalletConnect opens your wallet/);
   assert.match(login, /Open in wallet/);
-  assert.match(login, /v1\.0\.20/);
+  assert.match(login, /v1\.0\.23/);
   assert.match(login, /Disconnect \/ Change wallet/);
   assert.match(login, /id="btnContinue"/);
   assert.match(readFileSync(new URL('../www/js/login-page.js', import.meta.url), 'utf8'), /Connecting…/);
@@ -137,7 +137,7 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(wallet, /eip155:56/);
   assert.match(wallet, /ignoreChainSwitch/);
   assert.doesNotMatch(wallet, /setDefaultChain\?\.\('eip155:1'\)/);
-  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.20"/);
+  assert.match(readFileSync(new URL('../android/app/build.gradle', import.meta.url), 'utf8'), /versionName "1\.0\.23"/);
   const capacitor = JSON.parse(readFileSync(new URL('../capacitor.config.json', import.meta.url), 'utf8'));
   assert.equal(capacitor.server.url, undefined);
   assert.equal(capacitor.server.androidScheme, 'https');
@@ -191,10 +191,10 @@ test('login.html, el manifest y WalletConnect apuntan a la URL pública', () => 
   assert.match(readFileSync(new URL('../www/chat.html', import.meta.url), 'utf8'), /Check for updates/);
   assert.match(readFileSync(new URL('../www/private.html', import.meta.url), 'utf8'), /Check for updates/);
   const manifestJson = JSON.parse(readFileSync(new URL('../apk-dl/version.json', import.meta.url), 'utf8'));
-  assert.equal(manifestJson.versionCode, 20);
-  assert.equal(manifestJson.versionName, '1.0.20');
-  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120');
-  assert.equal(manifestJson.notes, 'A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.');
+  assert.equal(manifestJson.versionCode, 23);
+  assert.equal(manifestJson.versionName, '1.0.23');
+  assert.equal(manifestJson.apkUrl, 'https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=123');
+  assert.equal(manifestJson.notes, 'Private chats are end-to-end encrypted with a per-message key, a receiver prekey, and a server wrap. Messages delete 24 hours after they are read.');
   assert.equal(manifestJson.force, false);
   const dlHeaders = JSON.parse(readFileSync(new URL('../apk-dl/vercel.json', import.meta.url), 'utf8'));
   assert.match(JSON.stringify(dlHeaders), /Access-Control-Allow-Origin/);

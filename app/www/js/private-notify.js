@@ -10,7 +10,7 @@
   var startedAt = 0;
 
   function previewOf(msg) {
-    if (!msg || msg.ciphertext || msg.sealed || msg.e2ee || msg.encrypted) return 'New private message';
+    if (!msg || msg.ciphertext || msg.sealed || msg.e2ee || msg.encrypted || msg.outer || msg.seal) return 'New private message';
     var raw = msg.text != null ? msg.text : msg.content;
     if (raw && typeof raw === 'object') return 'New private message';
     var text = String(raw || '').trim();

@@ -107,11 +107,17 @@ This is not Signal’s Double Ratchet. There is no continuous symmetric chain an
 
 ## What the installable app does today
 
-The Android app and `app/www` are the real site: `login.html`, `chat.html`, and `private.html`, on the same `pulsari` Realtime Database. Messages stay plaintext `{ content, username, role, timestamp }` in `messages/general` and `{ text, from, to, timestamp }` in `privateInbox`. There is no sample chat and no `MUZZ_PREVIEW` in that build.
+The Android app and `app/www` are the real site: `login.html`, `chat.html`, and `private.html`, on the same `pulsari` Realtime Database. Public chat messages stay plaintext `{ content, username, role, timestamp }` in `messages/general`. Private text does not.
 
-End-to-end encryption from `app/src/crypto.js` is **not** applied to those messages. The website reads plaintext. Writing ciphertext into the same database would show garbage in `chat.html` and `private.html`. The encryption module stays in the repo for a separate Firestore backend. It is not compatible with the live data.
+Private text (version 1.0.23) uses three keys:
 
-Deletion 24 hours after a message is seen is **on this device only** (`localStorage`). Deleting the Realtime Database rows would also delete them from the website. That shared purge is not turned on.
+1. **Sender.** Each message gets a new P-256 ephemeral key and a random 32-byte AES-256-GCM content key, with a random nonce.
+2. **Receiver.** A one-time P-256 prekey. The wrap key is HKDF of `sender ephemeral × receiver prekey` and `sender identity × that same prekey`. The HKDF transcript includes both wallet addresses. The prekey private key is deleted on the phone after the message opens.
+3. **Server.** `PRIVATE_SERVER_KEY` is a Vercel environment variable (32 bytes, hex or base64). It only AES-GCM-wraps the already encrypted envelope before Realtime Database stores it. The server unwraps that outer layer for the two wallets and still cannot derive the content key. The value is never written into the client, the repo, or `www.zip`. If it is missing or not 32 bytes, relay and unwrap return `503 server_key_missing` and nothing is stored.
+
+Each wallet has its own P-256 identity, created on that device and stored only there. The Ethereum private key never leaves the wallet. Photos still use the phone-to-phone ciphertext path (WebRTC, then the encrypted mailbox).
+
+A private message is deleted 24 hours after the recipient's read receipt (`readAt`), both in the on-phone cache (IndexedDB, with a localStorage fallback) and in Realtime Database / Blob. The phone sweeps about once a minute. `/api/private-expire` is the daily backstop. Unread private messages use the existing 24 hour undelivered limit (the same window as photo blobs), not the 72 hour Firestore cap. Once a message is read, the clock restarts at `readAt + 24 h`.
 
 The 10,000,000 MUZZ check uses `balanceOf` on a public Ethereum RPC (`app/www/js/muzz-gate.js`) until Cloud Functions are deployed. `app/functions` still has the server check. It is not deployed, so the client check is what the app enforces. There is no guest login and no admin balance bypass in the app copy.
 

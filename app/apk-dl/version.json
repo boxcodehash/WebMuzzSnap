@@ -1,7 +1,7 @@
 {
-  "versionCode": 20,
-  "versionName": "1.0.20",
-  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=120",
-  "notes": "A saved wallet is shown first. Disconnect clears it, then a new connection checks that account.",
+  "versionCode": 23,
+  "versionName": "1.0.23",
+  "apkUrl": "https://muzzsnap-apk-dl.vercel.app/MuzzSnap.apk?v=123",
+  "notes": "Private chats are end-to-end encrypted with a per-message key, a receiver prekey, and a server wrap. Messages delete 24 hours after they are read.",
   "force": false
 }

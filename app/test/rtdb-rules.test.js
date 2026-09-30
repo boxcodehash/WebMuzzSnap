@@ -12,6 +12,9 @@ test('private database rules keep other users out of a conversation', () => {
   assert.equal(rules.photoMailbox.$wallet['.write'], false);
   assert.match(rules.privateSignal.$to.$from['.read'], /auth\.uid == \$to \|\| auth\.uid == \$from/);
   assert.match(rules.privateInbox.$thread['.read'], /\$thread\.length === 85/);
+  assert.match(rules.privateInbox.$thread.messages.$msgId['.validate'], /Encrypted message/);
+  assert.match(rules.privateInbox.$thread.messages.$msgId['.validate'], /plaintext/);
+  assert.match(rules.privateIndex.$owner.$peer['.validate'], /Encrypted message/);
   assert.match(rules.privateIndex.$owner['.read'], /auth\.uid == \$owner/);
   assert.match(rules.privateIndex.$owner.$peer['.write'], /auth\.uid == \$owner \|\| auth\.uid == \$peer/);
   assert.match(rules.walletKeys.$wallet['.write'], /auth\.uid == \$wallet/);

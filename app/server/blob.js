@@ -6,6 +6,14 @@ import {
   verifyFirebaseIdToken
 } from './google.js';
 import { bearerToken, fail, isWallet } from './push.js';
+import {
+  READ_AFTER_MS,
+  UNREAD_MAX_MS,
+  loadServerKey,
+  messageDue,
+  unwrapFromStorage,
+  wrapForStorage
+} from './server-key.js';
 
 export const BLOB_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_BYTES = 400 * 1024;
@@ -141,16 +149,232 @@ export async function handleWalletKey(req, deps = {}) {
   if (!wallet) return fail(401, 'unauthorized');
   const pub = String(req.body && req.body.pub || '').trim();
   if (pub.length < 80 || pub.length > 400 || /[^A-Za-z0-9+/=]/.test(pub)) return fail(400, 'bad_key');
+  const now = req.now || Date.now();
+  const parsed = parsePrekeys(req.body, now);
+  if (parsed.error) return fail(400, 'bad_key');
   try {
-    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'walletKeys/' + wallet, setup.access, {
-      pub,
-      alg: 'P-256',
-      updatedAt: req.now || Date.now()
-    });
+    const current = await rtdb(setup.fetchImpl, 'GET', setup.env, 'walletKeys/' + wallet, setup.access);
+    const prekeys = current && current.prekeys && typeof current.prekeys === 'object' ? { ...current.prekeys } : {};
+    if (parsed.map) Object.assign(prekeys, parsed.map);
+    const record = { pub, alg: 'P-256', updatedAt: now };
+    if (Object.keys(prekeys).length) record.prekeys = prekeys;
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'walletKeys/' + wallet, setup.access, record);
   } catch {
     return fail(502, 'storage_failed');
   }
   return { status: 200, body: { ok: true } };
+}
+
+function parsePrekeys(body, now) {
+  if (!body || body.prekeys == null) return { map: null };
+  if (!Array.isArray(body.prekeys) || body.prekeys.length > 30) return { error: true };
+  const map = {};
+  for (const item of body.prekeys) {
+    const id = String(item && item.id || '').trim().toLowerCase();
+    const pub = String(item && item.pub || '').trim();
+    if (!/^[a-f0-9]{32}$/.test(id)) return { error: true };
+    if (pub.length < 80 || pub.length > 400 || /[^A-Za-z0-9+/=]/.test(pub)) return { error: true };
+    map[id] = { pub, createdAt: now };
+  }
+  return { map };
+}
+
+const INNER_FIELDS = ['v', 'kind', 'id', 'from', 'to', 'seq', 'sentAt', 'ephPub', 'fromPub', 'prekeyId', 'keyIv', 'wrappedKey', 'iv', 'ct'];
+
+export function parseInnerEnvelope(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const keys = Object.keys(value);
+  if (keys.some((key) => !INNER_FIELDS.includes(key))) return null;
+  if (value.v !== 2 || value.kind !== 'text') return null;
+  const from = String(value.from || '').toLowerCase();
+  const to = String(value.to || '').toLowerCase();
+  if (!isWallet(from) || !isWallet(to) || from === to) return null;
+  const id = String(value.id || '').toLowerCase();
+  const prekeyId = String(value.prekeyId || '').toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(id) || !/^[a-f0-9]{32}$/.test(prekeyId)) return null;
+  const seq = Number(value.seq);
+  const sentAt = Number(value.sentAt);
+  if (!Number.isInteger(seq) || seq < 0 || seq > 1e15) return null;
+  if (!Number.isFinite(sentAt) || sentAt <= 0) return null;
+  for (const field of ['ephPub', 'fromPub']) {
+    const pub = String(value[field] || '');
+    if (pub.length < 80 || pub.length > 400 || /[^A-Za-z0-9+/=]/.test(pub)) return null;
+  }
+  for (const field of ['keyIv', 'iv']) {
+    const iv = String(value[field] || '');
+    if (iv.length < 8 || iv.length > 80 || /[^A-Za-z0-9+/=]/.test(iv)) return null;
+  }
+  for (const field of ['wrappedKey', 'ct']) {
+    const ct = String(value[field] || '');
+    if (ct.length < 16 || ct.length > 64 * 1024 || /[^A-Za-z0-9+/=]/.test(ct)) return null;
+  }
+  return {
+    v: 2,
+    kind: 'text',
+    id,
+    from,
+    to,
+    seq,
+    sentAt,
+    ephPub: String(value.ephPub),
+    fromPub: String(value.fromPub),
+    prekeyId,
+    keyIv: String(value.keyIv),
+    wrappedKey: String(value.wrappedKey),
+    iv: String(value.iv),
+    ct: String(value.ct)
+  };
+}
+
+function threadOf(a, b) {
+  return [a, b].sort().join('_');
+}
+
+function messagePath(thread, id) {
+  return 'privateInbox/' + thread + '/messages/' + id;
+}
+
+export function inboxDue(msg, now) {
+  if (!msg || typeof msg !== 'object') return false;
+  if (messageDue(msg, now)) return true;
+  if (msg.seal && msg.seal.kind === 'photo') {
+    const ts = Number(msg.timestamp) || 0;
+    return ts <= 0 || now - ts >= BLOB_TTL_MS;
+  }
+  return false;
+}
+
+export async function handlePrekeyClaim(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const wallet = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!wallet) return fail(401, 'unauthorized');
+  const peer = String(req.body && req.body.wallet || '').trim().toLowerCase();
+  if (!isWallet(peer) || peer === wallet) return fail(400, 'bad_wallet');
+  try {
+    const row = await rtdb(setup.fetchImpl, 'GET', setup.env, 'walletKeys/' + peer, setup.access);
+    const prekeys = row && row.prekeys && typeof row.prekeys === 'object' ? { ...row.prekeys } : {};
+    const id = Object.keys(prekeys).find((key) => prekeys[key] && typeof prekeys[key].pub === 'string');
+    if (!id) return fail(404, 'no_prekey');
+    const pub = String(prekeys[id].pub);
+    delete prekeys[id];
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'walletKeys/' + peer, setup.access, {
+      ...row,
+      prekeys
+    });
+    return { status: 200, body: { id, pub, identity: String(row.pub || '') } };
+  } catch {
+    return fail(502, 'storage_failed');
+  }
+}
+
+export async function handlePrivateRelay(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const env = deps.env || process.env;
+  const serverKey = loadServerKey(env);
+  if (!serverKey) return fail(503, 'server_key_missing');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const sender = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!sender) return fail(401, 'unauthorized');
+  const inner = parseInnerEnvelope(req.body && req.body.inner);
+  if (!inner || inner.from !== sender) return fail(400, 'bad_message');
+  const thread = threadOf(inner.from, inner.to);
+  const path = messagePath(thread, inner.id);
+  try {
+    const existing = await rtdb(setup.fetchImpl, 'GET', setup.env, path, setup.access);
+    if (existing && existing.outer && existing.from === sender) {
+      return { status: 200, body: { id: inner.id, thread } };
+    }
+    const wrapped = wrapForStorage(serverKey, inner);
+    const record = {
+      v: 2,
+      kind: 'text',
+      from: inner.from,
+      to: inner.to,
+      timestamp: inner.sentAt,
+      seq: inner.seq,
+      readAt: null,
+      expireAt: inner.sentAt + UNREAD_MAX_MS,
+      outer: wrapped.outer,
+      outerIv: wrapped.outerIv
+    };
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, path, setup.access, record);
+    const preview = { lastText: 'Encrypted message', lastAt: inner.sentAt };
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'privateIndex/' + inner.from + '/' + inner.to, setup.access, preview);
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, 'privateIndex/' + inner.to + '/' + inner.from, setup.access, preview);
+    return { status: 200, body: { id: inner.id, thread } };
+  } catch {
+    return fail(502, 'storage_failed');
+  }
+}
+
+export async function handlePrivateUnwrap(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const env = deps.env || process.env;
+  const serverKey = loadServerKey(env);
+  if (!serverKey) return fail(503, 'server_key_missing');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const wallet = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!wallet) return fail(401, 'unauthorized');
+  const id = String(req.body && req.body.id || '').trim().toLowerCase();
+  const peer = String(req.body && req.body.peer || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(id) || !isWallet(peer) || peer === wallet) return fail(400, 'bad_message');
+  const thread = threadOf(wallet, peer);
+  const path = messagePath(thread, id);
+  const now = req.now || Date.now();
+  try {
+    const row = await rtdb(setup.fetchImpl, 'GET', setup.env, path, setup.access);
+    if (!row || !row.outer) return fail(404, 'not_found');
+    if (row.from !== wallet && row.to !== wallet) return fail(403, 'forbidden');
+    if (inboxDue(row, now)) {
+      await rtdb(setup.fetchImpl, 'DELETE', setup.env, path, setup.access);
+      return fail(410, 'expired');
+    }
+    const inner = unwrapFromStorage(serverKey, row.outer, row.outerIv);
+    if (!inner || inner.id !== id) return fail(502, 'storage_failed');
+    return { status: 200, body: { inner } };
+  } catch {
+    return fail(502, 'storage_failed');
+  }
+}
+
+export async function handlePrivateReceipt(req, deps = {}) {
+  if (req.method === 'OPTIONS') return { status: 204, body: null };
+  if (req.method !== 'POST') return fail(405, 'method');
+  const setup = await ready(req, deps, false);
+  if (setup.early) return setup.early;
+  const wallet = await walletFromRequest(req, setup.account, setup.fetchImpl);
+  if (!wallet) return fail(401, 'unauthorized');
+  const id = String(req.body && req.body.id || '').trim().toLowerCase();
+  const peer = String(req.body && req.body.peer || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(id) || !isWallet(peer) || peer === wallet) return fail(400, 'bad_message');
+  const thread = threadOf(wallet, peer);
+  const path = messagePath(thread, id);
+  const now = req.now || Date.now();
+  try {
+    const row = await rtdb(setup.fetchImpl, 'GET', setup.env, path, setup.access);
+    if (!row || !row.outer) return fail(404, 'not_found');
+    if (row.to !== wallet) return fail(403, 'forbidden');
+    if (Number(row.readAt) > 0) {
+      return { status: 200, body: { ok: true, readAt: Number(row.readAt), expireAt: Number(row.expireAt) || 0 } };
+    }
+    const readAt = now;
+    const expireAt = readAt + READ_AFTER_MS;
+    await rtdb(setup.fetchImpl, 'PUT', setup.env, path, setup.access, {
+      ...row,
+      readAt,
+      expireAt
+    });
+    return { status: 200, body: { ok: true, readAt, expireAt } };
+  } catch {
+    return fail(502, 'storage_failed');
+  }
 }
 
 export async function handleWalletKeyRead(req, deps = {}) {
@@ -433,9 +657,7 @@ export async function handlePrivateExpire(req, deps = {}) {
       if (!messages || typeof messages !== 'object') continue;
       for (const [msgId, msg] of Object.entries(messages)) {
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(msgId)) continue;
-        if (!msg || !msg.seal || msg.seal.kind !== 'photo') continue;
-        const ts = Number(msg.timestamp) || 0;
-        if (ts > 0 && now - ts < BLOB_TTL_MS) continue;
+        if (!inboxDue(msg, now)) continue;
         try {
           await rtdb(setup.fetchImpl, 'DELETE', setup.env, 'privateInbox/' + thread + '/messages/' + msgId, setup.access);
           removed += 1;
