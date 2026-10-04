@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Clients never touch Firestore directly. Messages, prekeys, nonces and
+    // devices are only reachable through Cloud Functions using the Admin SDK.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

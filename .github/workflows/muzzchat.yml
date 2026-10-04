@@ -1,0 +1,36 @@
+name: MuzzChat
+
+on:
+  push:
+    paths:
+      - "muzzchat/**"
+      - ".github/workflows/muzzchat.yml"
+  pull_request:
+    paths:
+      - "muzzchat/**"
+      - ".github/workflows/muzzchat.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            muzzchat/package-lock.json
+            muzzchat/functions/package-lock.json
+      - name: Test and build the client
+        working-directory: muzzchat
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Typecheck and build Cloud Functions
+        working-directory: muzzchat/functions
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
