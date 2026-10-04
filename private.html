@@ -146,19 +146,25 @@
     if (!firebase.apps.length) firebase.initializeApp(fbConfig);
     const db = firebase.database();
 
-    const meRaw = sessionStorage.getItem('muzz_wallet_address') || '';
+    // login.html persists wallet in localStorage + sessionStorage
+    const meRaw = sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address') || '';
+    if (meRaw && !sessionStorage.getItem('muzz_wallet_address')) {
+      try { sessionStorage.setItem('muzz_wallet_address', meRaw); } catch (e) {}
+    }
     const meWallet = String(meRaw || '').trim().toLowerCase();
-    const storedAdmin = sessionStorage.getItem('muzz_is_admin') === 'true';
+    const storedAdmin = (sessionStorage.getItem('muzz_is_admin') || localStorage.getItem('muzz_is_admin')) === 'true';
     const isGuest = !meWallet || meWallet.startsWith('guest_');
     const isAdmin = storedAdmin || ADMIN_WALLETS.includes(meWallet);
     const meRole = meWallet === ADMIN_WALLETS[0] ? 'ryachu' : meWallet === ADMIN_WALLETS[1] ? 'itsuki' : meWallet === ADMIN_WALLETS[2] ? 'esteban' : 'user';
     const meName = isGuest ? meRaw.replace('guest_','') : (meRole === 'user' ? `Node_${meWallet.slice(-4) || 'User'}` : (meRole === 'ryachu' ? 'Ryachu' : meRole === 'itsuki' ? 'Itsuki' : 'Esteban'));
     const meIdentity = isGuest ? `guest_${meName}` : `wallet_${meWallet}`;
 
+    let meUid = null; // Firebase anonymous auth uid — only writable status path
     let contacts = [];
     let activeWallet = null;
     let messages = [];
     let inboxUnsub = null;
+    let statusTree = {};
 
     function escapeHtml(str){
       return String(str)
@@ -326,17 +332,79 @@
       renderMessages();
     }
 
+    // Pulsari: privateInbox/privateIndex are denied. Only status/{authUid}/** is writable.
+    // Both sides write under their own uid; everyone can READ the status tree and merge threads.
+    function collectThreadMessages(tree, tid){
+      const list = [];
+      Object.keys(tree || {}).forEach(uid => {
+        const node = tree[uid];
+        const box = node && node.privateDm && node.privateDm[tid] && node.privateDm[tid].messages;
+        if(!box || typeof box !== 'object') return;
+        Object.keys(box).forEach(id => {
+          const m = box[id];
+          if(!m) return;
+          list.push({ id: uid + '_' + id, ...m });
+        });
+      });
+      return list.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
+    }
+
+    function findLiveForWallet(statusMap, wallet){
+      const w = String(wallet || '').toLowerCase();
+      if(!w) return {};
+      const identity = 'wallet_' + w;
+      if(statusMap[identity] && typeof statusMap[identity] === 'object') return statusMap[identity];
+      let best = null;
+      Object.values(statusMap || {}).forEach(node => {
+        if(!node || typeof node !== 'object') return;
+        const nw = String(node.wallet || '').toLowerCase();
+        const ik = String(node.identityKey || '');
+        if(nw !== w && ik !== identity) return;
+        if(node.online === false) return;
+        if(!best || Number(node.lastSeen||0) >= Number(best.lastSeen||0)) best = node;
+      });
+      return best || {};
+    }
+
+    function buildPrivateIndex(statusMap){
+      const indexMap = {};
+      Object.values(statusMap || {}).forEach(node => {
+        if(!node || typeof node !== 'object') return;
+        const ownerWallet = String(node.wallet || '').toLowerCase();
+        const pidx = node.privateIndex;
+        if(!pidx || typeof pidx !== 'object') return;
+        if(ownerWallet === meWallet){
+          Object.keys(pidx).forEach(peer => {
+            const w = String(peer || '').toLowerCase();
+            if(!w || w === meWallet) return;
+            const cur = indexMap[w] || {};
+            const incoming = pidx[peer] || {};
+            if(Number(incoming.lastAt||0) >= Number(cur.lastAt||0)){
+              indexMap[w] = { lastText: incoming.lastText || cur.lastText || '', lastAt: Number(incoming.lastAt || cur.lastAt || 0) };
+            }
+          });
+        } else if(ownerWallet && pidx[meWallet]){
+          const incoming = pidx[meWallet] || {};
+          const cur = indexMap[ownerWallet] || {};
+          if(Number(incoming.lastAt||0) >= Number(cur.lastAt||0)){
+            indexMap[ownerWallet] = { lastText: incoming.lastText || cur.lastText || '', lastAt: Number(incoming.lastAt || cur.lastAt || 0) };
+          }
+        }
+      });
+      return indexMap;
+    }
+
     function openThread(wallet){
-      activeWallet = wallet;
+      activeWallet = String(wallet || '').toLowerCase();
       if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} }
-      const ref = db.ref('privateInbox/' + threadId(meWallet, wallet) + '/messages').limitToLast(100);
-      const handler = snap => {
-        const val = snap.val() || {};
-        messages = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
+      const tid = threadId(meWallet, activeWallet);
+      const refreshMsgs = () => {
+        messages = collectThreadMessages(statusTree, tid);
         render();
       };
-      ref.on('value', handler);
-      inboxUnsub = () => ref.off('value', handler);
+      refreshMsgs();
+      // statusTree is kept live by startLiveData; re-render when it changes
+      inboxUnsub = null;
       render();
     }
 
@@ -344,47 +412,112 @@
       const input = document.getElementById('messageInput');
       const text = input.value.trim();
       if(!text || !activeWallet) return;
+      if(!meUid){
+        alert('Still connecting. Wait a second and try again.');
+        return;
+      }
       try{
         const tid = threadId(meWallet, activeWallet);
-        await db.ref('privateInbox/' + tid + '/messages').push({
+        const payload = {
           from: meWallet,
           to: activeWallet,
           username: meName,
           text,
-          timestamp: Date.now()
-        });
-        const preview = { lastText: text, lastAt: Date.now() };
-        await db.ref('privateIndex/' + meWallet + '/' + activeWallet).update(preview);
-        await db.ref('privateIndex/' + activeWallet + '/' + meWallet).update(preview);
+          timestamp: Date.now(),
+          channel: 'private',
+          threadId: tid
+        };
+        await db.ref('status/' + meUid + '/privateDm/' + tid + '/messages').push(payload);
+        const preview = { lastText: text, lastAt: Date.now(), peer: activeWallet };
+        await db.ref('status/' + meUid + '/privateIndex/' + activeWallet).update(preview);
         input.value = '';
         autoResizeInput();
       }catch(err){
         console.error(err);
-        alert('Could not send private message.');
+        alert('Could not send private message: ' + (err.message || err));
       }
     }
 
-    function mergeContacts(registry, statusMap, indexMap){
+    function displayNameFor(entry, wallet){
+      const role = entry && entry.role;
+      if(role === 'ryachu') return 'Ryachu';
+      if(role === 'itsuki') return 'Itsuki';
+      if(role === 'esteban') return 'Esteban';
+      if(entry && entry.username) return entry.username;
+      return 'Node_' + String(wallet).slice(-4);
+    }
+    function avatarFor(entry){
+      const role = entry && entry.role;
+      if(role === 'ryachu') return '👑';
+      if(role === 'itsuki') return '💎';
+      if(role === 'esteban') return '🛡️';
+      return '👤';
+    }
+
+    function mergeContacts(registry, statusMap){
       const map = {};
+      const indexMap = buildPrivateIndex(statusMap);
+
       Object.values(registry || {}).forEach(entry => {
         const wallet = String(entry.wallet || '').toLowerCase();
         if(!wallet || wallet === meWallet) return;
-        const identity = 'wallet_' + wallet;
-        const live = statusMap[identity] || {};
+        const live = findLiveForWallet(statusMap, wallet);
         map[wallet] = {
           wallet,
-          name: entry.role === 'ryachu' ? 'Ryachu' : entry.role === 'itsuki' ? 'Itsuki' : entry.role === 'esteban' ? 'Esteban' : (entry.username || ('Node_' + wallet.slice(-4))),
-          avatar: entry.role === 'ryachu' ? '👑' : entry.role === 'itsuki' ? '💎' : entry.role === 'esteban' ? '🛡️' : '👤',
+          name: displayNameFor(entry, wallet),
+          avatar: avatarFor(entry),
           subtitle: shortenWallet(wallet),
           lastText: '',
           lastAt: Number(entry.lastSeen || 0),
-          online: isFresh(live.lastSeen || entry.lastSeen)
+          online: isFresh(live.lastSeen) && live.online !== false
         };
       });
+
+      // Also surface wallets seen in status presence (registry writes are often denied)
+      Object.values(statusMap || {}).forEach(node => {
+        if(!node || typeof node !== 'object') return;
+        const wallet = String(node.wallet || '').toLowerCase();
+        if(!wallet || wallet === meWallet || wallet.startsWith('guest_')) return;
+        const live = findLiveForWallet(statusMap, wallet);
+        if(!map[wallet]){
+          map[wallet] = {
+            wallet,
+            name: displayNameFor(node, wallet),
+            avatar: avatarFor(node),
+            subtitle: shortenWallet(wallet),
+            lastText: '',
+            lastAt: Number(node.lastSeen || 0),
+            online: isFresh(live.lastSeen) && live.online !== false
+          };
+        } else {
+          map[wallet].online = isFresh(live.lastSeen) && live.online !== false;
+          if(Number(node.lastSeen||0) > Number(map[wallet].lastAt||0)) map[wallet].lastAt = Number(node.lastSeen||0);
+        }
+      });
+
+      // Always include hardcoded admins so private chat has someone to message
+      ADMIN_WALLETS.forEach(aw => {
+        const wallet = String(aw).toLowerCase();
+        if(!wallet || wallet === meWallet) return;
+        const live = findLiveForWallet(statusMap, wallet);
+        const role = wallet === ADMIN_WALLETS[0] ? 'ryachu' : wallet === ADMIN_WALLETS[1] ? 'itsuki' : 'esteban';
+        if(!map[wallet]){
+          map[wallet] = {
+            wallet,
+            name: displayNameFor({ role }, wallet),
+            avatar: avatarFor({ role }),
+            subtitle: shortenWallet(wallet),
+            lastText: '',
+            lastAt: Number(live.lastSeen || 0),
+            online: isFresh(live.lastSeen) && live.online !== false
+          };
+        }
+      });
+
       Object.keys(indexMap || {}).forEach(wallet => {
         const w = String(wallet || '').toLowerCase();
         if(!w || w === meWallet) return;
-        const idx = indexMap[wallet] || {};
+        const idx = indexMap[w] || {};
         if(!map[w]){
           map[w] = {
             wallet: w,
@@ -397,58 +530,62 @@
           };
         } else {
           map[w].lastText = idx.lastText || map[w].lastText;
-          map[w].lastAt = Number(idx.lastAt || map[w].lastAt || 0);
+          map[w].lastAt = Math.max(Number(idx.lastAt || 0), Number(map[w].lastAt || 0));
         }
       });
+
       contacts = Object.values(map).sort((a,b) => {
         if(a.online !== b.online) return a.online ? -1 : 1;
         return Number(b.lastAt||0) - Number(a.lastAt||0);
       });
       if(activeWallet && !contacts.some(c => c.wallet === activeWallet)){
-        activeWallet = contacts[0] ? contacts[0].wallet : null;
+        // keep thread open even if contact temporarily missing
+      }
+      if(activeWallet){
+        messages = collectThreadMessages(statusMap, threadId(meWallet, activeWallet));
       }
       render();
     }
 
     function startLiveData(){
       let registry = {};
-      let statusMap = {};
-      let indexMap = {};
-      const refresh = () => mergeContacts(registry, statusMap, indexMap);
+      const refresh = () => mergeContacts(registry, statusTree);
 
-      db.ref('walletRegistry').on('value', snap => { registry = snap.val() || {}; refresh(); });
-      db.ref('status').on('value', snap => { statusMap = snap.val() || {}; refresh(); });
-      db.ref('privateIndex/' + meWallet).on('value', snap => { indexMap = snap.val() || {}; refresh(); });
+      db.ref('walletRegistry').on('value', snap => {
+        registry = snap.val() || {};
+        refresh();
+      }, err => console.warn('walletRegistry listen', err));
+
+      db.ref('status').on('value', snap => {
+        statusTree = snap.val() || {};
+        refresh();
+      }, err => console.warn('status listen', err));
+
       setInterval(refresh, 10000);
     }
 
     function markWalletPresence(){
-      const statusRef = db.ref('status/' + meIdentity);
-      const write = () => statusRef.set({
-        uid: (firebase.auth().currentUser || {}).uid || null,
-        username: meName,
-        role: meRole,
-        wallet: meWallet,
-        identityKey: meIdentity,
-        lastSeen: Date.now()
-      });
+      if(!meUid) return;
+      const statusRef = db.ref('status/' + meUid);
+      const write = () => {
+        statusRef.update({
+          uid: meUid,
+          username: meName,
+          role: meRole,
+          wallet: meWallet,
+          identityKey: meIdentity,
+          lastSeen: Date.now(),
+          online: true
+        }).catch(err => console.warn('presence write failed', err));
+      };
       db.ref('.info/connected').on('value', snap => {
         if(snap.val() !== true) return;
-        statusRef.onDisconnect().remove();
-        db.ref('walletRegistry/' + meWallet + '/active').onDisconnect().set(false);
+        statusRef.child('online').onDisconnect().set(false);
+        statusRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
         write();
       });
       setInterval(write, 20000);
-      db.ref('walletRegistry/' + meWallet).update({
-        wallet: meWallet,
-        username: meName,
-        role: meRole,
-        isAdmin,
-        isWallet: true,
-        lastLogin: firebase.database.ServerValue.TIMESTAMP,
-        lastSeen: firebase.database.ServerValue.TIMESTAMP,
-        active: true
-      });
+      write();
     }
 
     const privateInput = document.getElementById('messageInput');
@@ -468,7 +605,18 @@
     (async function boot(){
       const allowed = await validatePrivateAccess();
       if(!allowed) return;
-      try { await firebase.auth().signInAnonymously(); } catch (err) { console.error(err); }
+      try {
+        const cred = await firebase.auth().signInAnonymously();
+        meUid = (cred && cred.user && cred.user.uid) || (firebase.auth().currentUser && firebase.auth().currentUser.uid);
+      } catch (err) {
+        console.error(err);
+        alert('Authentication failed. Please reload and try again.');
+        return;
+      }
+      if(!meUid){
+        alert('Authentication failed. Please reload and try again.');
+        return;
+      }
       autoResizeInput();
       markWalletPresence();
       startLiveData();
