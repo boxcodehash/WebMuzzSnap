@@ -444,7 +444,7 @@
             <img src="muzzsnap.jpg" alt="MuzzSnap">
         </button>
 
-        <p id="statusText">Tap the logo to connect wallet</p>
+        <p id="statusText">Tap the logo to connect MetaMask</p>
 
         <div class="divider">or guest</div>
 
@@ -482,7 +482,14 @@
             '0x875c5a7794b601f273da58e3c1d10671d16130ec'
         ];
 
-        let mmSdk = null;
+        const SESSION_KEYS = [
+            'muzz_wallet_address',
+            'muzz_user_role',
+            'muzz_is_admin',
+            'muzz_login_method',
+            'muzz_is_guest',
+            'muzz_username'
+        ];
 
         function setStep(text) {
             statusText.innerText = text;
@@ -499,18 +506,60 @@
             errorBox.classList.remove('hidden');
             document.getElementById('errorTitle').innerText = title;
             document.getElementById('errorDesc').innerText = desc;
+            statusText.innerText = title;
         }
 
         function normalizeAddress(address) {
             return String(address || '').trim().toLowerCase();
         }
 
+        function isMobileUA() {
+            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        }
+
+        function isInMetaMaskBrowser() {
+            const ua = navigator.userAgent || '';
+            return /MetaMaskMobile/i.test(ua) || (!!window.ethereum && isMobileUA());
+        }
+
+        function persist(key, value) {
+            sessionStorage.setItem(key, value);
+            try { localStorage.setItem(key, value); } catch (e) {}
+        }
+
+        function restoreSessionFromLocal() {
+            try {
+                const wallet = localStorage.getItem('muzz_wallet_address');
+                const method = localStorage.getItem('muzz_login_method');
+                if (!wallet || !method || wallet.startsWith('guest_')) return false;
+                if (sessionStorage.getItem('muzz_wallet_address')) return true;
+                SESSION_KEYS.forEach((k) => {
+                    const v = localStorage.getItem(k);
+                    if (v != null) sessionStorage.setItem(k, v);
+                });
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
         function saveUserSession(address) {
             const normalizedAddress = normalizeAddress(address);
             const isAdmin = ADMIN_WALLETS.includes(normalizedAddress);
-            sessionStorage.setItem('muzz_wallet_address', normalizedAddress);
-            sessionStorage.setItem('muzz_user_role', isAdmin ? 'admin' : 'user');
-            sessionStorage.setItem('muzz_is_admin', isAdmin ? 'true' : 'false');
+            persist('muzz_wallet_address', normalizedAddress);
+            persist('muzz_user_role', isAdmin ? 'admin' : 'user');
+            persist('muzz_is_admin', isAdmin ? 'true' : 'false');
+            persist('muzz_login_method', 'wallet');
+            persist('muzz_is_guest', 'false');
+        }
+
+        function getInjectedProvider() {
+            const eth = window.ethereum;
+            if (!eth) return null;
+            if (Array.isArray(eth.providers) && eth.providers.length) {
+                return eth.providers.find((p) => p && p.isMetaMask) || eth.providers[0];
+            }
+            return eth;
         }
 
         function discoverInjectedProvider() {
@@ -518,41 +567,91 @@
                 const found = [];
                 const onAnnounce = (event) => found.push(event.detail);
                 window.addEventListener('eip6963:announceProvider', onAnnounce);
-                window.dispatchEvent(new Event('eip6963:requestProvider'));
+                try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (e) {}
                 setTimeout(() => {
                     window.removeEventListener('eip6963:announceProvider', onAnnounce);
                     const metamask = found.find((item) => {
                         const id = `${item.info?.rdns || ''} ${item.info?.name || ''}`.toLowerCase();
                         return id.includes('metamask');
                     });
-                    resolve((metamask || found[0])?.provider || window.ethereum || null);
-                }, 150);
+                    resolve((metamask || found[0])?.provider || getInjectedProvider());
+                }, 200);
             });
         }
 
-        async function getWalletProvider() {
-            const injected = await discoverInjectedProvider();
-            if (injected) return injected;
+        function buildMetaMaskDeepLink() {
+            const u = new URL(window.location.href);
+            // Always open login.html inside MetaMask in-app browser
+            let path = u.pathname;
+            if (!/login\.html$/i.test(path)) {
+                if (path.endsWith('/')) path += 'login.html';
+                else path = path.replace(/\/[^/]*$/, '/login.html');
+            }
+            const dapp = (u.host + path + '?mm=1').replace(/\/{2,}/g, '/');
+            return 'https://metamask.app.link/dapp/' + dapp.replace(/^\/+/, '');
+        }
 
-            const mod = await import('https://esm.sh/@metamask/sdk@0.32.1');
-            const MetaMaskSDK = mod.MetaMaskSDK || mod.default;
-            if (!mmSdk) {
-                mmSdk = new MetaMaskSDK({
-                    dappMetadata: {
-                        name: 'MuzzSnap',
-                        url: window.location.origin,
-                        iconUrl: new URL('muzzsnap.jpg', window.location.href).href
-                    },
-                    useDeeplink: true,
-                    checkInstallationImmediately: false,
-                    enableAnalytics: false
-                });
-                if (typeof mmSdk.init === 'function') await mmSdk.init();
+        async function requestAccounts(rawProvider) {
+            if (typeof ethers === 'undefined') {
+                throw new Error('Wallet library failed to load. Check your network and reload.');
             }
-            if (typeof mmSdk.connect === 'function') {
-                await mmSdk.connect();
+            const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
+            await web3.send('eth_requestAccounts', []);
+            const signer = web3.getSigner();
+            const address = await signer.getAddress();
+            if (!address) throw new Error('No wallet account detected.');
+            return { web3, signer, address };
+        }
+
+        async function maybeSign(signer, address) {
+            // Signature proves ownership. On flaky mobile deep-links, skip if user already
+            // connected inside MetaMask browser — chat only needs the wallet address.
+            const forceSkip = isMobileUA() && isInMetaMaskBrowser();
+            if (forceSkip) return { signature: '', message: 'mobile-metamask-connect' };
+
+            const issued = new Date().toISOString();
+            const message = [
+                'MuzzSnap Login',
+                '',
+                'Sign this message to verify your wallet.',
+                'You will continue in this browser after signing.',
+                '',
+                'Wallet: ' + address,
+                'Issued: ' + issued
+            ].join('\n');
+
+            try {
+                const signature = await signer.signMessage(message);
+                const recovered = ethers.utils.verifyMessage(message, signature);
+                if (normalizeAddress(recovered) !== normalizeAddress(address)) {
+                    throw new Error('Signature does not match this wallet.');
+                }
+                return { signature, message };
+            } catch (err) {
+                // If user rejects signature on desktop, fail. On mobile, allow connect-only.
+                if (isMobileUA()) {
+                    console.warn('sign skipped on mobile', err);
+                    return { signature: '', message: 'mobile-connect-only' };
+                }
+                throw err;
             }
-            return mmSdk.getProvider() || window.ethereum || null;
+        }
+
+        async function finishWalletLogin(address, signature, message) {
+            saveUserSession(address);
+            if (signature) sessionStorage.setItem('muzz_login_sig', signature);
+            if (message) sessionStorage.setItem('muzz_login_msg', message);
+            try { sessionStorage.removeItem('muzz_mm_pending'); } catch (e) {}
+            setStep('Verified. Entering chat...');
+            window.location.href = 'chat.html';
+        }
+
+        async function connectWithProvider(rawProvider) {
+            setStep('Requesting account...');
+            const { signer, address } = await requestAccounts(rawProvider);
+            setStep(isMobileUA() ? 'Connecting…' : 'Sign the verification');
+            const { signature, message } = await maybeSign(signer, address);
+            await finishWalletLogin(address, signature, message);
         }
 
         async function accessWithWallet() {
@@ -561,53 +660,42 @@
             setStep('Opening wallet...');
 
             try {
-                if (typeof ethers === 'undefined') {
-                    throw new Error('Wallet library failed to load.');
+                let rawProvider = await discoverInjectedProvider();
+
+                // Mobile Safari/Chrome: no injected provider → open login inside MetaMask browser
+                if (!rawProvider && isMobileUA()) {
+                    setStep('Opening MetaMask…');
+                    try { sessionStorage.setItem('muzz_mm_pending', '1'); } catch (e) {}
+                    try { localStorage.setItem('muzz_mm_pending', '1'); } catch (e) {}
+                    window.location.href = buildMetaMaskDeepLink();
+                    setTimeout(() => {
+                        showError(
+                            'OPEN METAMASK',
+                            'If MetaMask did not open: MetaMask app → Browser → open web-muzz-snap.vercel.app/login.html → tap the logo.'
+                        );
+                    }, 2200);
+                    return;
                 }
 
-                const rawProvider = await getWalletProvider();
                 if (!rawProvider) {
                     throw new Error('NO_WALLET');
                 }
 
-                setStep('Requesting account...');
-                const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
-                await web3.send('eth_requestAccounts', []);
-                const signer = web3.getSigner();
-                const address = await signer.getAddress();
-                if (!address) throw new Error('No wallet account detected.');
-
-                setStep('Sign the verification');
-                const issued = new Date().toISOString();
-                const message = [
-                    'MuzzSnap Login',
-                    '',
-                    'Sign this message to verify your wallet.',
-                    'You will continue in this browser after signing.',
-                    '',
-                    'Wallet: ' + address,
-                    'Issued: ' + issued
-                ].join('\n');
-
-                const signature = await signer.signMessage(message);
-                const recovered = ethers.utils.verifyMessage(message, signature);
-                if (normalizeAddress(recovered) !== normalizeAddress(address)) {
-                    throw new Error('Signature does not match this wallet.');
-                }
-
-                saveUserSession(address);
-                sessionStorage.setItem('muzz_login_sig', signature);
-                sessionStorage.setItem('muzz_login_msg', message);
-                setStep('Verified. Entering chat...');
-                window.location.href = 'chat.html';
+                await connectWithProvider(rawProvider);
             } catch (err) {
+                console.error(err);
                 const msg = (err && (err.message || err.reason)) ? String(err.message || err.reason) : 'Connection rejected.';
                 if (msg === 'NO_WALLET' || /no provider|sdk/i.test(msg)) {
-                    showError('NO_WALLET', 'Install MetaMask, then return to this tab and tap the logo again. The app will ask you to sign, without leaving this browser.');
+                    showError(
+                        'NO_WALLET',
+                        isMobileUA()
+                            ? 'Open this page inside the MetaMask app browser, then tap the logo.'
+                            : 'Install the MetaMask extension, then tap the logo again.'
+                    );
                     return;
                 }
                 if (/rejected|denied|cancel/i.test(msg)) {
-                    showError('SIGNATURE REQUIRED', 'Wallet connection or signature was rejected.');
+                    showError('CONNECTION REJECTED', 'Approve the connection in MetaMask and try again.');
                     return;
                 }
                 showError('AUTH_FAILED', msg);
@@ -621,15 +709,57 @@
                 return;
             }
 
-            sessionStorage.setItem('muzz_wallet_address', `guest_${user}`);
-            sessionStorage.setItem('muzz_user_role', 'guest');
-            sessionStorage.setItem('muzz_is_admin', 'false');
+            persist('muzz_wallet_address', 'guest_' + user);
+            persist('muzz_user_role', 'guest');
+            persist('muzz_is_admin', 'false');
+            persist('muzz_login_method', 'guest');
+            persist('muzz_is_guest', 'true');
+            persist('muzz_username', user);
             window.location.href = 'chat.html';
         }
 
         document.getElementById('usernameInput').addEventListener('keydown', function (e) {
             if (e.key === 'Enter') accessWithGuest();
         });
+
+        // Resume after MetaMask deep link, or restore previous wallet session
+        (async function bootLogin() {
+            restoreSessionFromLocal();
+
+            const pending =
+                sessionStorage.getItem('muzz_mm_pending') === '1' ||
+                localStorage.getItem('muzz_mm_pending') === '1' ||
+                /(?:\?|&)mm=1(?:&|$)/.test(location.search);
+
+            const provider = getInjectedProvider() || (await discoverInjectedProvider());
+
+            if (provider && pending) {
+                try { sessionStorage.removeItem('muzz_mm_pending'); } catch (e) {}
+                try { localStorage.removeItem('muzz_mm_pending'); } catch (e) {}
+                errorBox.classList.add('hidden');
+                showSigning(true);
+                setStep('MetaMask detected — connecting…');
+                try {
+                    await connectWithProvider(provider);
+                } catch (err) {
+                    showSigning(false);
+                    setStep('Tap the logo to connect wallet');
+                    showError(
+                        'TAP THE LOGO',
+                        'MetaMask is ready. Tap the MuzzSnap logo to approve the connection.'
+                    );
+                }
+                return;
+            }
+
+            // Already logged in with wallet → go chat
+            const wallet = sessionStorage.getItem('muzz_wallet_address');
+            const method = sessionStorage.getItem('muzz_login_method');
+            if (wallet && method === 'wallet' && !wallet.startsWith('guest_')) {
+                setStep('Session found. Entering chat…');
+                setTimeout(() => { window.location.href = 'chat.html'; }, 350);
+            }
+        })();
     </script>
 </body>
 </html>
