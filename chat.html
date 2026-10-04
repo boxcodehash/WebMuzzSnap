@@ -391,9 +391,11 @@
       const now = Date.now();
       const map = new Map();
       Object.values(raw || {}).forEach((user) => {
-        if (!user) return;
+        if (!user || typeof user !== 'object') return;
+        // Skip nested outbox-only nodes without presence fields
         const seen = Number(user.lastSeen || 0);
         if (!seen || now - seen > ONLINE_TTL_MS) return;
+        if (user.online === false) return;
         const key = user.identityKey || user.wallet || user.uid;
         if (!key) return;
         const prev = map.get(key);
@@ -470,7 +472,11 @@
       };
 
       useEffect(() => {
-        const sessionWallet = sessionStorage.getItem('muzz_wallet_address');
+        // login.html persists to localStorage + sessionStorage; accept either
+        let sessionWallet = sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address');
+        if (sessionWallet && !sessionStorage.getItem('muzz_wallet_address')) {
+          try { sessionStorage.setItem('muzz_wallet_address', sessionWallet); } catch {}
+        }
         if (!sessionWallet) {
           window.location.href = 'login.html';
           return;
@@ -480,7 +486,7 @@
         let statusListRef = null;
         let bannedRef = null;
         let mutedRef = null;
-        let registryRef = null;
+        let connectedRef = null;
 
         firebase.auth().signInAnonymously().then(({ user }) => {
           const isWallet = !sessionWallet.startsWith('guest_');
@@ -518,33 +524,27 @@
           };
           setMe(currentUser);
 
-          statusRef = db.ref(`status/${identityKey}`);
+          // Pulsari rules allow status/{authUid} writes; status/wallet_* is denied
+          statusRef = db.ref(`status/${user.uid}`);
           const writePresence = () => {
-            const payload = {
+            // update (not set) so status/{uid}/outbox is NOT wiped
+            statusRef.update({
               uid: user.uid,
               username,
               role,
               wallet: wallet || null,
               identityKey,
-              lastSeen: Date.now()
-            };
-            statusRef.set(payload);
-            if (isWallet && wallet) {
-              db.ref(`walletRegistry/${wallet}`).update({
-                lastSeen: firebase.database.ServerValue.TIMESTAMP,
-                active: true
-              });
-            }
+              lastSeen: Date.now(),
+              online: true
+            }).catch((err) => console.warn('presence write failed', err));
           };
 
-          const connectedRef = db.ref('.info/connected');
+          connectedRef = db.ref('.info/connected');
           connectedRef.on('value', (snap) => {
             if (snap.val() !== true) return;
-            statusRef.onDisconnect().remove();
-            if (isWallet && wallet) {
-              db.ref(`walletRegistry/${wallet}/active`).onDisconnect().set(false);
-              db.ref(`walletRegistry/${wallet}/lastSeen`).onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
-            }
+            // Only clear online/lastSeen — do NOT remove() the whole node (deletes outbox)
+            statusRef.child('online').onDisconnect().set(false);
+            statusRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
             writePresence();
           });
 
@@ -564,30 +564,10 @@
           bannedRef.on('value', (snap) => {
             if (snap.val()) {
               alert('Your account has been banned from public chat.');
-              sessionStorage.clear();
+              try { sessionStorage.clear(); localStorage.removeItem('muzz_wallet_address'); } catch {}
               window.location.href = 'login.html';
             }
           });
-
-          if (isWallet && wallet) {
-            registryRef = db.ref(`walletRegistry/${wallet}`);
-            registryRef.once('value').then((snap) => {
-              const prev = snap.val() || {};
-              registryRef.update({
-                wallet,
-                username,
-                role,
-                isAdmin: ADMIN_ROLES.includes(role),
-                isWallet: true,
-                firstSeen: prev.firstSeen || firebase.database.ServerValue.TIMESTAMP,
-                lastLogin: firebase.database.ServerValue.TIMESTAMP,
-                lastSeen: firebase.database.ServerValue.TIMESTAMP,
-                active: true
-              });
-            }).catch((err) => console.error('walletRegistry update failed:', err));
-            registryRef.child('active').onDisconnect().set(false);
-            registryRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
-          }
         }).catch((err) => {
           console.error('Anonymous sign-in failed:', err);
           alert('Authentication failed. Please reload and try again.');
@@ -596,12 +576,17 @@
 
         return () => {
           try { if (statusRef && statusRef._beat) clearInterval(statusRef._beat); } catch {}
-          try { if (statusRef) { statusRef.onDisconnect().cancel(); statusRef.remove(); statusRef.off(); } } catch {}
+          try {
+            if (statusRef) {
+              statusRef.child('online').set(false);
+              statusRef.child('lastSeen').set(firebase.database.ServerValue.TIMESTAMP);
+              statusRef.off();
+            }
+          } catch {}
           try { if (statusListRef) statusListRef.off(); } catch {}
           try { if (bannedRef) bannedRef.off(); } catch {}
           try { if (mutedRef) mutedRef.off(); } catch {}
-          try { if (registryRef) registryRef.off(); } catch {}
-          try { db.ref('.info/connected').off(); } catch {}
+          try { if (connectedRef) connectedRef.off(); } catch {}
         };
       }, []);
 
@@ -622,12 +607,61 @@
 
       useEffect(() => {
         if (!me) return;
+        let community = [];
+        let outbox = [];
+        const merge = () => {
+          const map = new Map();
+          community.forEach((m) => map.set('c:' + m.id, m));
+          outbox.forEach((m) => map.set('o:' + m.id, m));
+          setMessages(Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
+        };
+
         const ref = db.ref(`messages/${activeChannel.id}`).limitToLast(50);
         ref.on('value', (snap) => {
           const data = snap.val();
-          setMessages(data ? Object.keys(data).map((id) => ({ id, ...data[id] })) : []);
-        });
-        return () => ref.off();
+          if (data) {
+            community = Object.keys(data).map((id) => ({ id, ...data[id] }));
+          } else if (!community.length) {
+            community = [];
+          }
+          merge();
+        }, (err) => console.error('messages listen error', err));
+
+        // Pulsari: anonymous can READ messages/* but WRITE is denied → status/{uid}/outbox
+        const statusTreeRef = db.ref('status');
+        statusTreeRef.on('value', (snap) => {
+          const tree = snap.val() || {};
+          const list = [];
+          Object.keys(tree).forEach((uid) => {
+            const node = tree[uid];
+            const box = node && node.outbox;
+            if (!box || typeof box !== 'object') return;
+            Object.keys(box).forEach((id) => {
+              const m = box[id];
+              if (!m) return;
+              const ch = m.channel || 'general';
+              if (ch !== activeChannel.id) return;
+              list.push({
+                id: 'ob_' + uid + '_' + id,
+                content: m.content || '',
+                username: m.username || node.username || 'anon',
+                role: m.role || node.role || 'user',
+                userId: m.userId || uid,
+                identityKey: m.identityKey || node.identityKey || '',
+                wallet: m.wallet || node.wallet || null,
+                timestamp: m.timestamp || 0,
+                source: 'outbox'
+              });
+            });
+          });
+          outbox = list.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)).slice(-80);
+          merge();
+        }, (err) => console.warn('outbox listen', err));
+
+        return () => {
+          try { ref.off(); } catch {}
+          try { statusTreeRef.off(); } catch {}
+        };
       }, [me, activeChannel]);
 
       useEffect(() => {
@@ -728,31 +762,59 @@
           return;
         }
 
+        const text = messageText.trim();
+
         try {
           if (pinMode) {
             if (!requireAdmin()) return;
-            await db.ref(pinPathForChannel(activeChannel.id)).set(messageText);
+            await db.ref(pinPathForChannel(activeChannel.id)).set(text);
             setPinMode(false);
             setMessageText('');
             alert('Pinned message updated.');
             return;
           }
 
-          await db.ref(`messages/${activeChannel.id}`).push({
-            content: messageText,
+          const payload = {
+            content: text,
             username: me.username,
             role: me.role,
             userId: me.uid,
             identityKey: me.identityKey,
             wallet: me.wallet || null,
-            timestamp: Date.now()
-          });
+            timestamp: Date.now(),
+            channel: activeChannel.id,
+            source: 'webmuzz'
+          };
+
+          let sent = false;
+          try {
+            await db.ref(`messages/${activeChannel.id}`).push(payload);
+            sent = true;
+          } catch (err) {
+            const msg = String((err && (err.message || err)) || '');
+            if (!/permission|PERMISSION|denied/i.test(msg)) throw err;
+            console.warn('messages/* write denied — using status/outbox', err);
+          }
+
+          if (!sent) {
+            await db.ref(`status/${me.uid}/outbox`).push(payload);
+            try {
+              const snap = await db.ref(`status/${me.uid}/outbox`).once('value');
+              const val = snap.val() || {};
+              const keys = Object.keys(val).sort((a, b) => (val[a].timestamp || 0) - (val[b].timestamp || 0));
+              if (keys.length > 40) {
+                const updates = {};
+                keys.slice(0, keys.length - 40).forEach((k) => { updates[k] = null; });
+                await db.ref(`status/${me.uid}/outbox`).update(updates);
+              }
+            } catch (e) {}
+          }
 
           setMessageText('');
           setShowEmoji(false);
         } catch (err) {
           console.error('send message failed:', err);
-          alert(`Operation failed: ${err.message || err}`);
+          alert(`No se pudo enviar (Firebase): ${err.message || err}`);
         }
       };
 
@@ -919,8 +981,13 @@
 
             <button
               onClick={() => {
-                try { if (me?.identityKey) db.ref(`status/${me.identityKey}`).remove(); } catch {}
-                sessionStorage.clear();
+                try {
+                  if (me?.uid) {
+                    db.ref(`status/${me.uid}/online`).set(false);
+                    db.ref(`status/${me.uid}/lastSeen`).set(Date.now());
+                  }
+                } catch {}
+                try { sessionStorage.clear(); localStorage.removeItem('muzz_wallet_address'); } catch {}
                 window.location.href = 'login.html';
               }}
               className="mt-4 w-full py-3 text-[11px] uppercase font-black tracking-widest rounded-xl"
