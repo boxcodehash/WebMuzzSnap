@@ -1,24 +1,27 @@
 /**
  * "Crear MuzzID" (testnet) from the chat menu. Only opens the external MuzzID testnet site;
- * nothing is signed or sent from MuzzSnap. Texts in ONE object (Spanish on request; swap here for English).
+ * nothing is signed or sent from MuzzSnap. Texts in ONE object (English).
+ * On a phone it also offers deep links that open the MuzzID site inside a wallet app's own browser.
  * Same look as the private translate warning (.muzz-confirm-* in css/ios-pwa.css).
  */
 (function (global) {
   'use strict';
 
   var MUZZID_TEXT = {
-    button: 'Crear MuzzID',
+    button: 'Create MuzzID',
     buttonHint: 'Testnet · Sepolia',
-    title: 'Crear MuzzID (testnet)',
-    warning: 'Esto es TESTNET en la red Sepolia. Necesitas Sepolia ETH de prueba para pagar el gas. No tiene valor real.',
-    faucetsTitle: 'Consigue Sepolia ETH de prueba:',
-    faucetGoogle: 'Faucet de Google Cloud (Sepolia)',
-    faucetPk910: 'Faucet pk910 (Sepolia PoW)',
-    contractLabel: 'Contrato MuzzID en Sepolia',
-    copy: 'Copiar',
-    copied: 'Copiado',
-    cancel: 'Cancelar',
-    continue: 'Continuar'
+    title: 'Create MuzzID (testnet)',
+    warning: 'This is TESTNET on the Sepolia network. You need free Sepolia test ETH to pay for gas. It has no real value.',
+    wallets: 'Works with MetaMask, Rabby, Coinbase, OKX, Trust, SafePal, Brave and other EVM wallets.',
+    walletAppsTitle: 'Open in your wallet app:',
+    faucetsTitle: 'Get free Sepolia test ETH:',
+    faucetGoogle: 'Google Cloud faucet (Sepolia)',
+    faucetPk910: 'pk910 faucet (Sepolia PoW)',
+    contractLabel: 'MuzzID contract on Sepolia',
+    copy: 'Copy',
+    copied: 'Copied',
+    cancel: 'Cancel',
+    continue: 'Continue'
   };
 
   var MUZZID_LINKS = {
@@ -39,6 +42,20 @@
     if (win) { try { win.opener = null; } catch (err) { /* cross-origin */ } }
     return win;
   }
+
+  /** Deep links that open url inside each wallet's in-app browser (same list as the MuzzID site). */
+  function walletLinks(url) {
+    var e = encodeURIComponent(url), bare = url.replace(/^https?:\/\//, '');
+    return [
+      { name: 'MetaMask', href: 'https://metamask.app.link/dapp/' + bare },
+      { name: 'Trust Wallet', href: 'https://link.trustwallet.com/open_url?coin_id=60&url=' + e },
+      { name: 'Coinbase Wallet', href: 'https://go.cb-w.com/dapp?cb_url=' + e },
+      { name: 'OKX Wallet', href: 'okx://wallet/dapp/url?dappUrl=' + e },
+      { name: 'SafePal', href: 'safepalwallet://dapp?url=' + e }
+    ];
+  }
+
+  function isMobile() { return /Android|iPhone|iPad|iPod/i.test((global.navigator && navigator.userAgent) || ''); }
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -68,6 +85,20 @@
     title.id = 'muzzIdTitle';
     var warning = el('p', 'muzz-confirm-text muzzid-warning', T.warning);
     warning.id = 'muzzIdWarning';
+    var walletsNote = el('p', 'muzz-confirm-text muzzid-wallets', T.wallets);
+
+    var walletApps = null;
+    if (isMobile()) {
+      walletApps = el('div', 'muzzid-faucets muzzid-wallet-apps');
+      walletApps.appendChild(el('p', 'muzzid-label', T.walletAppsTitle));
+      walletLinks(MUZZID_LINKS.app + '/').forEach(function (w) {
+        var a = el('a', 'muzzid-link muzzid-wallet-link', w.name);
+        a.href = w.href;
+        a.rel = 'noopener noreferrer';
+        if (/^https:/.test(w.href)) a.target = '_blank';
+        walletApps.appendChild(a);
+      });
+    }
 
     var faucets = el('div', 'muzzid-faucets');
     faucets.appendChild(el('p', 'muzzid-label', T.faucetsTitle));
@@ -113,6 +144,8 @@
 
     box.appendChild(title);
     box.appendChild(warning);
+    box.appendChild(walletsNote);
+    if (walletApps) box.appendChild(walletApps);
     box.appendChild(faucets);
     box.appendChild(contract);
     box.appendChild(actions);
@@ -157,5 +190,5 @@
     return backdrop;
   }
 
-  global.MuzzIdTestnet = { TEXT: MUZZID_TEXT, LINKS: MUZZID_LINKS, open: open, close: close, openExternal: openExternal };
+  global.MuzzIdTestnet = { TEXT: MUZZID_TEXT, LINKS: MUZZID_LINKS, open: open, close: close, openExternal: openExternal, walletLinks: walletLinks };
 })(window);
