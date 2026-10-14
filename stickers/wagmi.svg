@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="WAGMI">
+  <defs>
+    <linearGradient id="crew" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16161a"/>
+      <stop offset="1" stop-color="#070708"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#crew)"/>
+  <rect x="8" y="8" width="240" height="240" rx="42" fill="none" stroke="#ff2a2a" stroke-opacity="0.45" stroke-width="3"/>
+  <circle cx="80" cy="82" r="16" fill="#f4f5f7"/>
+  <circle cx="176" cy="82" r="16" fill="#f4f5f7"/>
+  <circle cx="128" cy="70" r="20" fill="#ff2a2a"/>
+  <path d="M52 150c0-24 12-38 28-38s28 14 28 38zM148 150c0-24 12-38 28-38s28 14 28 38z" fill="#f4f5f7"/>
+  <path d="M94 154c0-36 14-56 34-56s34 20 34 56z" fill="#ff2a2a"/>
+  <path d="M44 162h168" stroke="#ff2a2a" stroke-width="4" stroke-linecap="round"/>
+  <text x="128" y="210" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="38" font-weight="800" fill="#ffffff" letter-spacing="4">WAGMI</text>
+</svg>

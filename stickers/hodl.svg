@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="HODL">
+  <defs>
+    <linearGradient id="vault" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1a1e"/>
+      <stop offset="1" stop-color="#070708"/>
+    </linearGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5a5a"/>
+      <stop offset="1" stop-color="#b40000"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#vault)"/>
+  <rect x="8" y="8" width="240" height="240" rx="42" fill="none" stroke="#ff2a2a" stroke-opacity="0.45" stroke-width="3"/>
+  <path d="M84 56h88l28 32-72 82-72-82z" fill="url(#gem)"/>
+  <path d="M56 88h144M100 56l-16 32 44 82 44-82-16-32" fill="none" stroke="#f4f5f7" stroke-opacity="0.75" stroke-width="3" stroke-linejoin="round"/>
+  <text x="128" y="214" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="44" font-weight="800" fill="#ffffff" letter-spacing="5">HODL</text>
+</svg>

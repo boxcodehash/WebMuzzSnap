@@ -4,7 +4,11 @@
     { id: 'muzz', label: 'MUZZ', src: 'stickers/muzz.svg' },
     { id: 'moon', label: 'To the moon', src: 'stickers/to-the-moon.svg' },
     { id: 'soy-verga', label: 'Soy verga', src: 'stickers/soy-verga.svg' },
-    { id: 'boss', label: 'The Boss', src: 'stickers/the-boss.svg' }
+    { id: 'boss', label: 'The Boss', src: 'stickers/the-boss.svg' },
+    { id: 'gm', label: 'GM', src: 'stickers/gm.svg' },
+    { id: 'hodl', label: 'HODL', src: 'stickers/hodl.svg' },
+    { id: 'wagmi', label: 'WAGMI', src: 'stickers/wagmi.svg' },
+    { id: 'lfg', label: 'LFG', src: 'stickers/lfg.svg' }
   ];
 
   function byId(id) {
