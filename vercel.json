@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/session", "destination": "https://muzzsnap-app.vercel.app/api/session" },
-    { "source": "/api/private", "destination": "https://muzzsnap-app.vercel.app/api/private" }
+    { "source": "/api/private", "destination": "https://muzzsnap-app.vercel.app/api/private" },
+    { "source": "/api/translate", "destination": "https://muzzsnap-app.vercel.app/api/translate" }
   ]
 }

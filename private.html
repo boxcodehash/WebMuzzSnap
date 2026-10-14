@@ -11,6 +11,9 @@
   <script src="muzz-session.js"></script>
   <!-- Same E2EE client as the MuzzSnap app (byte-identical copies of app/www/js @ 2592a35). -->
   <script src="js/private-e2ee.js"></script>
+  <!-- Translate with the "not end-to-end encrypted" confirmation: same file as muzzsnap-app 2592a35. -->
+  <script src="js/translate.js"></script>
+  <link rel="stylesheet" href="css/muzz-extras.css">
   <style>
     :root{
       --bg:#181d23;
@@ -113,8 +116,17 @@
       <div class="topbar" id="chatHeader"></div>
       <div class="messages" id="messages"></div>
       <div class="composer">
+        <div class="muzz-translate-picker" id="translatePicker" hidden>
+          <p class="muzz-translate-label">Translate to</p>
+          <button type="button" data-lang="en">English</button>
+          <button type="button" data-lang="es">Español</button>
+          <button type="button" data-lang="zh-CN">中文</button>
+          <button type="button" data-lang="ja">日本語</button>
+        </div>
         <div class="composer-box">
+          <button type="button" id="translateBtn" class="muzz-translate-btn" aria-label="Translate"><span aria-hidden="true">文A</span></button>
           <textarea id="messageInput" placeholder="Write a private message..."></textarea>
+          <button type="button" id="translateUndo" class="muzz-translate-undo" hidden>Undo</button>
           <button class="send" id="sendBtn">➤</button>
         </div>
       </div>
@@ -352,6 +364,7 @@
         });
         input.value = '';
         autoResizeInput();
+        if(window.MuzzTranslate) MuzzTranslate.forgetDraft();
         const preview = { lastText: 'Encrypted message', lastAt: sentAt };
         await Promise.all([
           db.ref('privateIndex/' + meWallet + '/' + peer).update(preview),

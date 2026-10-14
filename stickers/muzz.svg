@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="MUZZ">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16161a"/>
+      <stop offset="1" stop-color="#070708"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff4a4a"/>
+      <stop offset="1" stop-color="#c40000"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="42" fill="none" stroke="#ff2a2a" stroke-opacity="0.45" stroke-width="3"/>
+  <path d="M54 156V78l74 62 74-62v78" fill="none" stroke="url(#red)" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="128" y="214" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34" font-weight="800" fill="#ffffff" letter-spacing="7">MUZZ</text>
+</svg>

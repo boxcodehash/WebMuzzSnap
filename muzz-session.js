@@ -168,14 +168,15 @@
   /**
    * The MuzzSnap app's private client (js/private-e2ee.js, kept byte-identical) calls
    * https://muzzsnap-app.vercel.app/api/private directly. On this site those calls go through the
-   * same-origin rewrite /api/private (vercel.json), like /api/session.
+   * same-origin rewrite /api/private (vercel.json), like /api/session. js/translate.js (also byte-identical)
+   * calls .../api/translate the same way and goes through the /api/translate rewrite.
    */
   function proxyAppApi() {
     if (global.__muzzApiProxy) return;
     global.__muzzApiProxy = true;
     var original = global.fetch.bind(global);
     global.fetch = function (input, init) {
-      if (typeof input === 'string' && input.indexOf(APP_API + 'private') === 0) input = '/api/' + input.slice(APP_API.length);
+      if (typeof input === 'string' && (input.indexOf(APP_API + 'private') === 0 || input.indexOf(APP_API + 'translate') === 0)) input = '/api/' + input.slice(APP_API.length);
       return original(input, init);
     };
   }

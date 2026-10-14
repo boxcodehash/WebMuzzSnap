@@ -15,6 +15,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
   <script src="muzz-session.js"></script>
+  <!-- Stickers and translate: same files as muzzsnap-app 2592a35 (translate goes through the /api/translate rewrite). -->
+  <script src="js/translate.js"></script>
+  <script src="js/stickers.js"></script>
+  <link rel="stylesheet" href="css/muzz-extras.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -348,6 +352,8 @@
     @media (min-width: 768px) {
       .msg-input { font-size: 15px; }
     }
+    .bubble-3d.muzz-sticker-only, .bubble-3d.me.muzz-sticker-only { background: transparent; border: none; box-shadow: none; padding: 2px; }
+    .muzz-sticker-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 14px; max-height: 280px; overflow-y: auto; }
   </style>
 </head>
 <body class="dark-theme">
@@ -359,6 +365,7 @@
 
     // Firebase (pulsari) and the session contract live in muzz-session.js (shared by the root pages).
     MuzzSession.init();
+    MuzzSession.proxyAppApi(); // /api/translate through the same-origin rewrite
     const db = firebase.database();
 
     // Admin list, identity pairs and wallet check: muzz-session.js (same 4 wallets as MuzzNames / the rules).
@@ -374,6 +381,25 @@
       'function balanceOf(address) view returns (uint256)',
       'function decimals() view returns (uint8)'
     ];
+
+    // Stickers: a message stores [[sticker:<id>]]; both MuzzSnap chats draw the SVG (js/stickers.js).
+    const STICKER_TAB = 'MUZZ';
+    const stickerList = () => (window.MuzzStickers && window.MuzzStickers.list) || [];
+    const isStickerOnly = (text) => (window.MuzzStickers ? window.MuzzStickers.only(text) : false);
+    const renderContent = (text) => {
+      const raw = String(text || '');
+      const out = [];
+      const re = /\[\[sticker:([a-z0-9-]+)\]\]/g;
+      let last = 0; let m; let n = 0;
+      while ((m = re.exec(raw))) {
+        if (m.index > last) out.push(raw.slice(last, m.index));
+        const st = stickerList().find((x) => x.id === m[1]);
+        out.push(st ? <img key={'st-' + (n++)} className="muzz-sticker" src={st.src} alt={st.label} /> : m[0]);
+        last = m.index + m[0].length;
+      }
+      if (last < raw.length) out.push(raw.slice(last));
+      return out;
+    };
 
     const EMOJIS = {
       FACES:["😊","😂","😉","😍","😘","😛","😅","😢","😭","😠","😈","👽","🤖","🤡","💀","👻","💩"],
@@ -417,6 +443,9 @@
       const [darkMode, setDarkMode] = useState(true);
       const [showEmoji, setShowEmoji] = useState(false);
       const [emojiTab, setEmojiTab] = useState("FACES");
+      const [showTranslate, setShowTranslate] = useState(false);
+      const [translating, setTranslating] = useState(false);
+      const [undoText, setUndoText] = useState(null);
       const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
       const [mobileMenu, setMobileMenu] = useState(false);
       const [pinMode, setPinMode] = useState(false);
@@ -691,7 +720,7 @@
             }
             await db.ref(pinPathForChannel(activeChannel.id)).set(text);
             setPinMode(false);
-            setMessageText('');
+            setMessageText(''); setUndoText(null);
             alert('Pinned message updated.');
             return;
           }
@@ -713,7 +742,7 @@
           };
           await db.ref(`messages/${activeChannel.id}`).push(payload);
 
-          setMessageText('');
+          setMessageText(''); setUndoText(null);
           setShowEmoji(false);
         } catch (err) {
           console.error('send message failed:', err);
@@ -726,7 +755,7 @@
           if (!requireAdmin()) return;
           setMobileMenu(false);
           setPinMode(true);
-          setMessageText('');
+          setMessageText(''); setUndoText(null);
         },
         clearChat: async () => {
           if (!requireAdmin()) return;
@@ -964,8 +993,8 @@
                       <span className={`text-[10px] font-black mb-1 uppercase px-1 ${roleClass(msg.role,'text-gray-500')}`}>
                         {roleBadge(msg.role)}{msg.username} {muted && '🔇'}
                       </span>
-                      <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''}`}>
-                        {msg.content}
+                      <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''} ${isStickerOnly(msg.content) ? 'muzz-sticker-only' : ''}`}>
+                        {renderContent(msg.content)}
                       </div>
                       <span className="msg-time">
                         {isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1032,17 +1061,61 @@
               {showEmoji && (
                 <div className="mb-3 rounded-xl overflow-hidden" style={{boxShadow:'inset 0 0 0 1px rgba(255,0,0,0.2)'}}>
                   <div className="flex overflow-x-auto custom-scroll">
-                    {Object.keys(EMOJIS).map((tab) => (
+                    {Object.keys(EMOJIS).concat(stickerList().length ? [STICKER_TAB] : []).map((tab) => (
                       <button key={tab} onClick={() => setEmojiTab(tab)} className={`px-3 py-2 text-[10px] font-black uppercase whitespace-nowrap ${emojiTab === tab ? 'text-red-500' : 'text-gray-500'}`}>
                         {tab}
                       </button>
                     ))}
                   </div>
+                  {emojiTab === STICKER_TAB ? (
+                    <div className="muzz-sticker-row custom-scroll">
+                      {stickerList().map((sticker) => (
+                        <button key={sticker.id} type="button" className="sticker-tile" onClick={() => setMessageText((prev) => prev + window.MuzzStickers.token(sticker.id))}>
+                          <img src={sticker.src} alt="" />
+                          <span>{sticker.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
                   <div className="emoji-window custom-scroll">
                     {EMOJIS[emojiTab].map((emoji) => (
                       <span key={emoji} onClick={() => setMessageText((prev) => prev + emoji)} className="emoji-btn">{emoji}</span>
                     ))}
                   </div>
+                  )}
+                </div>
+              )}
+
+              {showTranslate && (
+                <div className="muzz-translate-picker mb-3" role="listbox" aria-label="Translate to">
+                  <p className="muzz-translate-label">Translate to</p>
+                  {(window.MuzzTranslate ? window.MuzzTranslate.langs : []).map((lang) => (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      data-lang={lang.id}
+                      className={window.MuzzTranslate && window.MuzzTranslate.lastTarget() === lang.id ? 'is-on' : ''}
+                      disabled={translating}
+                      onClick={async () => {
+                        const source = messageText;
+                        if (!window.MuzzTranslate) return;
+                        setTranslating(true);
+                        try {
+                          const out = await window.MuzzTranslate.translate(source, lang.id);
+                          window.MuzzTranslate.remember(lang.id);
+                          setUndoText((prev) => (prev == null ? source : prev));
+                          setMessageText(out);
+                          setShowTranslate(false);
+                        } catch (err) {
+                          window.MuzzTranslate.showError(err && err.message);
+                        } finally {
+                          setTranslating(false);
+                        }
+                      }}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -1058,6 +1131,14 @@
                   disabled={iAmMuted}
                   className="msg-input"
                 />
+                {undoText != null && (
+                  <button type="button" className="muzz-translate-undo" onClick={() => { setMessageText(undoText); setUndoText(null); }}>Undo</button>
+                )}
+                {window.MuzzTranslate && (
+                  <button type="button" className="muzz-translate-btn" aria-label="Translate" disabled={translating || iAmMuted} onClick={() => setShowTranslate((v) => !v)}>
+                    <span aria-hidden="true">文A</span>
+                  </button>
+                )}
                 <button type="button" onClick={sendMessage} className={`send-btn ${pinMode ? 'pin' : ''}`} aria-label="Send">
                   <i className={`fas ${pinMode ? 'fa-thumbtack' : 'fa-paper-plane'}`}></i>
                 </button>
