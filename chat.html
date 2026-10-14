@@ -717,7 +717,7 @@
           setShowEmoji(false);
         } catch (err) {
           console.error('send message failed:', err);
-          alert(`No se pudo enviar (Firebase): ${err.message || err}`);
+          alert('Could not send the message. Try again.');
         }
       };
 
