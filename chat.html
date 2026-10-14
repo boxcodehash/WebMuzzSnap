@@ -388,18 +388,39 @@
     const ADMIN_ROLES = MUZZ_ADMINS.map((a) => a.role);
 
     /*
-     * Firebase sign-in, kept in one place.
-     * TODO(Login contract): login.html will hand chat.html a server-signed Firebase custom token
-     * (uid = wallet, muzzUntil claim). Login has not fixed yet how it is passed (field / storage key /
-     * endpoint), so loginFirebaseToken() returns null and the chat keeps the current anonymous sign-in.
-     * When the contract exists: return that token here; signInWithCustomToken is then used and
-     * signInAnonymously can be removed.
+     * Session contract with login.html (Login & Security, 99bb553): login.html signs in to Firebase with
+     * the server's custom token (uid = lowercase wallet, muzzUntil claim). chat.html trusts ONLY
+     * firebase.auth().currentUser.uid. muzz_wallet_address / muzz_login_method are display hints, never
+     * used to decide identity or rights. Rights are enforced by the RTDB rules (auth.uid), not here.
      */
-    const loginFirebaseToken = () => null;
-    const signInToFirebase = () => {
-      const token = loginFirebaseToken();
-      if (token) return firebase.auth().signInWithCustomToken(token);
-      return firebase.auth().signInAnonymously();
+    const WALLET_UID = /^0x[a-f0-9]{40}$/;
+    const identityFor = (uid) => {
+      const admin = adminOf(uid);
+      if (admin) return { username: admin.name, role: admin.role };
+      return { username: `Node_${uid.slice(-4)}`, role: 'user' };
+    };
+    const SESSION_REFRESH_MS = 10 * 60 * 1000;
+    /* GET /api/session?op=me (same-origin proxy to muzzsnap-app) with the Firebase ID token; a fresh
+       customToken in the answer (muzzUntil close to the end) is used right away. Best effort. */
+    const refreshSession = async () => {
+      const user = firebase.auth().currentUser;
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/session?op=me', {
+          method: 'GET',
+          headers: { Authorization: 'Bearer ' + idToken },
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        if (!res.ok) { console.warn('session refresh: HTTP ' + res.status); return; }
+        const body = await res.json().catch(() => null);
+        if (body && typeof body.customToken === 'string' && body.customToken) {
+          await firebase.auth().signInWithCustomToken(body.customToken);
+        }
+      } catch (err) {
+        console.warn('session refresh failed', err);
+      }
     };
     const PRIVATE_GATE = {
       tokenAddress: '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
@@ -429,7 +450,6 @@
       const map = new Map();
       Object.values(raw || {}).forEach((user) => {
         if (!user || typeof user !== 'object') return;
-        // Skip nested outbox-only nodes without presence fields
         const seen = Number(user.lastSeen || 0);
         if (!seen || now - seen > ONLINE_TTL_MS) return;
         if (user.online === false) return;
@@ -439,14 +459,6 @@
         if (!prev || seen >= Number(prev.lastSeen || 0)) map.set(key, user);
       });
       return Array.from(map.values()).sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
-    };
-
-    const safeKey = (value) => String(value || '').replace(/[.#$/\[\]]/g, '_');
-    const makeIdentityKey = (raw) => {
-      const value = String(raw || '').trim().toLowerCase();
-      if (!value) return 'guest_unknown';
-      if (value.startsWith('guest_')) return `guest_${safeKey(value.slice(6) || 'unknown')}`;
-      return `wallet_${safeKey(value)}`;
     };
 
     const pinPathForChannel = (channelId) => `settings/pinned/${channelId}`;
@@ -511,62 +523,37 @@
       };
 
       useEffect(() => {
-        // login.html persists to localStorage + sessionStorage; accept either
-        let sessionWallet = sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address');
-        if (sessionWallet && !sessionStorage.getItem('muzz_wallet_address')) {
-          try { sessionStorage.setItem('muzz_wallet_address', sessionWallet); } catch {}
-        }
-        if (!sessionWallet) {
-          window.location.href = 'login.html';
-          return;
-        }
-
         let statusRef = null;
         let statusListRef = null;
         let bannedRef = null;
         let mutedRef = null;
         let connectedRef = null;
+        let refreshTimer = null;
+        let sessionUid = null;
+        const toLogin = () => { window.location.replace('login.html'); };
 
-        signInToFirebase().then(({ user }) => {
-          const isWallet = !sessionWallet.startsWith('guest_');
-          const wallet = isWallet ? sessionWallet.toLowerCase() : '';
-          let username = '';
-          let role = 'user';
-
-          if (isWallet) {
-            const admin = adminOf(wallet);
-            if (admin) {
-              username = admin.name;
-              role = admin.role;
-            } else {
-              username = `Node_${sessionWallet.slice(-4)}`;
-              role = 'user';
-            }
-          } else {
-            username = sessionWallet.replace('guest_','');
-            role = 'guest';
-          }
-
-          const identityKey = makeIdentityKey(sessionWallet);
+        const startSession = (user) => {
+          const wallet = user.uid;
+          const { username, role } = identityFor(wallet);
+          const identityKey = 'wallet_' + wallet;
           const currentUser = {
             uid: user.uid,
             username,
             role,
-            isWallet,
+            isWallet: true,
             wallet,
             identityKey
           };
           setMe(currentUser);
 
-          // Pulsari rules allow status/{authUid} writes; status/wallet_* is denied
+          // Presence on status/{uid} (rules: $id == auth.uid)
           statusRef = db.ref(`status/${user.uid}`);
           const writePresence = () => {
-            // update (not set) so status/{uid}/outbox is NOT wiped
             statusRef.update({
               uid: user.uid,
               username,
               role,
-              wallet: wallet || null,
+              wallet,
               identityKey,
               lastSeen: Date.now(),
               online: true
@@ -576,7 +563,7 @@
           connectedRef = db.ref('.info/connected');
           connectedRef.on('value', (snap) => {
             if (snap.val() !== true) return;
-            // Only clear online/lastSeen — do NOT remove() the whole node (deletes outbox)
+            // Only clear online/lastSeen on disconnect
             statusRef.child('online').onDisconnect().set(false);
             statusRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
             writePresence();
@@ -599,13 +586,26 @@
             if (snap.val()) {
               alert('Your account has been banned from public chat.');
               try { sessionStorage.clear(); localStorage.removeItem('muzz_wallet_address'); } catch {}
-              window.location.href = 'login.html';
+              firebase.auth().signOut().catch(() => {}).then(toLogin);
             }
           });
-        }).catch((err) => {
-          console.error('Firebase sign-in failed:', err);
-          alert('Authentication failed. Please reload and try again.');
-          window.location.href = 'login.html';
+
+          refreshSession();
+          refreshTimer = setInterval(refreshSession, SESSION_REFRESH_MS);
+        };
+
+        // Wait for the Firebase session that login.html created. No user, or a uid that is not a
+        // wallet, goes back to login. A refreshed custom token keeps the same uid (no restart).
+        const unsubAuth = firebase.auth().onAuthStateChanged((user) => {
+          const uid = user ? String(user.uid || '') : '';
+          if (!user || !WALLET_UID.test(uid)) { toLogin(); return; }
+          if (sessionUid === uid) return;
+          if (sessionUid && sessionUid !== uid) { window.location.reload(); return; }
+          sessionUid = uid;
+          startSession(user);
+        }, (err) => {
+          console.error('Firebase auth state failed:', err);
+          toLogin();
         });
 
         return () => {
@@ -621,6 +621,8 @@
           try { if (bannedRef) bannedRef.off(); } catch {}
           try { if (mutedRef) mutedRef.off(); } catch {}
           try { if (connectedRef) connectedRef.off(); } catch {}
+          try { if (refreshTimer) clearInterval(refreshTimer); } catch {}
+          try { unsubAuth(); } catch {}
         };
       }, []);
 
@@ -641,60 +643,14 @@
 
       useEffect(() => {
         if (!me) return;
-        let community = [];
-        let outbox = [];
-        const merge = () => {
-          const map = new Map();
-          community.forEach((m) => map.set('c:' + m.id, m));
-          outbox.forEach((m) => map.set('o:' + m.id, m));
-          setMessages(Array.from(map.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
-        };
-
         const ref = db.ref(`messages/${activeChannel.id}`).limitToLast(50);
         ref.on('value', (snap) => {
-          const data = snap.val();
-          if (data) {
-            community = Object.keys(data).map((id) => ({ id, ...data[id] }));
-          } else if (!community.length) {
-            community = [];
-          }
-          merge();
+          const data = snap.val() || {};
+          setMessages(Object.keys(data).map((id) => ({ id, ...data[id] })).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
         }, (err) => console.error('messages listen error', err));
-
-        // Pulsari: anonymous can READ messages/* but WRITE is denied → status/{uid}/outbox
-        const statusTreeRef = db.ref('status');
-        statusTreeRef.on('value', (snap) => {
-          const tree = snap.val() || {};
-          const list = [];
-          Object.keys(tree).forEach((uid) => {
-            const node = tree[uid];
-            const box = node && node.outbox;
-            if (!box || typeof box !== 'object') return;
-            Object.keys(box).forEach((id) => {
-              const m = box[id];
-              if (!m) return;
-              const ch = m.channel || 'general';
-              if (ch !== activeChannel.id) return;
-              list.push({
-                id: 'ob_' + uid + '_' + id,
-                content: m.content || '',
-                username: m.username || node.username || 'anon',
-                role: m.role || node.role || 'user',
-                userId: m.userId || uid,
-                identityKey: m.identityKey || node.identityKey || '',
-                wallet: m.wallet || node.wallet || null,
-                timestamp: m.timestamp || 0,
-                source: 'outbox'
-              });
-            });
-          });
-          outbox = list.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)).slice(-80);
-          merge();
-        }, (err) => console.warn('outbox listen', err));
 
         return () => {
           try { ref.off(); } catch {}
-          try { statusTreeRef.off(); } catch {}
         };
       }, [me, activeChannel]);
 
@@ -738,8 +694,8 @@
           return;
         }
 
-        const walletAddress = (sessionStorage.getItem('muzz_wallet_address') || '').toLowerCase();
-        if (!walletAddress || walletAddress.startsWith('guest_')) {
+        const walletAddress = me.wallet;
+        if (!walletAddress || !WALLET_UID.test(walletAddress)) {
           showNotice('WALLET REQUIRED', 'You must sign in with a crypto wallet to access MUZZ PRIVATE.', 'yellow');
           return;
         }
@@ -801,6 +757,10 @@
         try {
           if (pinMode) {
             if (!requireAdmin()) return;
+            if (!text || text.length > 500) {
+              alert('Pinned messages must be 1 to 500 characters.');
+              return;
+            }
             await db.ref(pinPathForChannel(activeChannel.id)).set(text);
             setPinMode(false);
             setMessageText('');
@@ -808,41 +768,22 @@
             return;
           }
 
+          if (!text || text.length > 4000) {
+            alert('Messages must be 1 to 4000 characters.');
+            return;
+          }
+          // Exactly what the RTDB rules validate: wallet/userId = uid, identityKey = 'wallet_' + uid,
+          // username/role = the pair for this wallet, content 1..4000, numeric timestamp.
           const payload = {
             content: text,
             username: me.username,
             role: me.role,
             userId: me.uid,
             identityKey: me.identityKey,
-            wallet: me.wallet || null,
-            timestamp: Date.now(),
-            channel: activeChannel.id,
-            source: 'webmuzz'
+            wallet: me.uid,
+            timestamp: Date.now()
           };
-
-          let sent = false;
-          try {
-            await db.ref(`messages/${activeChannel.id}`).push(payload);
-            sent = true;
-          } catch (err) {
-            const msg = String((err && (err.message || err)) || '');
-            if (!/permission|PERMISSION|denied/i.test(msg)) throw err;
-            console.warn('messages/* write denied — using status/outbox', err);
-          }
-
-          if (!sent) {
-            await db.ref(`status/${me.uid}/outbox`).push(payload);
-            try {
-              const snap = await db.ref(`status/${me.uid}/outbox`).once('value');
-              const val = snap.val() || {};
-              const keys = Object.keys(val).sort((a, b) => (val[a].timestamp || 0) - (val[b].timestamp || 0));
-              if (keys.length > 40) {
-                const updates = {};
-                keys.slice(0, keys.length - 40).forEach((k) => { updates[k] = null; });
-                await db.ref(`status/${me.uid}/outbox`).update(updates);
-              }
-            } catch (e) {}
-          }
+          await db.ref(`messages/${activeChannel.id}`).push(payload);
 
           setMessageText('');
           setShowEmoji(false);
@@ -911,7 +852,8 @@
               bannedAt: Date.now(),
               bannedBy: me?.username || 'admin'
             });
-            if (target.uid) await db.ref(`status/${target.uid}`).remove();
+            // Best effort: the rules only let a user remove their own status node, so this is denied.
+            if (target.uid) db.ref(`status/${target.uid}`).remove().catch(() => {});
             alert(`${target.username} has been banned.`);
           } catch (err) {
             console.error('banUser failed:', err);
@@ -1021,7 +963,7 @@
                   }
                 } catch {}
                 try { sessionStorage.clear(); localStorage.removeItem('muzz_wallet_address'); } catch {}
-                window.location.href = 'login.html';
+                firebase.auth().signOut().catch(() => {}).then(() => { window.location.href = 'login.html'; });
               }}
               className="mt-4 w-full py-3 text-[11px] uppercase font-black tracking-widest rounded-xl"
               style={{color:'#ff3a3a', boxShadow:'inset 0 0 0 1px rgba(255,30,30,0.35)'}}
