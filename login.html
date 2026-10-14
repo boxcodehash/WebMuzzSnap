@@ -537,17 +537,17 @@
         }
 
         const MAINNET_MSG = 'Switch your wallet to Ethereum mainnet to sign in.';
+        // Best effort only: the SIWE message is always Chain ID 1 and the server checks MUZZ on mainnet,
+        // so a wallet left on another chain (or a switch prompt that never resolves on mobile) must not
+        // block the signature prompt.
         async function ensureMainnet(provider) {
+            const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
             let chainId;
-            try { chainId = await provider.request({ method: 'eth_chainId' }); } catch { chainId = null; }
+            try { chainId = await withTimeout(provider.request({ method: 'eth_chainId' }), 4000); } catch (e) { chainId = null; }
             if (chainId && parseInt(chainId, 16) === 1) return;
-            try {
-                await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
-                const after = await provider.request({ method: 'eth_chainId' });
-                if (parseInt(after, 16) !== 1) throw new Error('still not mainnet');
-            } catch (err) {
-                throw Object.assign(new Error(MAINNET_MSG), { code: 'mainnet' });
-            }
+            setStep('Switching to Ethereum Mainnet...');
+            try { await withTimeout(provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] }), 15000); }
+            catch (err) { console.warn('chain switch skipped', err && (err.code || err.message)); }
         }
 
         // PKCE-style binding: only this page (holding the verifier) can redeem its nonce.
