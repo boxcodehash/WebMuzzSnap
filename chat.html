@@ -187,6 +187,7 @@
     .ryachu-name { color: var(--ryachu-gold); font-weight: 800; }
     .itsuki-name { color: var(--itsuki-blue); font-weight: 800; }
     .esteban-name { color: #ff6b6b; font-weight: 800; }
+    .admin-name { color: #c084fc; font-weight: 800; }
 
     .msg-input {
       flex: 1;
@@ -368,13 +369,38 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const ADMIN_WALLETS = {
-      ryachu: atob('MHgyMDgxNTdiNWVjMzk2NzU5ZTg3NTQwNTgxMDhlY2Y1M2UzMjM5MmZm').toLowerCase(),
-      itsuki: atob('MHhmYWI1ODM1Y2ExNGZiM2Y5Zjk3OGM1ZTRkNzMzNzM0ZTYzOTRlMDNm').toLowerCase(),
-      esteban: '0x875c5a7794b601f273da58e3c1d10671d16130ec'.toLowerCase()
+    /*
+     * The four admin wallets, same list as MuzzSnap app/www/js/muzz-names.js (MuzzNames.ADMINS):
+     * wallet (lowercase), visible name, role key. DISPLAY ONLY: this decides which buttons are shown.
+     * The real permission is enforced by the Firebase RTDB rules (auth.uid of a server-signed token),
+     * never by this list. Compare wallets in lowercase only (adminOf).
+     */
+    const MUZZ_ADMINS = Object.freeze([
+      Object.freeze({ wallet: '0x208157b5ec396759e8754058108ecf53e32392ff', name: 'RYASHU', role: 'ryachu' }),
+      Object.freeze({ wallet: '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501', name: 'ITZUKI', role: 'itsuki' }),
+      Object.freeze({ wallet: '0x875c5a7794b601f273da58e3c1d10671d16130ec', name: 'Esteban', role: 'esteban' }),
+      Object.freeze({ wallet: '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a', name: 'Node_6bcb8a', role: 'admin' })
+    ]);
+    const adminOf = (wallet) => {
+      const w = String(wallet || '').trim().toLowerCase();
+      return MUZZ_ADMINS.find((a) => a.wallet === w) || null;
     };
+    const ADMIN_ROLES = MUZZ_ADMINS.map((a) => a.role);
 
-    const ADMIN_ROLES = ['ryachu','itsuki','esteban'];
+    /*
+     * Firebase sign-in, kept in one place.
+     * TODO(Login contract): login.html will hand chat.html a server-signed Firebase custom token
+     * (uid = wallet, muzzUntil claim). Login has not fixed yet how it is passed (field / storage key /
+     * endpoint), so loginFirebaseToken() returns null and the chat keeps the current anonymous sign-in.
+     * When the contract exists: return that token here; signInWithCustomToken is then used and
+     * signInAnonymously can be removed.
+     */
+    const loginFirebaseToken = () => null;
+    const signInToFirebase = () => {
+      const token = loginFirebaseToken();
+      if (token) return firebase.auth().signInWithCustomToken(token);
+      return firebase.auth().signInAnonymously();
+    };
     const PRIVATE_GATE = {
       tokenAddress: '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0',
       minRequired: 2000000
@@ -464,6 +490,7 @@
         if (role === 'ryachu') return 'ryachu-name';
         if (role === 'itsuki') return 'itsuki-name';
         if (role === 'esteban') return 'esteban-name';
+        if (role === 'admin') return 'admin-name';
         return fallback;
       };
 
@@ -471,6 +498,7 @@
         if (role === 'ryachu') return '👑 ';
         if (role === 'itsuki') return '💎 ';
         if (role === 'esteban') return '🛡️ ';
+        if (role === 'admin') return '⚡ ';
         return '';
       };
 
@@ -499,22 +527,17 @@
         let mutedRef = null;
         let connectedRef = null;
 
-        firebase.auth().signInAnonymously().then(({ user }) => {
+        signInToFirebase().then(({ user }) => {
           const isWallet = !sessionWallet.startsWith('guest_');
           const wallet = isWallet ? sessionWallet.toLowerCase() : '';
           let username = '';
           let role = 'user';
 
           if (isWallet) {
-            if (wallet === ADMIN_WALLETS.ryachu) {
-              username = 'Ryachu';
-              role = 'ryachu';
-            } else if (wallet === ADMIN_WALLETS.itsuki) {
-              username = 'Itsuki';
-              role = 'itsuki';
-            } else if (wallet === ADMIN_WALLETS.esteban) {
-              username = 'Esteban';
-              role = 'esteban';
+            const admin = adminOf(wallet);
+            if (admin) {
+              username = admin.name;
+              role = admin.role;
             } else {
               username = `Node_${sessionWallet.slice(-4)}`;
               role = 'user';
@@ -580,7 +603,7 @@
             }
           });
         }).catch((err) => {
-          console.error('Anonymous sign-in failed:', err);
+          console.error('Firebase sign-in failed:', err);
           alert('Authentication failed. Please reload and try again.');
           window.location.href = 'login.html';
         });
