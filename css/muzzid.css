@@ -1,0 +1,13 @@
+/* "Crear MuzzID" (testnet) dialog: extends .muzz-confirm (css/ios-pwa.css). */
+.muzzid-box { width: min(100%, 400px); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.muzzid-title { margin: 0 0 10px; font-family: Orbitron, Outfit, sans-serif; font-size: 15px; font-weight: 800; letter-spacing: .06em; color: #ff6565; }
+.muzzid-warning { margin-bottom: 14px; }
+.muzzid-label { margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #8e939e; }
+.muzzid-faucets { display: grid; gap: 6px; margin: 0 0 14px; }
+.muzzid-link { display: block; padding: 10px 12px; border-radius: 14px; color: #ffd0d0; font-weight: 700; font-size: 13px; text-decoration: none; background: rgba(255, 42, 42, .08); box-shadow: inset 0 0 0 1px rgba(255, 42, 42, .22); }
+.muzzid-link::after { content: " ↗"; color: #ff6565; }
+.muzzid-link:focus-visible, .muzzid-copy:focus-visible { outline: 2px solid #ff5a5a; outline-offset: 2px; }
+.muzzid-contract { margin: 0 0 16px; }
+.muzzid-contract-row { display: flex; align-items: center; gap: 8px; }
+.muzzid-address { flex: 1 1 auto; min-width: 0; font-size: 11px; line-height: 1.35; color: #c9ced8; word-break: break-all; user-select: all; -webkit-user-select: all; }
+.muzzid-copy { flex: 0 0 auto; border: 0; border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 11px; font-weight: 800; color: #f4f5f7; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); cursor: pointer; }

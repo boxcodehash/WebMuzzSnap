@@ -19,6 +19,9 @@
   <script src="js/translate.js"></script>
   <script src="js/stickers.js"></script>
   <link rel="stylesheet" href="css/muzz-extras.css">
+  <!-- Crear MuzzID (testnet) dialog: same files as muzzsnap-app 2592a35 / db004cb. -->
+  <link rel="stylesheet" href="css/muzzid.css">
+  <script src="js/muzzid-testnet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -354,6 +357,56 @@
     }
     .bubble-3d.muzz-sticker-only, .bubble-3d.me.muzz-sticker-only { background: transparent; border: none; box-shadow: none; padding: 2px; }
     .muzz-sticker-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 14px; max-height: 280px; overflow-y: auto; }
+    /* Menu: muzzsnap-app db004cb (chat.html). Root has no bottom bar, so --muzz-nav-h is 0 here. */
+    :root { --muzz-nav-h: 0px; }
+    .sidebar.mm { display: flex; flex-direction: column; }
+    .light-theme .sidebar.orbit-panel.mm { background: rgba(255,255,255,0.92) !important; }
+    /* 1.0.42 menu: compact, glass + thin neon edge. */
+    .sidebar.mm { width: 232px; padding: 12px 10px; border-radius: 18px; gap: 0; }
+    .sidebar.orbit-panel.mm {
+      background: linear-gradient(180deg, rgba(16, 14, 20, 0.82), rgba(6, 6, 9, 0.9)) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 1px rgba(255,42,42,0.28), 0 16px 40px rgba(0,0,0,0.55), 0 0 22px rgba(255,20,20,0.10) !important;
+      backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    }
+    .mm-head { display: flex; align-items: center; gap: 8px; padding: 2px 2px 10px; border-bottom: 1px solid rgba(255,40,40,0.16); }
+    .mm-logo { width: 30px; height: 30px; border-radius: 9px; object-fit: cover; box-shadow: 0 0 0 1px rgba(255,40,40,0.45), 0 0 12px rgba(255,0,0,0.25); }
+    .mm-title { font-family: 'Orbitron', sans-serif; font-weight: 800; letter-spacing: 0.1em; font-size: 0.74rem; line-height: 1.1; }
+    .mm-title span { color: var(--red); }
+    .mm-me { font-size: 10.5px; color: #8a8a8a; margin-top: 1px; }
+    .mm-x { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #aaa; font-size: 12px; background: rgba(255,255,255,0.04); }
+    .mm-x:hover { color: #fff; background: rgba(255,30,30,0.18); }
+    .mm-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 2px 6px; }
+    .mm-label { font-family: 'Orbitron', sans-serif; font-size: 8.5px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #6d6d6d; margin: 12px 6px 5px; }
+    .mm-label-admin { color: #ff3a3a; }
+    .mm-item { width: 100%; display: flex; flex-wrap: wrap; row-gap: 0; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #b4b4b4; text-align: left; position: relative; transition: background .15s, color .15s; }
+    .mm-item i { width: 14px; text-align: center; font-size: 12px; color: #ff3a3a; opacity: .85; }
+    .mm-item span { flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mm-item small { flex-basis: 100%; padding-left: 23px; margin-top: -4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: #666; white-space: nowrap; }
+    .mm-item:hover { color: #fff; background: rgba(255,30,30,0.08); }
+    .mm-item.active { color: #fff; background: linear-gradient(90deg, rgba(255,30,30,0.20), rgba(255,30,30,0.04)); }
+    .mm-item.active::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .mm-admin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 0 2px; }
+    .mm-chip { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px; border-radius: 10px; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #ff5a5a; background: rgba(255,0,0,0.07); box-shadow: inset 0 0 0 1px rgba(255,40,40,0.28); }
+    .mm-chip i { font-size: 12px; }
+    .mm-chip:hover { color: #fff; background: rgba(255,26,26,0.85); box-shadow: 0 0 12px rgba(255,26,26,0.4); }
+    .mm-online { list-style: none; margin: 0; padding: 0 6px; display: grid; gap: 5px; }
+    .mm-online li { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; min-width: 0; }
+    .mm-empty { color: #666; font-weight: 500 !important; text-transform: none !important; }
+    .mm-foot { border-top: 1px solid rgba(255,40,40,0.16); padding: 8px 2px 0; }
+    .mm-status { font-size: 10px; color: #6f6f6f; line-height: 1.3; margin: 0 4px 6px; }
+    .mm-status:empty { display: none; }
+    .mm-foot-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .mm-ver { margin: 0 4px !important; font-size: 9px !important; opacity: .6; }
+    .mm-out { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 9px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ff3a3a; box-shadow: inset 0 0 0 1px rgba(255,30,30,0.35); }
+    .mm-out:hover { color: #fff; background: rgba(255,26,26,0.85); }
+    .mm button:focus-visible { outline: 2px solid #ff5050; outline-offset: 1px; }
+    .light-theme .sidebar.orbit-panel.mm { background: rgba(255,255,255,0.92); }
+    .light-theme .mm-item { color: #444; }
+    .light-theme .mm-item:hover, .light-theme .mm-item.active { color: #111; }
+    .light-theme .mm-me, .light-theme .mm-label { color: #777; }
+    @media (max-width: 1023px) and (orientation: portrait), (max-width: 1023px) and (min-height: 501px) {
+      .sidebar.mm { width: min(68vw, 236px); padding: calc(12px + var(--safe-t)) 10px calc(var(--muzz-nav-h, 54px) + 10px + var(--safe-b)) calc(10px + var(--safe-l)); border-radius: 0 18px 18px 0; }
+    }
   </style>
 </head>
 <body class="dark-theme">
@@ -448,6 +501,39 @@
       const [undoText, setUndoText] = useState(null);
       const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
       const [mobileMenu, setMobileMenu] = useState(false);
+      const menuRef = useRef(null);
+      // Same line as the app menu. The web root has no FCM client, so without window.MuzzPush it shows the browser permission and 'no token'.
+      const webPushLine = () => {
+        let perm = 'not granted';
+        try { if (window.Notification && Notification.permission === 'granted') perm = 'granted'; } catch {}
+        return 'Notifications ' + perm + ' · no token';
+      };
+      const [pushStatus, setPushStatus] = useState(webPushLine);
+
+      useEffect(() => {
+        const apply = () => setPushStatus(window.MuzzPush && MuzzPush.statusLine ? MuzzPush.statusLine() : webPushLine());
+        apply();
+        window.addEventListener('muzz-push-status', apply);
+        return () => window.removeEventListener('muzz-push-status', apply);
+      }, []);
+
+      useEffect(() => {
+        if (!mobileMenu) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setMobileMenu(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [mobileMenu]);
+
+      useEffect(() => {
+        /* Phone/tablet: the drawer is off-screen when closed, so keep it out of the Tab order and the screen reader.
+           Desktop (>=1024px) shows the menu all the time. */
+        const el = menuRef.current;
+        if (!el) return;
+        const drawer = window.matchMedia ? window.matchMedia('(max-width: 1023px)').matches : false;
+        el.inert = drawer && !mobileMenu;
+        if (drawer && !mobileMenu) el.setAttribute('aria-hidden', 'true');
+        else el.removeAttribute('aria-hidden');
+      });
       const [pinMode, setPinMode] = useState(false);
       const [banPanel, setBanPanel] = useState(false);
       const [mutePanel, setMutePanel] = useState(false);
@@ -849,86 +935,90 @@
 
       return (
         <div className="app-shell">
-          <aside className={`sidebar panel-3d ${mobileMenu ? 'open' : ''}`}>
-            <div className="flex items-center gap-3 mb-5">
-              <img src="muzzsnap.jpg" alt="MuzzSnap" className="brand-logo" />
+          <aside id="muzzMenu" ref={menuRef} aria-label="Menu" className={`sidebar panel-3d orbit-panel mm ${mobileMenu ? 'open' : ''}`}>
+            <header className="mm-head">
+              <img src="muzzsnap.jpg" alt="MuzzSnap" className="mm-logo" />
               <div className="min-w-0 flex-1">
-                <h1 className="brand-title">MUZZSNAP</h1>
-                <p className="text-[11px] uppercase tracking-widest text-red-500 truncate">{me.username}</p>
+                <h1 className="mm-title">MUZZ<span>SNAP</span></h1>
+                <p className="mm-me truncate">{me.username}</p>
               </div>
-              <button type="button" className="icon-btn lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
-                <i className="fas fa-times"></i>
+              <button type="button" className="mm-x lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
+                <i className="fas fa-times" aria-hidden="true"></i>
               </button>
-            </div>
+            </header>
 
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scroll space-y-6 pr-1">
+            <nav className="mm-body custom-scroll" aria-label="Chat menu">
+              <p className="mm-label">Chat</p>
+              {CHANNELS.map((channel) => (
+                <button
+                  key={channel.id}
+                  type="button"
+                  aria-current={activeChannel.id === channel.id ? 'page' : undefined}
+                  onClick={() => { setActiveChannel(channel); setMobileMenu(false); }}
+                  className={`mm-item ${activeChannel.id === channel.id ? 'active' : ''}`}
+                >
+                  <i className="fas fa-hashtag" aria-hidden="true"></i><span>{channel.name.charAt(0) + channel.name.slice(1).toLowerCase()}</span>
+                </button>
+              ))}
+
+              <p className="mm-label">Rooms</p>
+              <button type="button" onClick={() => { setMobileMenu(false); goToPrivate(); }} className="mm-item">
+                <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'}`} aria-hidden="true"></i>
+                <span>Private</span><small>Wallet-verified · Encrypted</small>
+              </button>
+              <button type="button" id="btnMuzzId" className="mm-item" aria-haspopup="dialog"
+                onClick={(event) => { if (window.MuzzIdTestnet) window.MuzzIdTestnet.open(event.currentTarget); }}>
+                <i className="fas fa-id-card" aria-hidden="true"></i>
+                <span>{(window.MuzzIdTestnet && MuzzIdTestnet.TEXT.button) || 'MuzzID'}</span>
+                <small>{(window.MuzzIdTestnet && MuzzIdTestnet.TEXT.buttonHint) || ''}</small>
+              </button>
+
               {isAdmin && (
-                <div>
-                  <p className="text-[10px] text-red-500 font-bold tracking-[0.28em] mb-2 uppercase">Admin</p>
-                  <div className="admin-row" role="group" aria-label="Admin tools">
-                    <button onClick={adminActions.enablePinMode} className="admin-btn" aria-label="Pin message"><i className="fas fa-thumbtack"></i>PIN</button>
-                    <button onClick={adminActions.clearChat} className="admin-btn" aria-label="Clear chat"><i className="fas fa-trash"></i>CLEAR</button>
-                    <button onClick={adminActions.openBanPanel} className="admin-btn" aria-label="Ban user"><i className="fas fa-user-slash"></i>BAN</button>
-                    <button onClick={adminActions.openMutePanel} className="admin-btn" aria-label="Mute user 1 minute"><i className="fas fa-volume-mute"></i>MUTE</button>
+                <>
+                  <p className="mm-label mm-label-admin">Admin</p>
+                  <div className="mm-admin admin-row" role="group" aria-label="Admin actions">
+                    <button type="button" onClick={adminActions.enablePinMode} className="mm-chip" title="Pin a message" aria-label="Pin message"><i className="fas fa-thumbtack" aria-hidden="true"></i><span>Pin</span></button>
+                    <button type="button" onClick={adminActions.clearChat} className="mm-chip" title="Clear chat" aria-label="Clear chat"><i className="fas fa-trash" aria-hidden="true"></i><span>Clear</span></button>
+                    <button type="button" onClick={adminActions.openBanPanel} className="mm-chip" title="Ban a user" aria-label="Ban user"><i className="fas fa-user-slash" aria-hidden="true"></i><span>Ban</span></button>
+                    <button type="button" onClick={adminActions.openMutePanel} className="mm-chip" title="Mute a user for 1 minute" aria-label="Mute user 1 minute"><i className="fas fa-volume-mute" aria-hidden="true"></i><span>Mute</span></button>
                   </div>
-                </div>
+                </>
               )}
 
-              <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Channels</p>
-                {CHANNELS.map((channel) => (
-                  <button
-                    key={channel.id}
-                    onClick={() => { setActiveChannel(channel); setMobileMenu(false); }}
-                    className={`nav-btn ${activeChannel.id === channel.id ? 'active' : ''}`}
-                  >
-                    # {channel.name}
-                  </button>
+              <p className="mm-label">Online · {onlineUsers.length}</p>
+              <ul className="mm-online">
+                {onlineUsers.length === 0 && (<li className="mm-empty">Nobody online</li>)}
+                {onlineUsers.map((user, idx) => (
+                  <li key={`${user.identityKey || user.uid || idx}`}>
+                    <span className="online-dot" aria-hidden="true"></span>
+                    <span className={`truncate ${roleClass(user.role,'text-gray-400')}`}>{roleBadge(user.role)}{user.username}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
+            </nav>
 
-              <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Muzz</p>
-                <button onClick={goToPrivate} className="nav-btn">
-                  <i className={`fas ${me.isWallet ? 'fa-user-secret' : 'fa-lock'} mr-2`}></i>
-                  Private
+            <footer className="mm-foot">
+              <p id="muzzPushStatus" data-react="1" role="status" className="mm-status">{pushStatus}</p>
+              <div className="mm-foot-row">
+                <span></span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      if (me?.uid) {
+                        db.ref(`status/${me.uid}/online`).set(false);
+                        db.ref(`status/${me.uid}/lastSeen`).set(Date.now());
+                      }
+                    } catch {}
+                    MuzzSession.disconnect();
+                  }}
+                  className="mm-out"
+                  aria-label="Disconnect"
+                >
+                  <i className="fas fa-power-off" aria-hidden="true"></i>Disconnect
                 </button>
-                <p className="text-[10px] text-gray-600 px-1 mt-1 uppercase tracking-wider leading-snug">Wallet + 2M MUZZ · Admin bypass</p>
               </div>
-
-              <div>
-                <p className="text-[10px] text-gray-500 font-bold tracking-[0.28em] mb-2 uppercase">Online — {onlineUsers.length}</p>
-                <div className="space-y-2">
-                  {onlineUsers.length === 0 && (
-                    <p className="text-[11px] text-gray-600 px-1">Nobody online</p>
-                  )}
-                  {onlineUsers.map((user, idx) => (
-                    <div key={`${user.identityKey || user.uid || idx}`} className="flex items-center gap-2 px-1">
-                      <span className="online-dot"></span>
-                      <span className={`text-[12px] truncate font-bold uppercase flex-1 ${roleClass(user.role,'text-gray-400')}`}>
-                        {roleBadge(user.role)}{user.username}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                try {
-                  if (me?.uid) {
-                    db.ref(`status/${me.uid}/online`).set(false);
-                    db.ref(`status/${me.uid}/lastSeen`).set(Date.now());
-                  }
-                } catch {}
-                MuzzSession.disconnect();
-              }}
-              className="mt-4 w-full py-3 text-[11px] uppercase font-black tracking-widest rounded-xl"
-              style={{color:'#ff3a3a', boxShadow:'inset 0 0 0 1px rgba(255,30,30,0.35)'}}
-            >
-              <i className="fas fa-power-off mr-2"></i>Disconnect
-            </button>
+            </footer>
           </aside>
 
           <main className="panel-3d flex-1 min-w-0 relative">
