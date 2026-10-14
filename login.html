@@ -591,12 +591,27 @@
             return 'https://metamask.app.link/dapp/' + dapp.replace(/^\/+/, '');
         }
 
+        async function ensureMainnet(rawProvider) {
+            const msg = 'Switch your wallet to Ethereum mainnet to sign in.';
+            let chainId;
+            try { chainId = await rawProvider.request({ method: 'eth_chainId' }); } catch { chainId = null; }
+            if (chainId && parseInt(chainId, 16) === 1) return;
+            try {
+                await rawProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
+                const after = await rawProvider.request({ method: 'eth_chainId' });
+                if (parseInt(after, 16) !== 1) throw new Error('still not mainnet');
+            } catch (err) {
+                throw new Error(msg);
+            }
+        }
+
         async function requestAccounts(rawProvider) {
             if (typeof ethers === 'undefined') {
                 throw new Error('Wallet library failed to load. Check your network and reload.');
             }
             const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
             await web3.send('eth_requestAccounts', []);
+            await ensureMainnet(rawProvider);
             const signer = web3.getSigner();
             const address = await signer.getAddress();
             if (!address) throw new Error('No wallet account detected.');
