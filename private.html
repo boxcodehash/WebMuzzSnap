@@ -8,7 +8,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" type="text/javascript"></script>
+  <script src="muzz-session.js"></script>
+  <!-- Same E2EE client as the MuzzSnap app (byte-identical copies of app/www/js @ 2592a35). -->
+  <script src="js/private-e2ee.js"></script>
   <style>
     :root{
       --bg:#181d23;
@@ -91,7 +93,7 @@
           <div class="avatar red" id="meAvatar">M</div>
           <div>
             <div style="font-weight:800" id="meName">Node_User</div>
-            <div class="muted small" id="meSubtext">Wallet + 2M MUZZ</div>
+            <div class="muted small" id="meSubtext">Wallet verified</div>
           </div>
         </div>
       </div>
@@ -120,51 +122,36 @@
   </div>
 
   <script>
-    const MUZZ_TOKEN = '0xef3dAa5fDa8Ad7aabFF4658f1F78061fd626B8f0';
-    const MUZZ_MIN_REQUIRED = 2000000;
+    /*
+     * Session: muzz-session.js (Firebase custom token from login.html; uid = wallet). The MUZZ minimum
+     * is checked by the server at sign-in and on every op=me refresh, and by the RTDB rules (muzzUntil).
+     *
+     * Private data follows the MuzzSnap app (rules privateInbox / privateIndex / walletKeys):
+     *   - messages are end-to-end encrypted with the app's own client (js/private-e2ee.js) and written
+     *     only through /api/private?op=prekey|relay (same-origin rewrite to muzzsnap-app);
+     *   - privateIndex/{me}/{peer} and privateIndex/{peer}/{me} carry only 'Encrypted message';
+     *   - nothing private is written under status/.
+     * This browser does NOT publish a wallet key (MuzzE2EE publish): the server keeps one identity per
+     * wallet, so publishing here would replace the key of the user's MuzzSnap app. Messages received are
+     * therefore readable in the app; messages sent from here are kept readable on this browser only.
+     */
     const ONLINE_TTL_MS = 45000;
-    const ADMIN_WALLETS = [
-      '0x208157b5ec396759e8754058108ecf53e32392ff',
-      '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
-      '0x875c5a7794b601f273da58e3c1d10671d16130ec'
-    ];
-    const ERC20_ABI = [
-      'function balanceOf(address) view returns (uint256)',
-      'function decimals() view returns (uint8)'
-    ];
+    const db = MuzzSession.init().database();
+    MuzzSession.proxyAppApi();
 
-    const fbConfig = {
-      apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
-      authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
-      databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
-      projectId: atob('cHVsc2FyaQ=='),
-      storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
-      messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
-      appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
-    };
-
-    if (!firebase.apps.length) firebase.initializeApp(fbConfig);
-    const db = firebase.database();
-
-    // login.html persists wallet in localStorage + sessionStorage
-    const meRaw = sessionStorage.getItem('muzz_wallet_address') || localStorage.getItem('muzz_wallet_address') || '';
-    if (meRaw && !sessionStorage.getItem('muzz_wallet_address')) {
-      try { sessionStorage.setItem('muzz_wallet_address', meRaw); } catch (e) {}
-    }
-    const meWallet = String(meRaw || '').trim().toLowerCase();
-    const storedAdmin = (sessionStorage.getItem('muzz_is_admin') || localStorage.getItem('muzz_is_admin')) === 'true';
-    const isGuest = !meWallet || meWallet.startsWith('guest_');
-    const isAdmin = storedAdmin || ADMIN_WALLETS.includes(meWallet);
-    const meRole = meWallet === ADMIN_WALLETS[0] ? 'ryachu' : meWallet === ADMIN_WALLETS[1] ? 'itsuki' : meWallet === ADMIN_WALLETS[2] ? 'esteban' : 'user';
-    const meName = isGuest ? meRaw.replace('guest_','') : (meRole === 'user' ? `Node_${meWallet.slice(-4) || 'User'}` : (meRole === 'ryachu' ? 'Ryachu' : meRole === 'itsuki' ? 'Itsuki' : 'Esteban'));
-    const meIdentity = isGuest ? `guest_${meName}` : `wallet_${meWallet}`;
-
-    let meUid = null; // Firebase anonymous auth uid — only writable status path
+    let meWallet = '';
+    let meName = '';
+    let meRole = 'user';
+    let meIdentity = '';
+    let isAdmin = false;
     let contacts = [];
     let activeWallet = null;
     let messages = [];
     let inboxUnsub = null;
     let statusTree = {};
+    let registryMap = {};
+    let indexMap = {};
+    let lastRemote = [];
 
     function escapeHtml(str){
       return String(str)
@@ -183,52 +170,10 @@
       return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     }
 
-    async function validatePrivateAccess(){
-      if(!meRaw){ window.location.href = 'login.html'; return false; }
-      if(isGuest){
-        alert('Wallet login is required to access MUZZ PRIVATE.');
-        window.location.href = 'chat.html';
-        return false;
-      }
-      if(isAdmin) return true;
-      if(typeof window.ethereum === 'undefined' || typeof ethers === 'undefined'){
-        alert('A Web3 wallet is required to verify your MUZZ balance.');
-        window.location.href = 'chat.html';
-        return false;
-      }
-      try{
-        const currentChain = await window.ethereum.request({ method:'eth_chainId' });
-        if(currentChain !== '0x1'){
-          try{
-            await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{ chainId:'0x1' }] });
-          }catch(err){
-            alert('Please switch to Ethereum Mainnet to access MUZZ PRIVATE.');
-            window.location.href = 'chat.html';
-            return false;
-          }
-        }
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const token = new ethers.Contract(MUZZ_TOKEN, ERC20_ABI, provider);
-        const [rawBalance, decimals] = await Promise.all([token.balanceOf(meWallet), token.decimals()]);
-        const formattedBalance = parseFloat(ethers.utils.formatUnits(rawBalance, decimals));
-        if(formattedBalance < MUZZ_MIN_REQUIRED){
-          alert('Access to MUZZ PRIVATE requires at least 2,000,000 MUZZ tokens. Your current balance is ' + formattedBalance.toLocaleString(undefined,{maximumFractionDigits:2}) + ' MUZZ.');
-          window.location.href = 'chat.html';
-          return false;
-        }
-        return true;
-      }catch(err){
-        console.error('Private validation failed:', err);
-        alert('Your MUZZ balance could not be verified. Please try again from chat.');
-        window.location.href = 'chat.html';
-        return false;
-      }
-    }
-
     function renderMe(){
       document.getElementById('meName').textContent = meName || 'Node_User';
       document.getElementById('meAvatar').textContent = initials(meName || 'M');
-      document.getElementById('meSubtext').textContent = isAdmin ? 'Admin private access' : 'Wallet + 2M MUZZ verified';
+      document.getElementById('meSubtext').textContent = isAdmin ? 'Admin · wallet verified' : 'Wallet verified';
     }
 
     function renderContacts(){
@@ -268,7 +213,7 @@
               <div class="small muted">Select a wallet conversation.</div>
             </div>
           </div>
-          <div class="pill">2M MUZZ</div>
+          <div class="pill">E2EE</div>
         `;
         return;
       }
@@ -332,23 +277,6 @@
       renderMessages();
     }
 
-    // Pulsari: privateInbox/privateIndex are denied. Only status/{authUid}/** is writable.
-    // Both sides write under their own uid; everyone can READ the status tree and merge threads.
-    function collectThreadMessages(tree, tid){
-      const list = [];
-      Object.keys(tree || {}).forEach(uid => {
-        const node = tree[uid];
-        const box = node && node.privateDm && node.privateDm[tid] && node.privateDm[tid].messages;
-        if(!box || typeof box !== 'object') return;
-        Object.keys(box).forEach(id => {
-          const m = box[id];
-          if(!m) return;
-          list.push({ id: uid + '_' + id, ...m });
-        });
-      });
-      return list.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
-    }
-
     function findLiveForWallet(statusMap, wallet){
       const w = String(wallet || '').toLowerCase();
       if(!w) return {};
@@ -366,97 +294,99 @@
       return best || {};
     }
 
-    function buildPrivateIndex(statusMap){
-      const indexMap = {};
-      Object.values(statusMap || {}).forEach(node => {
-        if(!node || typeof node !== 'object') return;
-        const ownerWallet = String(node.wallet || '').toLowerCase();
-        const pidx = node.privateIndex;
-        if(!pidx || typeof pidx !== 'object') return;
-        if(ownerWallet === meWallet){
-          Object.keys(pidx).forEach(peer => {
-            const w = String(peer || '').toLowerCase();
-            if(!w || w === meWallet) return;
-            const cur = indexMap[w] || {};
-            const incoming = pidx[peer] || {};
-            if(Number(incoming.lastAt||0) >= Number(cur.lastAt||0)){
-              indexMap[w] = { lastText: incoming.lastText || cur.lastText || '', lastAt: Number(incoming.lastAt || cur.lastAt || 0) };
-            }
-          });
-        } else if(ownerWallet && pidx[meWallet]){
-          const incoming = pidx[meWallet] || {};
-          const cur = indexMap[ownerWallet] || {};
-          if(Number(incoming.lastAt||0) >= Number(cur.lastAt||0)){
-            indexMap[ownerWallet] = { lastText: incoming.lastText || cur.lastText || '', lastAt: Number(incoming.lastAt || cur.lastAt || 0) };
-          }
-        }
-      });
-      return indexMap;
+    function threadMessages(remote){
+      const rows = [];
+      return Promise.all((remote || []).map(async (msg) => {
+        if(!msg || !msg.id) return null;
+        const mine = String(msg.from || '').toLowerCase() === meWallet;
+        const cached = await MuzzE2EE.cached(msg.id).catch(() => null);
+        if(cached && cached.text != null) return { id: msg.id, from: msg.from, timestamp: Number(msg.timestamp) || cached.timestamp, text: cached.text };
+        const text = mine ? 'Encrypted message (sent from another device)' : (msg.kind === 'photo' ? 'Encrypted photo. Open the MuzzSnap app to see it.' : 'Encrypted message. Open the MuzzSnap app to read it.');
+        return { id: msg.id, from: msg.from, timestamp: Number(msg.timestamp) || 0, text, locked: true };
+      })).then(list => list.filter(Boolean));
+    }
+
+    let messageGen = 0;
+    function applyRemote(remote){
+      const gen = ++messageGen;
+      threadMessages(remote).then(rows => {
+        if(gen !== messageGen) return;
+        messages = rows;
+        render();
+      }).catch(err => console.error(err));
     }
 
     function openThread(wallet){
       activeWallet = String(wallet || '').toLowerCase();
-      if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} }
-      const tid = threadId(meWallet, activeWallet);
-      const refreshMsgs = () => {
-        messages = collectThreadMessages(statusTree, tid);
-        render();
+      if(inboxUnsub){ try{ inboxUnsub(); }catch(e){} inboxUnsub = null; }
+      messages = []; lastRemote = [];
+      const ref = db.ref('privateInbox/' + threadId(meWallet, activeWallet) + '/messages').limitToLast(100);
+      const handler = snap => {
+        const val = snap.val() || {};
+        lastRemote = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
+        applyRemote(lastRemote);
       };
-      refreshMsgs();
-      // statusTree is kept live by startLiveData; re-render when it changes
-      inboxUnsub = null;
+      ref.on('value', handler, err => console.warn('privateInbox listen', err));
+      inboxUnsub = () => ref.off('value', handler);
       render();
     }
 
+    let privateSending = false;
     async function sendMessage(){
+      if(privateSending) return;
       const input = document.getElementById('messageInput');
       const text = input.value.trim();
-      if(!text || !activeWallet) return;
-      if(!meUid){
-        alert('Still connecting. Wait a second and try again.');
-        return;
-      }
+      if(!text || !activeWallet || !meWallet) return;
+      if(text.length > 4000){ alert('Messages must be 1 to 4000 characters.'); return; }
+      privateSending = true;
+      const peer = activeWallet;
       try{
-        const tid = threadId(meWallet, activeWallet);
-        const payload = {
-          from: meWallet,
-          to: activeWallet,
-          username: meName,
-          text,
-          timestamp: Date.now(),
-          channel: 'private',
-          threadId: tid
-        };
-        await db.ref('status/' + meUid + '/privateDm/' + tid + '/messages').push(payload);
-        const preview = { lastText: text, lastAt: Date.now(), peer: activeWallet };
-        await db.ref('status/' + meUid + '/privateIndex/' + activeWallet).update(preview);
+        const prekey = await MuzzE2EE.claimPrekey(peer);
+        const sentAt = Date.now();
+        const inner = await MuzzE2EE.sealMessage(meWallet, peer, text, { prekey, seq: MuzzE2EE.nextSeq(meWallet, peer), sentAt, kind: 'text' });
+        const relayed = await MuzzE2EE.relay(inner);
+        await MuzzE2EE.rememberPlain({
+          v: 41, id: inner.id, thread: threadId(meWallet, peer), from: meWallet, to: peer, text,
+          timestamp: sentAt, seq: inner.seq || 0, kind: 'text', readAt: 0, peerReadAt: 0, relayed: true,
+          expireAt: Number(relayed && relayed.expireAt) || sentAt + MuzzE2EE.UNREAD_TTL_MS, local: true
+        });
         input.value = '';
         autoResizeInput();
+        const preview = { lastText: 'Encrypted message', lastAt: sentAt };
+        await Promise.all([
+          db.ref('privateIndex/' + meWallet + '/' + peer).update(preview),
+          db.ref('privateIndex/' + peer + '/' + meWallet).update(preview)
+        ]).catch(err => console.warn('privateIndex preview', err));
+        if(activeWallet === peer) applyRemote(lastRemote.concat([{ id: inner.id, from: meWallet, timestamp: sentAt }]));
       }catch(err){
         console.error(err);
-        alert('Could not send private message: ' + (err.message || err));
+        if(err && (err.code === 'no_prekey' || err.code === 'no_peer_key')){
+          alert('This person has not opened MuzzSnap on their phone yet, so the message cannot be encrypted.');
+        }else if(err && err.code === 'unauthorized'){
+          MuzzSession.endSession('session');
+        }else{
+          alert('Could not send private message.');
+        }
+      }finally{
+        privateSending = false;
       }
     }
 
+    // Names come from the wallet itself (same pairs as the rules), never from what a node claims.
     function displayNameFor(entry, wallet){
-      const role = entry && entry.role;
-      if(role === 'ryachu') return 'Ryachu';
-      if(role === 'itsuki') return 'Itsuki';
-      if(role === 'esteban') return 'Esteban';
-      if(entry && entry.username) return entry.username;
-      return 'Node_' + String(wallet).slice(-4);
+      return MuzzSession.identityFor(String(wallet).toLowerCase()).username;
     }
-    function avatarFor(entry){
-      const role = entry && entry.role;
+    function avatarFor(entry, wallet){
+      const role = MuzzSession.identityFor(String(wallet || (entry && entry.wallet) || '').toLowerCase()).role;
       if(role === 'ryachu') return '👑';
       if(role === 'itsuki') return '💎';
       if(role === 'esteban') return '🛡️';
+      if(role === 'admin') return '⚡';
       return '👤';
     }
 
     function mergeContacts(registry, statusMap){
       const map = {};
-      const indexMap = buildPrivateIndex(statusMap);
 
       Object.values(registry || {}).forEach(entry => {
         const wallet = String(entry.wallet || '').toLowerCase();
@@ -465,7 +395,7 @@
         map[wallet] = {
           wallet,
           name: displayNameFor(entry, wallet),
-          avatar: avatarFor(entry),
+          avatar: avatarFor(entry, wallet),
           subtitle: shortenWallet(wallet),
           lastText: '',
           lastAt: Number(entry.lastSeen || 0),
@@ -483,7 +413,7 @@
           map[wallet] = {
             wallet,
             name: displayNameFor(node, wallet),
-            avatar: avatarFor(node),
+            avatar: avatarFor(node, wallet),
             subtitle: shortenWallet(wallet),
             lastText: '',
             lastAt: Number(node.lastSeen || 0),
@@ -495,23 +425,20 @@
         }
       });
 
-      // Always include hardcoded admins so private chat has someone to message
-      ADMIN_WALLETS.forEach(aw => {
-        const wallet = String(aw).toLowerCase();
-        if(!wallet || wallet === meWallet) return;
+      // Always include the admin wallets so private chat has someone to message
+      MuzzSession.ADMINS.forEach(admin => {
+        const wallet = admin.wallet;
+        if(wallet === meWallet || map[wallet]) return;
         const live = findLiveForWallet(statusMap, wallet);
-        const role = wallet === ADMIN_WALLETS[0] ? 'ryachu' : wallet === ADMIN_WALLETS[1] ? 'itsuki' : 'esteban';
-        if(!map[wallet]){
-          map[wallet] = {
-            wallet,
-            name: displayNameFor({ role }, wallet),
-            avatar: avatarFor({ role }),
-            subtitle: shortenWallet(wallet),
-            lastText: '',
-            lastAt: Number(live.lastSeen || 0),
-            online: isFresh(live.lastSeen) && live.online !== false
-          };
-        }
+        map[wallet] = {
+          wallet,
+          name: displayNameFor(null, wallet),
+          avatar: avatarFor(null, wallet),
+          subtitle: shortenWallet(wallet),
+          lastText: '',
+          lastAt: Number(live.lastSeen || 0),
+          online: isFresh(live.lastSeen) && live.online !== false
+        };
       });
 
       Object.keys(indexMap || {}).forEach(wallet => {
@@ -541,50 +468,35 @@
       if(activeWallet && !contacts.some(c => c.wallet === activeWallet)){
         // keep thread open even if contact temporarily missing
       }
-      if(activeWallet){
-        messages = collectThreadMessages(statusMap, threadId(meWallet, activeWallet));
-      }
       render();
     }
 
     function startLiveData(){
-      let registry = {};
-      const refresh = () => mergeContacts(registry, statusTree);
-
-      db.ref('walletRegistry').on('value', snap => {
-        registry = snap.val() || {};
-        refresh();
-      }, err => console.warn('walletRegistry listen', err));
-
-      db.ref('status').on('value', snap => {
-        statusTree = snap.val() || {};
-        refresh();
-      }, err => console.warn('status listen', err));
-
+      const refresh = () => mergeContacts(registryMap, statusTree);
+      db.ref('walletRegistry').on('value', snap => { registryMap = snap.val() || {}; refresh(); }, err => console.warn('walletRegistry listen', err));
+      db.ref('status').on('value', snap => { statusTree = snap.val() || {}; refresh(); }, err => console.warn('status listen', err));
+      db.ref('privateIndex/' + meWallet).on('value', snap => { indexMap = snap.val() || {}; refresh(); }, err => console.warn('privateIndex listen', err));
       setInterval(refresh, 10000);
     }
 
     function markWalletPresence(){
-      if(!meUid) return;
-      const statusRef = db.ref('status/' + meUid);
-      const write = () => {
-        statusRef.update({
-          uid: meUid,
-          username: meName,
-          role: meRole,
-          wallet: meWallet,
-          identityKey: meIdentity,
-          lastSeen: Date.now(),
-          online: true
-        }).catch(err => console.warn('presence write failed', err));
-      };
+      const statusRef = db.ref('status/' + meWallet);
+      const write = () => statusRef.update({
+        uid: meWallet, username: meName, role: meRole, wallet: meWallet,
+        identityKey: meIdentity, lastSeen: Date.now(), online: true
+      }).catch(err => console.warn('presence write failed', err));
       db.ref('.info/connected').on('value', snap => {
         if(snap.val() !== true) return;
         statusRef.child('online').onDisconnect().set(false);
         statusRef.child('lastSeen').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+        db.ref('walletRegistry/' + meWallet + '/active').onDisconnect().set(false);
         write();
       });
       setInterval(write, 20000);
+      db.ref('walletRegistry/' + meWallet).update({
+        wallet: meWallet, username: meName, role: meRole, isWallet: true,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP, active: true
+      }).catch(err => console.warn('walletRegistry write failed', err));
       write();
     }
 
@@ -602,26 +514,20 @@
       }
     });
 
-    (async function boot(){
-      const allowed = await validatePrivateAccess();
-      if(!allowed) return;
-      try {
-        const cred = await firebase.auth().signInAnonymously();
-        meUid = (cred && cred.user && cred.user.uid) || (firebase.auth().currentUser && firebase.auth().currentUser.uid);
-      } catch (err) {
-        console.error(err);
-        alert('Authentication failed. Please reload and try again.');
-        return;
-      }
-      if(!meUid){
-        alert('Authentication failed. Please reload and try again.');
-        return;
-      }
+    // Gate: the Firebase session from login.html (uid = wallet), else back to login.html.
+    MuzzSession.gate((user) => {
+      meWallet = user.uid;
+      const id = MuzzSession.identityFor(meWallet);
+      meName = id.username;
+      meRole = id.role;
+      meIdentity = 'wallet_' + meWallet;
+      isAdmin = MuzzSession.isAdminRole(meRole);
+      MuzzSession.startRefresh();
       autoResizeInput();
       markWalletPresence();
       startLiveData();
       render();
-    })();
+    });
   </script>
 </body>
 </html>
