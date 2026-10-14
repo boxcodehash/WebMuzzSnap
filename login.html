@@ -7,6 +7,8 @@
     <meta name="theme-color" content="#050505">
     <link rel="icon" href="muzzsnap.jpg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -476,31 +478,26 @@
         const statusText = document.getElementById('statusText');
         const signStep = document.getElementById('signStep');
 
-        const ADMIN_WALLETS = [
-            '0x208157b5ec396759e8754058108ecf53e32392ff',
-            '0xfab5835ca14fb3f9f978c5e4d733734e6394e03f',
-            '0x875c5a7794b601f273da58e3c1d10671d16130ec'
-        ];
+        // Secure login (same as muzzsnap-app.vercel.app): SIWE EIP-4361, ONE personal_sign,
+        // chainId 1. /api/session (same origin; vercel.json proxies it to the MuzzSnap server)
+        // checks the signature, the 10M MUZZ balance and the ban list, then returns a Firebase
+        // custom token whose uid is the lowercase wallet. Admin rights come ONLY from that uid in
+        // the Firebase rules; nothing here (or in storage) grants admin.
+        const API = '/api/session';
+        const SESSION_KEYS = ['muzz_wallet_address', 'muzz_login_method', 'muzz_user_role', 'muzz_is_admin', 'muzz_is_guest', 'muzz_username', 'muzz_login_sig', 'muzz_login_msg'];
+        const firebaseConfig = {
+            apiKey: atob('QUl6YVN5QWUxLUpmTmRlME5LSU1kRTdwaGZFWGxtOUphcVVIMGpZ'),
+            authDomain: atob('cHVsc2FyaS5maXJlYmFzZWFwcC5jb20='),
+            databaseURL: atob('aHR0cHM6Ly9wdWxzYXJpLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=='),
+            projectId: atob('cHVsc2FyaQ=='),
+            storageBucket: atob('cHVsc2FyaS5maXJlYmFzZXN0b3JhZ2UuYXBw'),
+            messagingSenderId: atob('ODI0MzA2MzIxMjMz'),
+            appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
-        const SESSION_KEYS = [
-            'muzz_wallet_address',
-            'muzz_user_role',
-            'muzz_is_admin',
-            'muzz_login_method',
-            'muzz_is_guest',
-            'muzz_username'
-        ];
-
-        function setStep(text) {
-            statusText.innerText = text;
-            signStep.innerText = text;
-        }
-
-        function showSigning(show) {
-            signOverlay.classList.toggle('hidden', !show);
-            loadingUI.classList.toggle('hidden', !show);
-        }
-
+        function setStep(text) { statusText.innerText = text; signStep.innerText = text; }
+        function showSigning(show) { signOverlay.classList.toggle('hidden', !show); loadingUI.classList.toggle('hidden', !show); }
         function showError(title, desc) {
             showSigning(false);
             errorBox.classList.remove('hidden');
@@ -508,60 +505,17 @@
             document.getElementById('errorDesc').innerText = desc;
             statusText.innerText = title;
         }
-
-        function normalizeAddress(address) {
-            return String(address || '').trim().toLowerCase();
-        }
-
-        function isMobileUA() {
-            return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-        }
-
-        function isInMetaMaskBrowser() {
-            const ua = navigator.userAgent || '';
-            return /MetaMaskMobile/i.test(ua) || (!!window.ethereum && isMobileUA());
-        }
-
-        function persist(key, value) {
-            sessionStorage.setItem(key, value);
-            try { localStorage.setItem(key, value); } catch (e) {}
-        }
-
-        function restoreSessionFromLocal() {
-            try {
-                const wallet = localStorage.getItem('muzz_wallet_address');
-                const method = localStorage.getItem('muzz_login_method');
-                if (!wallet || !method || wallet.startsWith('guest_')) return false;
-                if (sessionStorage.getItem('muzz_wallet_address')) return true;
-                SESSION_KEYS.forEach((k) => {
-                    const v = localStorage.getItem(k);
-                    if (v != null) sessionStorage.setItem(k, v);
-                });
-                return true;
-            } catch (e) {
-                return false;
-            }
-        }
-
-        function saveUserSession(address) {
-            const normalizedAddress = normalizeAddress(address);
-            const isAdmin = ADMIN_WALLETS.includes(normalizedAddress);
-            persist('muzz_wallet_address', normalizedAddress);
-            persist('muzz_user_role', isAdmin ? 'admin' : 'user');
-            persist('muzz_is_admin', isAdmin ? 'true' : 'false');
-            persist('muzz_login_method', 'wallet');
-            persist('muzz_is_guest', 'false');
+        function isMobileUA() { return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ''); }
+        function clearLegacySession() {
+            SESSION_KEYS.forEach((k) => { try { sessionStorage.removeItem(k); localStorage.removeItem(k); } catch (e) {} });
         }
 
         function getInjectedProvider() {
             const eth = window.ethereum;
             if (!eth) return null;
-            if (Array.isArray(eth.providers) && eth.providers.length) {
-                return eth.providers.find((p) => p && p.isMetaMask) || eth.providers[0];
-            }
+            if (Array.isArray(eth.providers) && eth.providers.length) return eth.providers.find((p) => p && p.isMetaMask) || eth.providers[0];
             return eth;
         }
-
         function discoverInjectedProvider() {
             return new Promise((resolve) => {
                 const found = [];
@@ -570,103 +524,100 @@
                 try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (e) {}
                 setTimeout(() => {
                     window.removeEventListener('eip6963:announceProvider', onAnnounce);
-                    const metamask = found.find((item) => {
-                        const id = `${item.info?.rdns || ''} ${item.info?.name || ''}`.toLowerCase();
-                        return id.includes('metamask');
-                    });
+                    const metamask = found.find((item) => `${item.info?.rdns || ''} ${item.info?.name || ''}`.toLowerCase().includes('metamask'));
                     resolve((metamask || found[0])?.provider || getInjectedProvider());
                 }, 200);
             });
         }
-
         function buildMetaMaskDeepLink() {
             const u = new URL(window.location.href);
-            // Always open login.html inside MetaMask in-app browser
             let path = u.pathname;
-            if (!/login\.html$/i.test(path)) {
-                if (path.endsWith('/')) path += 'login.html';
-                else path = path.replace(/\/[^/]*$/, '/login.html');
-            }
-            const dapp = (u.host + path + '?mm=1').replace(/\/{2,}/g, '/');
-            return 'https://metamask.app.link/dapp/' + dapp.replace(/^\/+/, '');
+            if (!/login\.html$/i.test(path)) path = path.endsWith('/') ? path + 'login.html' : path.replace(/\/[^/]*$/, '/login.html');
+            return 'https://metamask.app.link/dapp/' + (u.host + path + '?mm=1').replace(/\/{2,}/g, '/').replace(/^\/+/, '');
         }
 
-        async function ensureMainnet(rawProvider) {
-            const msg = 'Switch your wallet to Ethereum mainnet to sign in.';
+        const MAINNET_MSG = 'Switch your wallet to Ethereum mainnet to sign in.';
+        async function ensureMainnet(provider) {
             let chainId;
-            try { chainId = await rawProvider.request({ method: 'eth_chainId' }); } catch { chainId = null; }
+            try { chainId = await provider.request({ method: 'eth_chainId' }); } catch { chainId = null; }
             if (chainId && parseInt(chainId, 16) === 1) return;
             try {
-                await rawProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
-                const after = await rawProvider.request({ method: 'eth_chainId' });
+                await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
+                const after = await provider.request({ method: 'eth_chainId' });
                 if (parseInt(after, 16) !== 1) throw new Error('still not mainnet');
             } catch (err) {
-                throw new Error(msg);
+                throw Object.assign(new Error(MAINNET_MSG), { code: 'mainnet' });
             }
         }
 
-        async function requestAccounts(rawProvider) {
-            if (typeof ethers === 'undefined') {
-                throw new Error('Wallet library failed to load. Check your network and reload.');
-            }
-            const web3 = new ethers.providers.Web3Provider(rawProvider, 'any');
-            await web3.send('eth_requestAccounts', []);
-            await ensureMainnet(rawProvider);
-            const signer = web3.getSigner();
-            const address = await signer.getAddress();
-            if (!address) throw new Error('No wallet account detected.');
-            return { web3, signer, address };
+        // PKCE-style binding: only this page (holding the verifier) can redeem its nonce.
+        function b64url(bytes) { let s = ''; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+        function randomVerifier() { const a = new Uint8Array(32); crypto.getRandomValues(a); return b64url(a); }
+        async function challengeFor(v) { return b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)))); }
+
+        async function api(op, body) {
+            const res = await fetch(API + '?op=' + op, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
+            });
+            let data = {};
+            try { data = await res.json(); } catch (e) {}
+            if (!res.ok) throw Object.assign(new Error(data.error || ('http_' + res.status)), { code: data.error || ('http_' + res.status), body: data });
+            return data;
         }
-
-        async function maybeSign(signer, address) {
-            // Signature proves ownership. On flaky mobile deep-links, skip if user already
-            // connected inside MetaMask browser — chat only needs the wallet address.
-            const forceSkip = isMobileUA() && isInMetaMaskBrowser();
-            if (forceSkip) return { signature: '', message: 'mobile-metamask-connect' };
-
-            const issued = new Date().toISOString();
-            const message = [
-                'MuzzSnap Login',
-                '',
-                'Sign this message to verify your wallet.',
-                'You will continue in this browser after signing.',
-                '',
-                'Wallet: ' + address,
-                'Issued: ' + issued
-            ].join('\n');
-
-            try {
-                const signature = await signer.signMessage(message);
-                const recovered = ethers.utils.verifyMessage(message, signature);
-                if (normalizeAddress(recovered) !== normalizeAddress(address)) {
-                    throw new Error('Signature does not match this wallet.');
-                }
-                return { signature, message };
-            } catch (err) {
-                // If user rejects signature on desktop, fail. On mobile, allow connect-only.
-                if (isMobileUA()) {
-                    console.warn('sign skipped on mobile', err);
-                    return { signature: '', message: 'mobile-connect-only' };
-                }
-                throw err;
-            }
+        // Never sign a message that is not for this exact page on Ethereum mainnet.
+        function fieldsMatchPage(f) {
+            return !!f && f.domain === location.host && f.uri === location.origin && /^https:\/\//.test(location.origin)
+                && Number(f.chainId) === 1 && String(f.version) === '1' && /^[a-f0-9]{36}$/.test(String(f.nonce || ''))
+                && !f.requestId && !!f.issuedAt && !!f.expirationTime && typeof f.statement === 'string' && f.statement && !/\n/.test(f.statement);
         }
-
-        async function finishWalletLogin(address, signature, message) {
-            saveUserSession(address);
-            if (signature) sessionStorage.setItem('muzz_login_sig', signature);
-            if (message) sessionStorage.setItem('muzz_login_msg', message);
-            try { sessionStorage.removeItem('muzz_mm_pending'); } catch (e) {}
-            setStep('Verified. Entering chat...');
-            window.location.href = 'chat.html';
+        function buildSiweMessage(f, address) {
+            const lines = [`${f.domain} wants you to sign in with your Ethereum account:`, address, '', String(f.statement), '',
+                `URI: ${f.uri}`, `Version: ${f.version}`, `Chain ID: ${f.chainId}`, `Nonce: ${f.nonce}`, `Issued At: ${f.issuedAt}`];
+            if (f.expirationTime) lines.push(`Expiration Time: ${f.expirationTime}`);
+            return lines.join('\n');
         }
+        function utf8Hex(text) { let out = '0x'; new TextEncoder().encode(String(text)).forEach((b) => { out += b.toString(16).padStart(2, '0'); }); return out; }
 
-        async function connectWithProvider(rawProvider) {
+        const ERRORS = {
+            balance: 'This wallet needs at least 10,000,000 MUZZ on Ethereum mainnet.',
+            banned: 'This wallet is banned.',
+            bad_origin: 'The sign-in server does not accept this site yet.',
+            wrong_origin: 'The sign-in server does not accept this site yet.',
+            wrong_domain: 'This sign-in request is not for this site.',
+            expired: 'The sign-in request expired. Tap the logo to try again.',
+            already_used: 'The sign-in request was already used. Tap the logo to try again.',
+            balance_unavailable: 'Could not check your MUZZ balance right now. Try again in a minute.'
+        };
+
+        async function connectWithProvider(provider) {
             setStep('Requesting account...');
-            const { signer, address } = await requestAccounts(rawProvider);
-            setStep(isMobileUA() ? 'Connecting…' : 'Sign the verification');
-            const { signature, message } = await maybeSign(signer, address);
-            await finishWalletLogin(address, signature, message);
+            const accounts = await provider.request({ method: 'eth_requestAccounts' });
+            const raw = Array.isArray(accounts) ? accounts[0] : '';
+            if (!/^0x[0-9a-fA-F]{40}$/.test(String(raw || ''))) throw new Error('The wallet did not return an address.');
+            await ensureMainnet(provider);
+            const verifier = randomVerifier();
+            const fields = await api('nonce', { challenge: await challengeFor(verifier) });
+            if (!fieldsMatchPage(fields)) throw Object.assign(new Error('wrong_domain'), { code: 'wrong_domain' });
+            const address = ethers.utils.getAddress(String(raw).toLowerCase()); // EIP-55, as SIWE requires
+            const message = buildSiweMessage(fields, address);
+            setStep('Sign the message (no gas, no transaction)');
+            const signature = await provider.request({ method: 'personal_sign', params: [utf8Hex(message), address] });
+            if (!/^0x[0-9a-fA-F]{130}$/.test(String(signature || ''))) throw new Error('The wallet returned an invalid signature.');
+            setStep('Verifying signature and MUZZ balance...');
+            const session = await api('verify', { nonce: fields.nonce, message, signature, verifier });
+            if (!session.customToken || !/^0x[a-f0-9]{40}$/.test(String(session.wallet || ''))) throw new Error('session_failed');
+            try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
+            const cred = await firebase.auth().signInWithCustomToken(session.customToken);
+            if (!cred.user || cred.user.uid !== session.wallet) throw new Error('session_failed');
+            clearLegacySession();
+            // Display hint only; chat.html must trust firebase.auth().currentUser.uid, not this.
+            try { sessionStorage.setItem('muzz_wallet_address', session.wallet); localStorage.setItem('muzz_wallet_address', session.wallet);
+                  sessionStorage.setItem('muzz_login_method', 'siwe'); localStorage.setItem('muzz_login_method', 'siwe'); } catch (e) {}
+            try { sessionStorage.removeItem('muzz_mm_pending'); localStorage.removeItem('muzz_mm_pending'); } catch (e) {}
+            setStep('Verified. Entering chat...');
+            document.documentElement.setAttribute('data-login-done', '1');
+            window.location.replace('chat.html');
         }
 
         async function accessWithWallet() {
@@ -709,8 +660,10 @@
                     );
                     return;
                 }
-                if (/rejected|denied|cancel/i.test(msg)) {
-                    showError('CONNECTION REJECTED', 'Approve the connection in MetaMask and try again.');
+                if (err && err.code === 'mainnet') { showError('WRONG NETWORK', MAINNET_MSG); return; }
+                if (err && ERRORS[err.code]) { showError('SIGN-IN FAILED', ERRORS[err.code]); return; }
+                if (err && (err.code === 4001 || /rejected|denied|cancel/i.test(msg))) {
+                    showError('CONNECTION REJECTED', 'Approve the connection and the signature in your wallet and try again.');
                     return;
                 }
                 showError('AUTH_FAILED', msg);
@@ -718,61 +671,29 @@
         }
 
         function accessWithGuest() {
-            const user = document.getElementById('usernameInput').value.trim();
-            if (!user) {
-                showError('REQUIRED', 'Enter a nickname.');
-                return;
-            }
-
-            persist('muzz_wallet_address', 'guest_' + user);
-            persist('muzz_user_role', 'guest');
-            persist('muzz_is_admin', 'false');
-            persist('muzz_login_method', 'guest');
-            persist('muzz_is_guest', 'true');
-            persist('muzz_username', user);
-            window.location.href = 'chat.html';
+            // Guests cannot pass the Firebase rules (holders only); no fake guest session.
+            showError('WALLET REQUIRED', 'Chat is for MUZZ holders. Tap the logo and sign in with your wallet.');
         }
 
         document.getElementById('usernameInput').addEventListener('keydown', function (e) {
             if (e.key === 'Enter') accessWithGuest();
         });
 
-        // Resume after MetaMask deep link, or restore previous wallet session
+        // Resume after the MetaMask deep link, or reuse a valid Firebase wallet session.
         (async function bootLogin() {
-            restoreSessionFromLocal();
-
-            const pending =
-                sessionStorage.getItem('muzz_mm_pending') === '1' ||
-                localStorage.getItem('muzz_mm_pending') === '1' ||
-                /(?:\?|&)mm=1(?:&|$)/.test(location.search);
-
-            const provider = getInjectedProvider() || (await discoverInjectedProvider());
-
-            if (provider && pending) {
-                try { sessionStorage.removeItem('muzz_mm_pending'); } catch (e) {}
-                try { localStorage.removeItem('muzz_mm_pending'); } catch (e) {}
-                errorBox.classList.add('hidden');
-                showSigning(true);
-                setStep('MetaMask detected — connecting…');
-                try {
-                    await connectWithProvider(provider);
-                } catch (err) {
-                    showSigning(false);
-                    setStep('Tap the logo to connect wallet');
-                    showError(
-                        'TAP THE LOGO',
-                        'MetaMask is ready. Tap the MuzzSnap logo to approve the connection.'
-                    );
-                }
+            const pending = sessionStorage.getItem('muzz_mm_pending') === '1' || localStorage.getItem('muzz_mm_pending') === '1' || /(?:\?|&)mm=1(?:&|$)/.test(location.search);
+            const user = await new Promise((resolve) => { const off = firebase.auth().onAuthStateChanged((u) => { off(); resolve(u); }); });
+            if (user && /^0x[a-f0-9]{40}$/.test(String(user.uid || ''))) {
+                setStep('Session found. Entering chat…');
+                window.location.replace('chat.html');
                 return;
             }
-
-            // Already logged in with wallet → go chat
-            const wallet = sessionStorage.getItem('muzz_wallet_address');
-            const method = sessionStorage.getItem('muzz_login_method');
-            if (wallet && method === 'wallet' && !wallet.startsWith('guest_')) {
-                setStep('Session found. Entering chat…');
-                setTimeout(() => { window.location.href = 'chat.html'; }, 350);
+            if (user) { try { await firebase.auth().signOut(); } catch (e) {} }
+            clearLegacySession();
+            const provider = getInjectedProvider() || (await discoverInjectedProvider());
+            if (provider && pending) {
+                try { sessionStorage.removeItem('muzz_mm_pending'); localStorage.removeItem('muzz_mm_pending'); } catch (e) {}
+                setStep('Wallet detected — tap the logo to sign in');
             }
         })();
     </script>

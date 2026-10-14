@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/session", "destination": "https://muzzsnap-app.vercel.app/api/session" }
+  ]
+}
