@@ -539,7 +539,7 @@
       meRole = id.role;
       meIdentity = 'wallet_' + meWallet;
       isAdmin = MuzzSession.isAdminRole(meRole);
-      if (!isAdmin) {
+      {
         const pick = document.getElementById('muzzidPick');
         if (pick) { pick.hidden = false; MuzzSession.mountPicker(pick, firebase.auth(), () => window.location.reload()); }
       }

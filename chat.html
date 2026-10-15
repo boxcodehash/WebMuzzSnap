@@ -966,7 +966,7 @@
             </header>
 
             <nav className="mm-body custom-scroll" aria-label="Chat menu">
-              {me && !isAdmin && (
+              {me && (
                 <div className="mm-pick" ref={(el) => {
                   if (el && !el.dataset.mounted) {
                     el.dataset.mounted = '1';

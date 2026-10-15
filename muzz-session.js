@@ -90,8 +90,10 @@
   function isMuzzIdName(username, role, address) {
     var name = String(username || '');
     if (!name || name.length > 32 || /^Node_/.test(name)) return false;
+    var admin = adminOf(address);
+    // Admins may show a MuzzID too (rules: their fixed name or their muzzid claim).
+    if (admin) return name !== admin.name;
     if (role && role !== 'user') return false;
-    if (adminOf(address)) return false;
     return true;
   }
 
@@ -109,7 +111,7 @@
   /** Chat label: admin name, else verified MuzzID as @name, else Node_xxxx (no @: not a MuzzID). */
   function labelFor(address, username, role) {
     var admin = adminOf(address);
-    if (admin) return admin.name;
+    if (admin && !isMuzzIdName(username, role, address)) return admin.name;
     if (isMuzzIdName(username, role, address)) {
       var name = String(username);
       return needsTail(name) ? atName(name) + ' \u00b7 ' + norm(address).slice(-4) : atName(name);
@@ -229,10 +231,10 @@
   /** Identity for this wallet: admin pair, else the token's MuzzID (muzzidUntil valid), else Node_ + last 4. */
   function identityWithMuzzId(uid, auth) {
     var base = identityFor(uid);
-    if (adminOf(uid)) return Promise.resolve(base);
+    // Admins too (2026-10-15): the MuzzID replaces the fixed name, the admin role stays.
     // Saved MuzzID choice first (server re-checks ownership and mints the claim), then read the claim.
     return applyPreference(auth).then(function () { return claimedMuzzId(auth); }).then(function (muzzid) {
-      return muzzid ? { username: muzzid, role: 'user' } : base;
+      return muzzid ? { username: muzzid, role: base.role } : base;
     });
   }
 
