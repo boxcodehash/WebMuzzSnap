@@ -578,8 +578,10 @@
 
       // ◆ = verified MuzzID (non-admin, not Node_); label = admin name / MuzzID (+ tail) / Node_xxxx.
       const muzzBadge = (u) => (u && MuzzSession.isMuzzIdName(u.username, u.role, u.wallet || u.userId)
-        ? <span className="muzzid-badge" title={`MuzzID NFT · ${String(u.wallet || u.userId || '').slice(0, 6)}…${String(u.wallet || u.userId || '').slice(-4)}`} aria-label="MuzzID">◆ </span>
+        ? <span className="muzzid-badge" title="MuzzID" aria-label="MuzzID">◆ </span>
         : null);
+      // Visible name: admin name, @muzzid (never the NFT #id), or Node_xxxx. RTDB keeps the claim without @.
+      const shownName = (u) => (u && u.wallet ? MuzzSession.labelFor(u.wallet, u.username, u.role) : (u && u.username) || '');
       const labelOf = (u) => {
         const w = (u && (u.wallet || u.userId)) || '';
         return /^0x[a-fA-F0-9]{40}$/.test(String(w)) ? MuzzSession.labelFor(w, u.username, u.role) : ((u && u.username) || '');
@@ -898,7 +900,7 @@
             alert('This user has no stable identity key.');
             return;
           }
-          if (!confirm(`Ban ${target.username} permanently?`)) {
+          if (!confirm(`Ban ${shownName(target)} permanently?`)) {
             setBanPanel(false);
             return;
           }
@@ -915,7 +917,7 @@
             });
             // Best effort: the rules only let a user remove their own status node, so this is denied.
             if (target.uid) db.ref(`status/${target.uid}`).remove().catch(() => {});
-            alert(`${target.username} has been banned.`);
+            alert(`${shownName(target)} has been banned.`);
           } catch (err) {
             console.error('banUser failed:', err);
             alert(`Could not ban user: ${err.message || err}`);
@@ -931,7 +933,7 @@
           try {
             if (!WALLET_UID.test(String(target.uid || ''))) { alert('This user cannot be muted: no wallet session.'); return; }
             await db.ref(`muted/wallet_${target.uid}`).set(Date.now() + 60000);
-            alert(`${target.username} has been muted for 1 minute.`);
+            alert(`${shownName(target)} has been muted for 1 minute.`);
           } catch (err) {
             console.error('muteUser failed:', err);
             alert(`Could not mute user: ${err.message || err}`);
@@ -956,7 +958,7 @@
               <img src="muzzsnap.jpg" alt="MuzzSnap" className="mm-logo" />
               <div className="min-w-0 flex-1">
                 <h1 className="mm-title">MUZZ<span>SNAP</span></h1>
-                <p className="mm-me truncate">{me.username}</p>
+                <p className="mm-me truncate">{shownName(me)}</p>
               </div>
               <button type="button" className="mm-x lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
                 <i className="fas fa-times" aria-hidden="true"></i>
@@ -1151,7 +1153,7 @@
                   {onlineUsers.filter((user) => !ADMIN_ROLES.includes(user.role)).map((user) => (
                     <button key={user.uid} onClick={() => adminActions.banUser(user)} className="w-full text-left px-3 py-2 text-xs rounded mb-1 flex items-center gap-2">
                       <i className="fas fa-user-slash text-red-500"></i>
-                      <span className="font-bold">{user.username}</span>
+                      <span className="font-bold">{shownName(user)}</span>
                     </button>
                   ))}
                 </div>
@@ -1166,7 +1168,7 @@
                   {onlineUsers.filter((user) => !ADMIN_ROLES.includes(user.role)).map((user) => (
                     <button key={user.uid} onClick={() => adminActions.muteUser(user)} className="w-full text-left px-3 py-2 text-xs rounded mb-1 flex items-center gap-2">
                       <i className="fas fa-volume-mute text-yellow-500"></i>
-                      <span className="font-bold">{user.username}</span>
+                      <span className="font-bold">{shownName(user)}</span>
                     </button>
                   ))}
                 </div>

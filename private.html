@@ -154,7 +154,7 @@
 
     let meWallet = '';
     let meName = '';   // username written to RTDB (exact claim / Node_xxxx, as the rules require)
-    let meLabel = '';  // shown on screen: labelFor (adds the wallet tail to non-ASCII names)
+    let meShown = '';  // shown on screen: labelFor -> @muzzid (+ wallet tail for non-ASCII), admin name or Node_xxxx; never the NFT id
     let meRole = 'user';
     let meIdentity = '';
     let isAdmin = false;
@@ -185,8 +185,8 @@
     }
 
     function renderMe(){
-      document.getElementById('meName').textContent = meLabel || meName || 'Node_User';
-      document.getElementById('meAvatar').textContent = initials(meLabel || meName || 'M');
+      document.getElementById('meName').textContent = meShown || meName || 'Node_User';
+      document.getElementById('meAvatar').textContent = initials(meShown || meName || 'M');
       document.getElementById('meSubtext').textContent = isAdmin ? 'Admin · wallet verified' : 'Wallet verified';
     }
 
@@ -270,7 +270,7 @@
       }
       box.innerHTML = messages.map(msg => {
         const mine = String(msg.from || '').toLowerCase() === meWallet;
-        const name = mine ? (meLabel || meName) : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
+        const name = mine ? (meShown || meName) : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
         return `
           <div class="msg-wrap ${mine ? 'me' : ''}">
             <div class="avatar ${mine ? 'red' : ''}" style="width:36px;height:36px;border-radius:12px;font-size:14px">${escapeHtml(initials(name))}</div>
@@ -535,7 +535,7 @@
       // identityWithMuzzId applies the saved MuzzID choice (applyPreference) before reading the claim.
       const id = await MuzzSession.identityWithMuzzId(meWallet, firebase.auth());
       meName = id.username;
-      meLabel = MuzzSession.labelFor(meWallet, id.username, id.role);
+      meShown = MuzzSession.labelFor(meWallet, id.username, id.role);
       meRole = id.role;
       meIdentity = 'wallet_' + meWallet;
       isAdmin = MuzzSession.isAdminRole(meRole);

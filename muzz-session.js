@@ -56,7 +56,7 @@
   }
 
   /* Display names. claimedMuzzId, isMuzzIdName, needsTail and labelFor are copied as-is from
-     muzzsnap-app app/www/js/muzz-names.js @ 764eb33 (norm/nodeName are its helpers). */
+     muzzsnap-app app/www/js/muzz-names.js @ 764eb33 (labelFor + atName @ 61adc04) (norm/nodeName are its helpers). */
   var WHITELIST = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
   function norm(address) {
     return String(address || '').trim().toLowerCase();
@@ -100,19 +100,27 @@
     try { return /[^\x00-\x7f]/.test(name) && /\p{L}/u.test(name.replace(/[a-z0-9]/g, '')); } catch (e) { return /[^\x00-\x7f]/.test(name); }
   }
 
-  /** Chat label: admin name, else verified MuzzID, else Node_xxxx. */
+  /** A MuzzID is always shown as @name (never the NFT #id). Stored/claimed names have no @. */
+  function atName(name) {
+    var n = String(name || '');
+    return n ? '@' + n : '';
+  }
+
+  /** Chat label: admin name, else verified MuzzID as @name, else Node_xxxx (no @: not a MuzzID). */
   function labelFor(address, username, role) {
     var admin = adminOf(address);
     if (admin) return admin.name;
     if (isMuzzIdName(username, role, address)) {
       var name = String(username);
-      return needsTail(name) ? name + ' \u00b7 ' + norm(address).slice(-4) : name;
+      return needsTail(name) ? atName(name) + ' \u00b7 ' + norm(address).slice(-4) : atName(name);
     }
     return nodeName(address);
   }
 
+
+
   /* PREF_KEY, sessionCall, claimedMuzzToken, listMuzzIds, selectMuzzId, applyPreference and mountPicker:
-     copied as-is from muzzsnap-app app/www/js/muzz-names.js @ e15a0f5. */
+     copied as-is from muzzsnap-app app/www/js/muzz-names.js @ e15a0f5 (mountPicker @ 61adc04). */
   /* Username picker (any MuzzID the wallet holds). The server lists the tokens (op=muzzids) and,
    * on select, re-checks ownerOf by quorum and mints a token with muzzid + muzzidToken. Only that
    * claim counts; the choice is kept in localStorage only as a preference for the next login. */
@@ -201,7 +209,8 @@
       usable.forEach(function (t) {
         var o = document.createElement('option');
         o.value = String(t.tokenId);
-        o.textContent = t.name + (t.primary ? ' (primary)' : '');
+        // Only @name is visible. The token id is the internal option value, never text or title.
+        o.textContent = atName(t.name);
         if (current ? String(t.tokenId) === current : t.primary) o.selected = true;
         sel.appendChild(o);
       });
@@ -215,6 +224,7 @@
       });
     }, function () { container.hidden = true; });
   }
+
 
   /** Identity for this wallet: admin pair, else the token's MuzzID (muzzidUntil valid), else Node_ + last 4. */
   function identityWithMuzzId(uid, auth) {
@@ -367,6 +377,7 @@
     isMuzzIdName: isMuzzIdName,
     needsTail: needsTail,
     labelFor: labelFor,
+    atName: atName,
     PREF_KEY: PREF_KEY,
     listMuzzIds: listMuzzIds,
     selectMuzzId: selectMuzzId,
