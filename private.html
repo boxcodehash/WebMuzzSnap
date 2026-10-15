@@ -97,6 +97,7 @@
           <div>
             <div style="font-weight:800" id="meName">Node_User</div>
             <div class="muted small" id="meSubtext">Wallet verified</div>
+            <div id="muzzidPick" class="muzzid-pick-wrap" hidden style="font-size:10px;color:#8a8a8a;margin-top:4px"></div>
           </div>
         </div>
       </div>
@@ -152,7 +153,8 @@
     MuzzSession.proxyAppApi();
 
     let meWallet = '';
-    let meName = '';
+    let meName = '';   // username written to RTDB (exact claim / Node_xxxx, as the rules require)
+    let meLabel = '';  // shown on screen: labelFor (adds the wallet tail to non-ASCII names)
     let meRole = 'user';
     let meIdentity = '';
     let isAdmin = false;
@@ -183,8 +185,8 @@
     }
 
     function renderMe(){
-      document.getElementById('meName').textContent = meName || 'Node_User';
-      document.getElementById('meAvatar').textContent = initials(meName || 'M');
+      document.getElementById('meName').textContent = meLabel || meName || 'Node_User';
+      document.getElementById('meAvatar').textContent = initials(meLabel || meName || 'M');
       document.getElementById('meSubtext').textContent = isAdmin ? 'Admin · wallet verified' : 'Wallet verified';
     }
 
@@ -268,7 +270,7 @@
       }
       box.innerHTML = messages.map(msg => {
         const mine = String(msg.from || '').toLowerCase() === meWallet;
-        const name = mine ? meName : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
+        const name = mine ? (meLabel || meName) : (contacts.find(c => c.wallet === activeWallet) || {}).name || 'User';
         return `
           <div class="msg-wrap ${mine ? 'me' : ''}">
             <div class="avatar ${mine ? 'red' : ''}" style="width:36px;height:36px;border-radius:12px;font-size:14px">${escapeHtml(initials(name))}</div>
@@ -530,11 +532,17 @@
     // Gate: the Firebase session from login.html (uid = wallet), else back to login.html.
     MuzzSession.gate(async (user) => {
       meWallet = user.uid;
+      // identityWithMuzzId applies the saved MuzzID choice (applyPreference) before reading the claim.
       const id = await MuzzSession.identityWithMuzzId(meWallet, firebase.auth());
       meName = id.username;
+      meLabel = MuzzSession.labelFor(meWallet, id.username, id.role);
       meRole = id.role;
       meIdentity = 'wallet_' + meWallet;
       isAdmin = MuzzSession.isAdminRole(meRole);
+      if (!isAdmin) {
+        const pick = document.getElementById('muzzidPick');
+        if (pick) { pick.hidden = false; MuzzSession.mountPicker(pick, firebase.auth(), () => window.location.reload()); }
+      }
       MuzzSession.startRefresh();
       autoResizeInput();
       markWalletPresence();

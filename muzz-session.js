@@ -111,11 +111,117 @@
     return nodeName(address);
   }
 
+  /* PREF_KEY, sessionCall, claimedMuzzToken, listMuzzIds, selectMuzzId, applyPreference and mountPicker:
+     copied as-is from muzzsnap-app app/www/js/muzz-names.js @ e15a0f5. */
+  /* Username picker (any MuzzID the wallet holds). The server lists the tokens (op=muzzids) and,
+   * on select, re-checks ownerOf by quorum and mints a token with muzzid + muzzidToken. Only that
+   * claim counts; the choice is kept in localStorage only as a preference for the next login. */
+  var PREF_KEY = 'muzz_muzzid_pref';
+
+  function sessionCall(auth, op, method, body) {
+    var user = auth && auth.currentUser;
+    if (!user || typeof fetch !== 'function') return Promise.reject(new Error('no_session'));
+    return user.getIdToken().then(function (token) {
+      var init = { method: method, credentials: 'same-origin', headers: { authorization: 'Bearer ' + token } };
+      if (body) { init.headers['content-type'] = 'application/json'; init.body = JSON.stringify(body); }
+      return fetch('/api/session?op=' + op, init);
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) { var e = new Error(String((data && data.error) || res.status)); e.code = data && data.error; throw e; }
+        return data;
+      });
+    });
+  }
+
+  function claimedMuzzToken(auth) {
+    var user = auth && auth.currentUser;
+    if (!user || typeof user.getIdTokenResult !== 'function') return Promise.resolve('');
+    return user.getIdTokenResult().then(function (r) {
+      var c = (r && r.claims) || {};
+      return Number(c.muzzidUntil) * 1000 > Date.now() && typeof c.muzzidToken === 'string' ? c.muzzidToken : '';
+    }, function () { return ''; });
+  }
+
+  function listMuzzIds(auth) {
+    return sessionCall(auth, 'muzzids', 'GET').then(function (d) {
+      var tokens = Array.isArray(d && d.tokens) ? d.tokens : [];
+      return { ok: d && d.ok === true, selected: String((d && d.selected) || ''), tokens: tokens.filter(function (t) {
+        return t && /^[1-9][0-9]{0,9}$/.test(String(t.tokenId)) && typeof t.name === 'string';
+      }) };
+    });
+  }
+
+  /** Select a token: the server verifies ownership; then sign in with the new token. */
+  function selectMuzzId(auth, tokenId) {
+    return sessionCall(auth, 'muzzid-select', 'POST', { tokenId: String(tokenId) }).then(function (d) {
+      if (!d || typeof d.customToken !== 'string') throw new Error('no_token');
+      return auth.signInWithCustomToken(d.customToken).then(function () {
+        try { localStorage.setItem(PREF_KEY, String(tokenId)); } catch (e) { /* private mode */ }
+        return { muzzid: String(d.muzzid || ''), tokenId: String(tokenId) };
+      });
+    });
+  }
+
+  /** At page start: if the saved preference differs from the claim, ask the server for it once. */
+  function applyPreference(auth) {
+    var pref = '';
+    try { pref = String(localStorage.getItem(PREF_KEY) || ''); } catch (e) { pref = ''; }
+    if (!/^[1-9][0-9]{0,9}$/.test(pref)) return Promise.resolve(false);
+    return claimedMuzzToken(auth).then(function (current) {
+      if (current === pref) return false;
+      return selectMuzzId(auth, pref).then(function () { return true; }, function (err) {
+        // Not the owner any more (or name not allowed): forget it. RPC down: keep it for next time.
+        if (err && (err.code === 'not_owner' || err.code === 'name_not_allowed' || err.code === 'bad_token')) {
+          try { localStorage.removeItem(PREF_KEY); } catch (e) { /* ignore */ }
+        }
+        return false;
+      });
+    }, function () { return false; });
+  }
+
+  /** Small native <select> for any page; names go in via textContent only. */
+  function mountPicker(container, auth, onChanged) {
+    if (!container || typeof document === 'undefined') return;
+    var label = document.createElement('label');
+    label.className = 'muzzid-pick';
+    var span = document.createElement('span');
+    span.textContent = 'Username: choose MuzzID';
+    var sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Username: choose MuzzID');
+    sel.disabled = true;
+    label.appendChild(span);
+    label.appendChild(sel);
+    container.textContent = '';
+    container.appendChild(label);
+    Promise.all([listMuzzIds(auth), claimedMuzzToken(auth)]).then(function (res) {
+      var list = res[0];
+      var usable = list.tokens.filter(function (t) { return t.usable; });
+      if (!usable.length) { container.hidden = true; return; }
+      var current = res[1] || list.selected || '';
+      usable.forEach(function (t) {
+        var o = document.createElement('option');
+        o.value = String(t.tokenId);
+        o.textContent = t.name + (t.primary ? ' (primary)' : '');
+        if (current ? String(t.tokenId) === current : t.primary) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
+      sel.addEventListener('change', function () {
+        sel.disabled = true;
+        selectMuzzId(auth, sel.value).then(function (r) { if (onChanged) onChanged(r); }, function () {
+          span.textContent = 'Username: could not switch (try again)';
+          sel.disabled = false;
+        });
+      });
+    }, function () { container.hidden = true; });
+  }
+
   /** Identity for this wallet: admin pair, else the token's MuzzID (muzzidUntil valid), else Node_ + last 4. */
   function identityWithMuzzId(uid, auth) {
     var base = identityFor(uid);
     if (adminOf(uid)) return Promise.resolve(base);
-    return claimedMuzzId(auth).then(function (muzzid) {
+    // Saved MuzzID choice first (server re-checks ownership and mints the claim), then read the claim.
+    return applyPreference(auth).then(function () { return claimedMuzzId(auth); }).then(function (muzzid) {
       return muzzid ? { username: muzzid, role: 'user' } : base;
     });
   }
@@ -261,6 +367,12 @@
     isMuzzIdName: isMuzzIdName,
     needsTail: needsTail,
     labelFor: labelFor,
+    PREF_KEY: PREF_KEY,
+    listMuzzIds: listMuzzIds,
+    selectMuzzId: selectMuzzId,
+    applyPreference: applyPreference,
+    claimedMuzzToken: claimedMuzzToken,
+    mountPicker: mountPicker,
     isAdminRole: isAdminRole,
     init: init,
     gate: gate,

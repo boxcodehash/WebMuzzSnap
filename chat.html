@@ -358,6 +358,8 @@
     .bubble-3d.muzz-sticker-only, .bubble-3d.me.muzz-sticker-only { background: transparent; border: none; box-shadow: none; padding: 2px; }
     .muzz-sticker-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 14px; max-height: 280px; overflow-y: auto; }
     .muzzid-badge { color: #f87171; font-weight: 800; }
+    .mm-pick .muzzid-pick { display: flex; flex-direction: column; gap: 3px; margin: 8px 6px 2px; font-size: 9.5px; color: #8a8a8a; }
+    .mm-pick select { background: #111; color: #f87171; border: 1px solid rgba(255,58,58,0.35); border-radius: 8px; padding: 4px 6px; font-size: 11px; font-weight: 700; }
     /* Menu: muzzsnap-app db004cb (chat.html). Root has no bottom bar, so --muzz-nav-h is 0 here. */
     :root { --muzz-nav-h: 0px; }
     .sidebar.mm { display: flex; flex-direction: column; }
@@ -962,6 +964,14 @@
             </header>
 
             <nav className="mm-body custom-scroll" aria-label="Chat menu">
+              {me && !isAdmin && (
+                <div className="mm-pick" ref={(el) => {
+                  if (el && !el.dataset.mounted) {
+                    el.dataset.mounted = '1';
+                    MuzzSession.mountPicker(el, firebase.auth(), () => window.location.reload());
+                  }
+                }}></div>
+              )}
               <p className="mm-label">Chat</p>
               {CHANNELS.map((channel) => (
                 <button
