@@ -22,11 +22,12 @@
     appId: atob('MTo4MjQzMDYzMjEyMzM6d2ViOjJjOWJmYTAyMTcwYTE3ZDU2MGI1NzA=')
   };
 
-  /* The four admin wallets, same list as MuzzSnap app/www/js/muzz-names.js (MuzzNames.ADMINS) and the
+  /* The five admin wallets, same list as MuzzSnap app/www/js/muzz-names.js (MuzzNames.ADMINS) and the
      RTDB rules. DISPLAY ONLY: decides which buttons are shown. */
   var ADMINS = Object.freeze([
     Object.freeze({ wallet: '0x208157b5ec396759e8754058108ecf53e32392ff', name: 'RYASHU', role: 'ryachu' }),
     Object.freeze({ wallet: '0x3e1c5e792fc73e8a2b72df4b0a8a8a462b2ce501', name: 'ITZUKI', role: 'itsuki' }),
+    Object.freeze({ wallet: '0x8dfb3589df670af56f9ef13f8234ab1b4fd36e5c', name: 'RYASHU', role: 'ryachu' }),
     Object.freeze({ wallet: '0x875c5a7794b601f273da58e3c1d10671d16130ec', name: 'Esteban', role: 'esteban' }),
     Object.freeze({ wallet: '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a', name: 'Node_6bcb8a', role: 'admin' })
   ]);
@@ -52,6 +53,71 @@
     var admin = adminOf(uid);
     if (admin) return { username: admin.name, role: admin.role };
     return { username: 'Node_' + String(uid).slice(-4), role: 'user' };
+  }
+
+  /* Display names. claimedMuzzId, isMuzzIdName, needsTail and labelFor are copied as-is from
+     muzzsnap-app app/www/js/muzz-names.js @ 764eb33 (norm/nodeName are its helpers). */
+  var WHITELIST = '0xbeec8f1fee64627f83f0188eae621f367a6bcb8a';
+  function norm(address) {
+    return String(address || '').trim().toLowerCase();
+  }
+  function nodeName(address) {
+    var wallet = norm(address);
+    if (!/^0x[a-f0-9]{40}$/.test(wallet)) return 'Node_User';
+    return 'Node_' + wallet.slice(wallet === WHITELIST ? -6 : -4);
+  }
+
+  /**
+   * MuzzID (on-chain username). The server reads nameOf(wallet) on the MuzzID contract after SIWE
+   * and puts it in the Firebase token as the `muzzid` claim (with muzzidUntil). The RTDB rules only
+   * accept a non-Node_ username from a non-admin when it equals that claim, so a stored name that
+   * is not Node_xxxx and not an admin name is a server-verified MuzzID.
+   */
+  function claimedMuzzId(auth) {
+    try {
+      var user = auth && auth.currentUser;
+      if (!user || typeof user.getIdTokenResult !== 'function') return Promise.resolve('');
+      return user.getIdTokenResult().then(function (res) {
+        var c = (res && res.claims) || {};
+        var ok = typeof c.muzzid === 'string' && c.muzzid && Number(c.muzzidUntil) * 1000 > Date.now() + 60000;
+        return ok ? c.muzzid : '';
+      }, function () { return ''; });
+    } catch (err) {
+      return Promise.resolve('');
+    }
+  }
+
+  function isMuzzIdName(username, role, address) {
+    var name = String(username || '');
+    if (!name || name.length > 32 || /^Node_/.test(name)) return false;
+    if (role && role !== 'user') return false;
+    if (adminOf(address)) return false;
+    return true;
+  }
+
+  /** Non-ASCII letters can imitate another name (Cyrillic "а" vs Latin "a"): show the wallet tail too. */
+  function needsTail(name) {
+    try { return /[^\x00-\x7f]/.test(name) && /\p{L}/u.test(name.replace(/[a-z0-9]/g, '')); } catch (e) { return /[^\x00-\x7f]/.test(name); }
+  }
+
+  /** Chat label: admin name, else verified MuzzID, else Node_xxxx. */
+  function labelFor(address, username, role) {
+    var admin = adminOf(address);
+    if (admin) return admin.name;
+    if (isMuzzIdName(username, role, address)) {
+      var name = String(username);
+      return needsTail(name) ? name + ' \u00b7 ' + norm(address).slice(-4) : name;
+    }
+    return nodeName(address);
+  }
+
+  /** Identity for this wallet: admin pair, else the token's MuzzID (muzzidUntil valid), else Node_ + last 4. */
+  function identityWithMuzzId(uid, auth) {
+    var base = identityFor(uid);
+    if (adminOf(uid)) return Promise.resolve(base);
+    return claimedMuzzId(auth).then(function (muzzid) {
+      return muzzid ? { username: muzzid, role: 'user' } : base;
+    });
   }
 
   function isAdminRole(role) { return ADMIN_ROLES.indexOf(role) >= 0; }
@@ -190,6 +256,11 @@
     REFRESH_MS: REFRESH_MS,
     adminOf: adminOf,
     identityFor: identityFor,
+    identityWithMuzzId: identityWithMuzzId,
+    claimedMuzzId: claimedMuzzId,
+    isMuzzIdName: isMuzzIdName,
+    needsTail: needsTail,
+    labelFor: labelFor,
     isAdminRole: isAdminRole,
     init: init,
     gate: gate,

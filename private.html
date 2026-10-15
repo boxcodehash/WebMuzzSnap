@@ -385,9 +385,9 @@
       }
     }
 
-    // Names come from the wallet itself (same pairs as the rules), never from what a node claims.
+    // Admin names come from the wallet; a non-admin name shows only if it is a MuzzID the rules accepted, else Node_xxxx.
     function displayNameFor(entry, wallet){
-      return MuzzSession.identityFor(String(wallet).toLowerCase()).username;
+      return MuzzSession.labelFor(String(wallet).toLowerCase(), entry && entry.username, entry && entry.role);
     }
     function avatarFor(entry, wallet){
       const role = MuzzSession.identityFor(String(wallet || (entry && entry.wallet) || '').toLowerCase()).role;
@@ -528,9 +528,9 @@
     });
 
     // Gate: the Firebase session from login.html (uid = wallet), else back to login.html.
-    MuzzSession.gate((user) => {
+    MuzzSession.gate(async (user) => {
       meWallet = user.uid;
-      const id = MuzzSession.identityFor(meWallet);
+      const id = await MuzzSession.identityWithMuzzId(meWallet, firebase.auth());
       meName = id.username;
       meRole = id.role;
       meIdentity = 'wallet_' + meWallet;

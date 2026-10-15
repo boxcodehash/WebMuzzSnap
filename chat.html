@@ -357,6 +357,7 @@
     }
     .bubble-3d.muzz-sticker-only, .bubble-3d.me.muzz-sticker-only { background: transparent; border: none; box-shadow: none; padding: 2px; }
     .muzz-sticker-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 14px; max-height: 280px; overflow-y: auto; }
+    .muzzid-badge { color: #f87171; font-weight: 800; }
     /* Menu: muzzsnap-app db004cb (chat.html). Root has no bottom bar, so --muzz-nav-h is 0 here. */
     :root { --muzz-nav-h: 0px; }
     .sidebar.mm { display: flex; flex-direction: column; }
@@ -573,6 +574,15 @@
         return '';
       };
 
+      // ◆ = verified MuzzID (non-admin, not Node_); label = admin name / MuzzID (+ tail) / Node_xxxx.
+      const muzzBadge = (u) => (u && MuzzSession.isMuzzIdName(u.username, u.role, u.wallet || u.userId)
+        ? <span className="muzzid-badge" title={`MuzzID NFT · ${String(u.wallet || u.userId || '').slice(0, 6)}…${String(u.wallet || u.userId || '').slice(-4)}`} aria-label="MuzzID">◆ </span>
+        : null);
+      const labelOf = (u) => {
+        const w = (u && (u.wallet || u.userId)) || '';
+        return /^0x[a-fA-F0-9]{40}$/.test(String(w)) ? MuzzSession.labelFor(w, u.username, u.role) : ((u && u.username) || '');
+      };
+
       const requireAdmin = () => {
         if (!isAdmin) {
           alert('Admin only.');
@@ -589,9 +599,12 @@
         let connectedRef = null;
         let stopRefresh = null;
 
-        const startSession = (user) => {
+        let cancelled = false;
+        const startSession = async (user) => {
           const wallet = user.uid;
-          const { username, role } = identityFor(wallet);
+          // Admin pair, else the MuzzID from the server-signed token (muzzidUntil valid), else Node_ + last 4.
+          const { username, role } = await MuzzSession.identityWithMuzzId(wallet, firebase.auth());
+          if (cancelled) return;
           const identityKey = 'wallet_' + wallet;
           const currentUser = {
             uid: user.uid,
@@ -652,6 +665,7 @@
         const unsubAuth = MuzzSession.gate(startSession);
 
         return () => {
+          cancelled = true;
           try { if (statusRef && statusRef._beat) clearInterval(statusRef._beat); } catch {}
           try {
             if (statusRef) {
@@ -991,7 +1005,7 @@
                 {onlineUsers.map((user, idx) => (
                   <li key={`${user.identityKey || user.uid || idx}`}>
                     <span className="online-dot" aria-hidden="true"></span>
-                    <span className={`truncate ${roleClass(user.role,'text-gray-400')}`}>{roleBadge(user.role)}{user.username}</span>
+                    <span className={`truncate ${roleClass(user.role,'text-gray-400')}`}>{roleBadge(user.role)}{muzzBadge(user)}{labelOf(user)}</span>
                   </li>
                 ))}
               </ul>
@@ -1081,7 +1095,7 @@
 
                     <div className={`flex flex-col ${msg.userId === me.uid ? 'items-end' : 'items-start'}`}>
                       <span className={`text-[10px] font-black mb-1 uppercase px-1 ${roleClass(msg.role,'text-gray-500')}`}>
-                        {roleBadge(msg.role)}{msg.username} {muted && '🔇'}
+                        {roleBadge(msg.role)}{muzzBadge(msg)}{labelOf(msg)} {muted && '🔇'}
                       </span>
                       <div className={`bubble-3d ${msg.userId === me.uid ? 'me' : 'other'} ${muted ? 'muted' : ''} ${isStickerOnly(msg.content) ? 'muzz-sticker-only' : ''}`}>
                         {renderContent(msg.content)}
